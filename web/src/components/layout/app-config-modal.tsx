@@ -88,7 +88,25 @@ export function AppConfigModal() {
                 setRemoteStorageSyncEnabled(syncS3);
                 setRemoteWebDAVStorageSyncEnabled(syncWebDAV);
                 if (remoteConfig) {
-                    Object.entries(remoteConfig)
+                    // API keys are intentionally local-only. Older versions
+                    // applied the cloud payload verbatim, so a login could
+                    // replace the browser's saved keys with empty strings.
+                    const localConfig = useConfigStore.getState().config;
+                    const localChannels = normalizeLocalChannels(localConfig);
+                    const remoteChannels = Array.isArray(remoteConfig.localChannels) ? remoteConfig.localChannels : null;
+                    const mergedChannels = remoteChannels
+                        ? remoteChannels.map((remoteChannel) => {
+                            const localChannel = localChannels.find((item) => item.id === remoteChannel.id || (item.name === remoteChannel.name && item.baseUrl === remoteChannel.baseUrl));
+                            return { ...remoteChannel, apiKey: localChannel?.apiKey || remoteChannel.apiKey || "" };
+                        })
+                        : localChannels;
+                    const mergedConfig = {
+                        ...remoteConfig,
+                        apiKey: remoteConfig.apiKey || localConfig.apiKey,
+                        baseUrl: remoteConfig.baseUrl || localConfig.baseUrl,
+                        localChannels: mergedChannels,
+                    };
+                    Object.entries(mergedConfig)
                         .forEach(([key, value]) => updateConfig(key as keyof AiConfig, value as never));
                 }
                 updateConfig("syncStorageConfig", syncS3);
@@ -196,10 +214,10 @@ export function AppConfigModal() {
         const nextVideoModels = filterChannelModelsByCapability(normalized, "video");
         const nextTextModels = filterChannelModelsByCapability(normalized, "text");
         const nextAudioModels = filterChannelModelsByCapability(normalized, "audio");
-        const imageModel = nextImageModels.includes(config.imageModel) ? config.imageModel : nextImageModels[0] || "";
-        const videoModel = nextVideoModels.includes(config.videoModel) ? config.videoModel : nextVideoModels[0] || "";
-        const textModel = nextTextModels.includes(config.textModel) ? config.textModel : nextTextModels[0] || "";
-        const audioModel = nextAudioModels.includes(config.audioModel) ? config.audioModel : nextAudioModels[0] || "";
+        const imageModel = nextImageModels.includes(config.imageModel) ? config.imageModel : "";
+        const videoModel = nextVideoModels.includes(config.videoModel) ? config.videoModel : "";
+        const textModel = nextTextModels.includes(config.textModel) ? config.textModel : "";
+        const audioModel = nextAudioModels.includes(config.audioModel) ? config.audioModel : "";
         updateConfig("localChannels", normalized);
         updateConfig("models", models);
         updateConfig("imageModels", nextImageModels);
