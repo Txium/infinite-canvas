@@ -1,4 +1,5 @@
 import { apiGet, compactApiParams } from "@/services/api/request";
+import { starterAssets } from "@/constant/starter-library";
 
 export type AssetLibraryItem = {
     id: string;
@@ -29,5 +30,15 @@ export type AssetLibraryQuery = {
 };
 
 export async function fetchAssetLibrary(query: AssetLibraryQuery = {}) {
-    return apiGet<AssetLibraryResponse>("/api/assets", compactApiParams(query));
+    try {
+        const remote = await apiGet<AssetLibraryResponse>("/api/assets", compactApiParams(query));
+        if (remote.total > 0) return remote;
+    } catch {}
+    const keyword = query.keyword?.trim().toLowerCase() || "";
+    const tags = query.tag || [];
+    const filtered = starterAssets.filter((item) => (!keyword || `${item.title} ${item.content} ${item.tags.join(" ")}`.toLowerCase().includes(keyword)) && (!query.type || item.type === query.type) && (!tags.length || tags.every((tag) => item.tags.includes(tag))));
+    const size = query.pageSize || 12;
+    const start = ((query.page || 1) - 1) * size;
+    return { items: filtered.slice(start, start + size), tags: Array.from(new Set(starterAssets.flatMap((item) => item.tags))), total: filtered.length };
 }
+
