@@ -30,7 +30,14 @@ export async function fetchUserConfig(token: string) {
 }
 
 export async function syncUserModelConfig(token: string, config: AiConfig) {
-    return apiPost<UserConfigPayload>("/api/v1/user-config/model", { config }, token);
+    // API keys stay in the browser. Do not upload them to the account config,
+    // and do not let a later login overwrite the local secrets with blanks.
+    const safeConfig: AiConfig = {
+        ...config,
+        apiKey: "",
+        localChannels: (config.localChannels || []).map((channel) => ({ ...channel, apiKey: "" })),
+    };
+    return apiPost<UserConfigPayload>("/api/v1/user-config/model", { config: safeConfig }, token);
 }
 
 export type UserStorageProviders = {
