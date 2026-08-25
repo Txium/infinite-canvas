@@ -98,11 +98,13 @@ export const defaultConfig: AiConfig = {
     channelMode: "local",
     baseUrl: "https://api.openai.com",
     apiKey: "",
-    model: "gpt-image-2",
-    imageModel: "gpt-image-2",
-    videoModel: "grok-imagine-video",
-    textModel: "gpt-5.5",
-    audioModel: "gpt-4o-mini-tts",
+    // Keep model slots empty until the user explicitly chooses one from the
+    // complete channel list. This avoids silently charging a default model.
+    model: "",
+    imageModel: "",
+    videoModel: "",
+    textModel: "",
+    audioModel: "",
     audioVoice: "alloy",
     audioFormat: "mp3",
     audioSpeed: "1",
@@ -195,11 +197,11 @@ function resolveEffectiveConfig(config: AiConfig, modelChannel: AdminPublicSetti
     const imageModels = filterChannelModelsByCapability(modelChannel.channels, "image", models);
     const videoModels = filterChannelModelsByCapability(modelChannel.channels, "video", models);
     const audioModels = filterChannelModelsByCapability(modelChannel.channels, "audio", models);
-    const fallbackTextModel = validDefault(modelChannel.defaultTextModel, textModels) || preferredModel(textModels, isTextModelName) || textModels[0] || "";
-    const fallbackModel = validDefault(modelChannel.defaultModel, textModels) || fallbackTextModel;
-    const fallbackImageModel = validDefault(modelChannel.defaultImageModel, imageModels) || preferredModel(imageModels, isImageModelName);
-    const fallbackVideoModel = validDefault(modelChannel.defaultVideoModel, videoModels) || preferredModel(videoModels, isVideoModelName);
-    const fallbackAudioModel = preferredModel(audioModels, isAudioModelName);
+    const fallbackTextModel = validDefault(modelChannel.defaultTextModel, textModels);
+    const fallbackModel = validDefault(modelChannel.defaultModel, textModels);
+    const fallbackImageModel = validDefault(modelChannel.defaultImageModel, imageModels);
+    const fallbackVideoModel = validDefault(modelChannel.defaultVideoModel, videoModels);
+    const fallbackAudioModel = "";
     return {
         ...config,
         channelMode,
@@ -406,10 +408,10 @@ export const useConfigStore = create<ConfigStore>()(
                         syncStorageConfig: config.syncStorageConfig === true,
                         syncWebDAVStorageConfig: config.syncWebDAVStorageConfig === true,
                         channelMode: config.channelMode || "remote",
-                        imageModel: config.imageModel || config.model,
-                        videoModel: config.videoModel || "grok-imagine-video",
-                        textModel: config.textModel || config.model,
-                        audioModel: config.audioModel || defaultConfig.audioModel,
+                        imageModel: config.imageModel || "",
+                        videoModel: config.videoModel || "",
+                        textModel: config.textModel || "",
+                        audioModel: config.audioModel || "",
                         audioVoice: config.audioVoice || defaultConfig.audioVoice,
                         audioFormat: config.audioFormat || defaultConfig.audioFormat,
                         audioSpeed: config.audioSpeed || defaultConfig.audioSpeed,
