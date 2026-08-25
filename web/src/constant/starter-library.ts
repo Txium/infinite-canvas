@@ -3,6 +3,21 @@ import type { Prompt } from "@/services/api/prompts";
 
 const createdAt = "2026-01-01T00:00:00.000Z";
 
+const starterCoverUrls: Record<string, string> = {
+    "product-hero": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1200&q=82",
+    "ecommerce-detail": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1200&q=82",
+    "fashion-editorial": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1200&q=82",
+    poster: "https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=1200&q=82",
+    food: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=82",
+    interior: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=82",
+    "ip-character": "https://images.unsplash.com/photo-1577083552431-6e5fd01aa342?auto=format&fit=crop&w=1200&q=82",
+    storyboard: "https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=1200&q=82",
+    "cinematic-video": "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1200&q=82",
+    "social-cover": "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1200&q=82",
+    "product-angles": "https://images.unsplash.com/photo-1556228578-8c89e6adf883?auto=format&fit=crop&w=1200&q=82",
+    restore: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1200&q=82",
+};
+
 export const starterPrompts: Prompt[] = [
     prompt("product-hero", "高端产品主视觉", "商业摄影", ["产品", "广告", "质感"], "为【产品名称】制作高端商业主视觉：产品居中悬浮，材质细节清晰，背景使用【品牌色】渐变与柔和体积光，加入克制的倒影和空气感，构图简洁，留出标题与卖点排版区域，真实摄影质感，4K。"),
     prompt("ecommerce-detail", "电商详情页卖点图", "电商设计", ["电商", "详情页", "转化"], "为【产品名称】设计电商详情页卖点图，核心卖点是【卖点】，用近景特写展示功能与材质，画面包含清晰的信息层级、图标占位和短标题留白，色彩符合【品牌风格】，真实、可信、具有购买欲。"),
@@ -34,10 +49,9 @@ export const starterAssets: AssetLibraryItem[] = [
 ];
 
 function prompt(id: string, title: string, category: string, tags: string[], text: string): Prompt {
-    return { id: `starter-${id}`, title, category, tags, prompt: text, coverUrl: "", preview: text, githubUrl: "", createdAt, updatedAt: createdAt };
+    return { id: `starter-${id}`, title, category, tags, prompt: text, coverUrl: starterCoverUrls[id] || "", preview: text, githubUrl: "", createdAt, updatedAt: createdAt };
 }
 
 function asset(id: string, title: string, tags: string[], content: string): AssetLibraryItem {
     return { id: `starter-${id}`, title, type: "text", tags, content, category: "创作工具箱", description: "可直接复制或加入我的素材后编辑。", coverUrl: "", url: "", createdAt, updatedAt: createdAt };
 }
-
