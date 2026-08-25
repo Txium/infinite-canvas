@@ -7,7 +7,7 @@ import { AppTopNav } from "@/components/layout/app-top-nav";
 import { fetchUserConfig } from "@/services/api/user-config";
 import { useUserStore } from "@/stores/use-user-store";
 
-const protectedPrefixes = ["/asset-library"];
+const protectedPrefixes: string[] = [];
 
 export default function UserLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
@@ -56,3 +56,4 @@ export default function UserLayout({ children }: { children: ReactNode }) {
         </div>
     );
 }
+
