@@ -1,6 +1,7 @@
 "use client";
 
 import { App, Button, Form, Input, Modal, Segmented, Select, Switch } from "antd";
+import { ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { ChannelModelSelectorModal } from "@/components/channel-model-selector-modal";
@@ -27,6 +28,8 @@ type ModelGroup = {
     defaultLabel: string;
     optionsLabel: string;
 };
+
+const Z_API_WALLET_URL = "https://api.tmlab.store/wallet";
 
 const modelGroups: ModelGroup[] = [
     { capability: "image", modelKey: "imageModel", channelKey: "imageChannelId", modelsKey: "imageModels", defaultLabel: "默认生图模型", optionsLabel: "生图模型可选项" },
@@ -323,9 +326,17 @@ export function AppConfigModal() {
                                         <div className="text-sm font-medium">本地模型渠道</div>
                                         <div className="mt-1 text-xs text-stone-500">可为生图、视频、文本、音频分别选择不同渠道的模型。</div>
                                     </div>
-                                    <Button size="small" onClick={addLocalChannel}>
-                                        新增渠道
-                                    </Button>
+                                    <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                                        <Button size="small" icon={<ExternalLink className="size-3.5" />} href={Z_API_WALLET_URL} target="_blank">
+                                            查看余额
+                                        </Button>
+                                        <Button size="small" type="primary" icon={<ExternalLink className="size-3.5" />} href={Z_API_WALLET_URL} target="_blank">
+                                            去充值
+                                        </Button>
+                                        <Button size="small" onClick={addLocalChannel}>
+                                            新增渠道
+                                        </Button>
+                                    </div>
                                 </div>
                                 {normalizeLocalChannels(config).map((channel, index) => (
                                     <div key={channel.id} className="space-y-2 rounded-md bg-stone-50 p-2 dark:bg-stone-900">
