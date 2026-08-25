@@ -2535,7 +2535,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     ? applyCameraPrompt(effectivePrompt, sourceNode?.metadata?.cameraControl)
                     : effectivePrompt;
             const markSourceStatus = !isCanvasImageNodeType(sourceNode?.type) && !editingTextNode;
-            const statusPrompt = sourceNode?.type === CanvasNodeType.Config ? effectivePrompt : prompt;
+            const statusPrompt = prompt;
             if (!effectivePrompt && (mode === "text" || mode === "audio")) {
                 setRunningNodeId(null);
                 return;
@@ -2758,7 +2758,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                                 ? isConfigNode
                                     ? {
                                         ...node,
-                                        metadata: { ...node.metadata, prompt: effectivePrompt, status: NODE_STATUS_LOADING, startedAt: generationStartedAt, durationMs: undefined, errorDetails: undefined },
+                                        metadata: { ...node.metadata, prompt, status: NODE_STATUS_LOADING, startedAt: generationStartedAt, durationMs: undefined, errorDetails: undefined },
                                     }
                                     : isEmptyImageNode
                                         ? {
