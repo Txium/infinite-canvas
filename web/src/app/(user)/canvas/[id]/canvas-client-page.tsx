@@ -2640,6 +2640,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     setSelectedConnectionId(null);
                     setDialogNodeId(nodeId);
 
+                    const taskErrors: string[] = [];
                     const taskResults = await Promise.all(
                         targetIds.map(async (targetId) => {
                             try {
@@ -2829,6 +2830,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                                 return true;
                             } catch (error) {
                                 const errorDetails = error instanceof Error ? error.message : "生成失败";
+                                taskErrors.push(errorDetails);
                                 setNodes((prev) => prev.map((node) => (node.id === targetId ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_ERROR, errorDetails } } : node)));
                                 return false;
                             }
@@ -2836,13 +2838,14 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     );
                     const hasSuccess = taskResults.some(Boolean);
                     const hasFailure = taskResults.some((result) => !result);
-                    if (hasFailure) message.error(hasSuccess ? "部分图片任务创建失败" : "全部图片任务创建失败");
+                    const failureDetails = taskErrors[0] || (hasSuccess ? "部分图片任务创建失败" : "全部图片任务创建失败");
+                    if (hasFailure) message.error(failureDetails);
                     setNodes((prev) =>
                         prev.map((node) =>
                             node.id === nodeId && isConfigNode
-                                ? { ...node, metadata: { ...node.metadata, status: hasSuccess ? NODE_STATUS_SUCCESS : NODE_STATUS_ERROR, errorDetails: hasSuccess ? undefined : "全部图片任务创建失败" } }
+                                ? { ...node, metadata: { ...node.metadata, status: hasSuccess ? NODE_STATUS_SUCCESS : NODE_STATUS_ERROR, errorDetails: hasSuccess ? undefined : failureDetails } }
                                 : node.id === rootId && !hasSuccess
-                                    ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_ERROR, errorDetails: "全部图片任务创建失败" } }
+                                    ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_ERROR, errorDetails: failureDetails } }
                                     : node,
                         ),
                     );
