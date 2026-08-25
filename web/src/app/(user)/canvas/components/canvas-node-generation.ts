@@ -54,7 +54,7 @@ export function buildNodeGenerationContext(nodeId: string, nodes: CanvasNodeData
     const effectiveReferenceImages = referenceImages.filter((image) => !frameNodeIds.has(image.id));
 
     return {
-        prompt: upstreamText ? `${prompt}\n\n${upstreamText}` : prompt,
+        prompt: mergeUniquePromptBlocks(prompt, upstreamText),
         referenceImages: [...advanced.klingImageReferences, ...effectiveReferenceImages],
         firstFrame: frameReferences.firstFrame,
         lastFrame: frameReferences.lastFrame,
@@ -67,6 +67,14 @@ export function buildNodeGenerationContext(nodeId: string, nodes: CanvasNodeData
         videoCount: referenceVideos.length,
         audioCount: referenceAudios.length,
     };
+}
+
+function mergeUniquePromptBlocks(prompt: string, upstreamText: string) {
+    const blocks = `${prompt}\n\n${upstreamText}`
+        .split(/\n\s*\n/)
+        .map((block) => block.trim())
+        .filter(Boolean);
+    return [...new Set(blocks)].join("\n\n");
 }
 
 function buildComposerGenerationContext(inputs: NodeGenerationInput[], prompt: string, sourceNode?: CanvasNodeData): NodeGenerationContext {
