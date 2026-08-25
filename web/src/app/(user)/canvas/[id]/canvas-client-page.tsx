@@ -2640,7 +2640,6 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     setSelectedConnectionId(null);
                     setDialogNodeId(nodeId);
 
-                    const taskErrors: string[] = [];
                     const taskResults = await Promise.all(
                         targetIds.map(async (targetId) => {
                             try {
@@ -2793,6 +2792,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     setSelectedConnectionId(null);
                     setDialogNodeId(nodeId);
 
+                    const taskErrors: string[] = [];
                     const taskResults = await Promise.all(
                         targetIds.map(async (targetId) => {
                             try {
