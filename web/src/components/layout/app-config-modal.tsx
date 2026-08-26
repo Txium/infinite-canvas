@@ -240,8 +240,9 @@ export function AppConfigModal() {
         updateLocalChannels(normalizeLocalChannels(config).map((channel) => (channel.id === id ? { ...channel, ...patch } : channel)));
     };
 
-    const addLocalChannel = () => {
-        updateLocalChannels([...normalizeLocalChannels(config), { id: "local-" + Date.now(), protocol: "openai", name: "新渠道", baseUrl: modelChannelDefaultBaseUrls.openai, apiKey: "", models: [] }]);
+    const addLocalChannel = (purpose: LocalModelChannel["purpose"] = "general") => {
+        const name = purpose === "image" ? "图片通用 Key" : purpose === "video" ? "视频通用 Key" : "其他渠道";
+        updateLocalChannels([...normalizeLocalChannels(config), { id: "local-" + Date.now(), protocol: "openai", purpose, name, baseUrl: modelChannelDefaultBaseUrls.openai, apiKey: "", models: [] }]);
     };
 
     const removeLocalChannel = (id: string) => {
@@ -341,8 +342,8 @@ export function AppConfigModal() {
                             <div className="mb-5 space-y-3 rounded-lg border border-stone-200 p-3 dark:border-stone-800">
                                 <div className="flex items-center justify-between gap-3">
                                     <div>
-                                        <div className="text-sm font-medium">本地模型渠道</div>
-                                        <div className="mt-1 text-xs text-stone-500">可为生图、视频、文本、音频分别选择不同渠道的模型。</div>
+                                        <div className="text-sm font-medium">图片 Key 与视频 Key</div>
+                                        <div className="mt-1 text-xs text-stone-500">同一类模型共用一把 Key。切换模型时不用重复购买或填写密钥。</div>
                                     </div>
                                     <div className="flex shrink-0 flex-wrap justify-end gap-2">
                                         <Button size="small" icon={<ExternalLink className="size-3.5" />} href={Z_API_WALLET_URL} target="_blank">
@@ -351,15 +352,22 @@ export function AppConfigModal() {
                                         <Button size="small" type="primary" icon={<ExternalLink className="size-3.5" />} href={Z_API_WALLET_URL} target="_blank">
                                             去充值
                                         </Button>
-                                        <Button size="small" onClick={addLocalChannel}>
-                                            新增渠道
+                                        <Button size="small" onClick={() => addLocalChannel("image")}>添加图片 Key</Button>
+                                        <Button size="small" onClick={() => addLocalChannel("video")}>添加视频 Key</Button>
+                                        <Button size="small" onClick={() => addLocalChannel("general")}>
+                                            其他
                                         </Button>
                                     </div>
                                 </div>
                                 {normalizeLocalChannels(config).map((channel, index) => (
                                     <div key={channel.id} className="space-y-2 rounded-md bg-stone-50 p-2 dark:bg-stone-900">
-                                        <div className="grid gap-2 md:grid-cols-[130px_150px_minmax(0,1fr)_minmax(0,1fr)_auto]">
+                                        <div className="grid gap-2 md:grid-cols-[130px_120px_140px_minmax(0,1fr)_minmax(0,1fr)_auto]">
                                             <Input value={channel.name} placeholder="渠道名称" onChange={(event) => patchLocalChannel(channel.id, { name: event.target.value })} />
+                                            <Select
+                                                value={channel.purpose || "general"}
+                                                options={[{ label: "图片通用", value: "image" }, { label: "视频通用", value: "video" }, { label: "其他", value: "general" }]}
+                                                onChange={(purpose: NonNullable<LocalModelChannel["purpose"]>) => patchLocalChannel(channel.id, { purpose })}
+                                            />
                                             <Select
                                                 value={channel.protocol}
                                                 options={[
@@ -391,14 +399,16 @@ export function AppConfigModal() {
                                                 ) : null}
                                             </div>
                                         </div>
-                                        <div className="text-xs text-stone-500">已保存 {channel.models.length} 个模型</div>
+                                        <div className="text-xs text-stone-500">
+                                            {channel.purpose === "image" ? "这把 Key 供全部图片模型共用" : channel.purpose === "video" ? "这把 Key 供全部视频模型共用" : "文本、音频或兼容多类型的渠道"}，已保存 {channel.models.length} 个模型
+                                        </div>
                                     </div>
                                 ))}
                             </div>
                             <div className="mb-5 flex items-center justify-between gap-3 rounded-lg border border-stone-200 px-3 py-2 dark:border-stone-800">
                                 <div className="min-w-0">
-                                    <div className="text-sm font-medium">模型列表</div>
-                                    <div className="mt-1 text-xs text-stone-500">当前已保存 {config.models.length} 个模型</div>
+                                    <div className="text-sm font-medium">模型广场</div>
+                                    <div className="mt-1 text-xs text-stone-500">图片 {config.imageModels.length} 个 · 视频 {config.videoModels.length} 个；节点里可随时切换。</div>
                                 </div>
                                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                                     <Button size="small" loading={loadingModels} onClick={() => void refreshModels()}>
