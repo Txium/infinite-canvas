@@ -377,7 +377,7 @@ async function createTmlabSeedanceRequestBody(config: AiConfig, model: string, p
 function isTmlabSeedanceConfig(config: AiConfig, model: string) {
     const channel = localChannelForActiveModel(config);
     const baseUrl = (channel?.baseUrl || config.baseUrl).toLowerCase();
-    return /(^|\.)api\.tmlab\.store(?:\/|$)/.test(baseUrl.replace(/^https?:\/\//, "")) && /^seedance-2\.0-(mini|fast|pro)$/i.test(model.trim());
+    return /^(?:api|api-cn)\.tmlab\.store(?:\/|$)/.test(baseUrl.replace(/^https?:\/\//, "")) && /^seedance-2\.0-(mini|fast|pro)$/i.test(model.trim());
 }
 
 function tmlabApiUrl(config: AiConfig, path: string) {
