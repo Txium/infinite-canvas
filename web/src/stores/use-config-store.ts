@@ -11,6 +11,7 @@ import { useUserStore } from "@/stores/use-user-store";
 export type LocalModelChannel = {
     id: string;
     protocol: "openai" | "gemini" | "grok2api" | "metaso" | "apimart" | "kie" | "mimo";
+    purpose?: "image" | "video" | "general";
     name: string;
     baseUrl: string;
     apiKey: string;
@@ -495,13 +496,14 @@ export function normalizeLocalChannels(config: Partial<AiConfig>): LocalModelCha
     const normalized: LocalModelChannel[] = channels.map((channel, index) => ({
         id: channel.id || `local-${index + 1}`,
         protocol: channel.protocol || "openai",
+        purpose: channel.purpose === "image" || channel.purpose === "video" ? channel.purpose : "general",
         name: typeof channel.name === "string" ? channel.name : `本地渠道 ${index + 1}`,
         baseUrl: channel.baseUrl || "",
         apiKey: channel.apiKey || "",
         models: Array.isArray(channel.models) ? channel.models.filter(Boolean) : [],
     }));
     if (!normalized.length) {
-        normalized.push({ id: "local-default", protocol: "openai", name: "本地直连", baseUrl: config.baseUrl || defaultConfig.baseUrl, apiKey: config.apiKey || "", models: Array.isArray(config.models) ? config.models.filter(Boolean) : [] });
+        normalized.push({ id: "local-default", protocol: "openai", purpose: "general", name: "本地直连", baseUrl: config.baseUrl || defaultConfig.baseUrl, apiKey: config.apiKey || "", models: Array.isArray(config.models) ? config.models.filter(Boolean) : [] });
     }
     return normalized;
 }
