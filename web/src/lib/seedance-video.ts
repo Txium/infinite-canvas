@@ -106,7 +106,10 @@ export function normalizeResolutionToken(value: string) {
 export function normalizeSeedanceDuration(value: string) {
     if (String(value).trim() === "-1") return -1;
     const seconds = Math.floor(Number(value) || 5);
-    return Math.max(4, Math.min(15, seconds));
+    // Channels can retain a duration from the previously selected model.
+    // Seedance only accepts 4-15 seconds; use its safe default instead of
+    // silently turning an old 16-second value into an expensive 15-second job.
+    return seconds >= 4 && seconds <= 15 ? seconds : 5;
 }
 
 export function normalizeSeedanceRatio(value: string) {
