@@ -654,6 +654,7 @@ async function requestImageGenerationSingle(config: AiConfig & { seedIndex?: num
     const mime = IMAGE_MIME;
 
     if (isGeminiConfig(config)) return requestGeminiImageSingle(config, prompt, [], params);
+    if (isTmlabTaskImageConfig(config)) return requestTmlabTaskImage(config, prompt, params);
 
     // 针对 Agnes 渠道文生图模型定制精简 Payload，避免传入官方文档未声明的 seed 参数。
     if (isAgnesImageModel(config.model)) {
@@ -729,6 +730,58 @@ async function requestImageGenerationSingle(config: AiConfig & { seedIndex?: num
             return { images: parseImagePayload(payload, mime), responseBody: stringifyLogPayload(payload) };
         },
     );
+}
+
+function isTmlabTaskImageConfig(config: AiConfig) {
+    const baseUrl = localChannelForActiveModel(config)?.baseUrl || config.baseUrl;
+    return /https?:\/\/api(?:-cn)?\.tmlab\.store(?:\/|$)/i.test(baseUrl) && /^gpt-image-2\(/i.test(config.model);
+}
+
+async function requestTmlabTaskImage(config: AiConfig, prompt: string, params: ImageRequestParams): Promise<GeneratedImage[]> {
+    const endpoint = "/tasks";
+    const size = config.size.trim();
+    const body = {
+        model: config.model,
+        prompt: withPromptGuard(config, withSystemPrompt(config, prompt)),
+        ...(size && size !== "auto" ? { size } : {}),
+    };
+    const headers = aiHeaders(config, "application/json");
+    const startedAt = Date.now();
+    const response = await fetch(aiApiUrl(config, endpoint), { method: "POST", headers, body: JSON.stringify(body) });
+    if (!response.ok) {
+        const error = await fetchErrorDetail(response, "图片任务创建失败");
+        void writeLocalAICallLog(config, endpoint, startedAt, response.status, params.timeoutSeconds, stringifyLogPayload(body), stringifyLogPayload(error.detail || error.message), error.message);
+        throw new ImageRequestError(error.message, error.detail);
+    }
+
+    const submitted = (await response.json()) as { id?: string; task_id?: string; data?: { id?: string; task_id?: string } };
+    const taskId = submitted.id || submitted.task_id || submitted.data?.id || submitted.data?.task_id;
+    if (!taskId) throw new ImageRequestError("Z-API 没有返回任务 ID", submitted);
+
+    const deadline = Date.now() + params.timeoutSeconds * 1000;
+    while (Date.now() < deadline) {
+        await new Promise((resolve) => window.setTimeout(resolve, 5000));
+        const taskResponse = await fetch(`${aiApiUrl(config, endpoint)}/${encodeURIComponent(taskId)}`, { headers: aiHeaders(config) });
+        if (!taskResponse.ok) {
+            const error = await fetchErrorDetail(taskResponse, "读取图片任务失败");
+            throw new ImageRequestError(error.message, error.detail);
+        }
+        const payload = (await taskResponse.json()) as {
+            status?: string;
+            metadata?: { url?: string };
+            error?: { message?: string };
+            data?: { status?: string; metadata?: { url?: string }; error?: { message?: string } };
+        };
+        const task = payload.data || payload;
+        if (task.status === "completed") {
+            const url = task.metadata?.url;
+            if (!url) throw new ImageRequestError("Z-API 任务完成但没有返回图片地址", payload);
+            void writeLocalAICallLog(config, endpoint, startedAt, 200, params.timeoutSeconds, stringifyLogPayload(body), stringifyLogPayload(payload), "");
+            return [{ id: taskId, dataUrl: url }];
+        }
+        if (task.status === "failed") throw new ImageRequestError(task.error?.message || "Z-API 图片生成失败", payload);
+    }
+    throw new Error(timeoutError(params.timeoutSeconds));
 }
 
 async function createGrokImageEditBody(config: AiConfig, prompt: string, references: ReferenceImage[], params: ImageRequestParams) {
