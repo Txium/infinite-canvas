@@ -655,6 +655,7 @@ async function requestImageGenerationSingle(config: AiConfig & { seedIndex?: num
 
     if (isGeminiConfig(config)) return requestGeminiImageSingle(config, prompt, [], params);
     if (isTmlabTaskImageConfig(config)) return requestTmlabTaskImage(config, prompt, params);
+    if (isDolaSeedreamImageModel(config.model)) return requestNewApiAsyncImage(config, prompt, params);
 
     // 针对 Agnes 渠道文生图模型定制精简 Payload，避免传入官方文档未声明的 seed 参数。
     if (isAgnesImageModel(config.model)) {
@@ -730,6 +731,67 @@ async function requestImageGenerationSingle(config: AiConfig & { seedIndex?: num
             return { images: parseImagePayload(payload, mime), responseBody: stringifyLogPayload(payload) };
         },
     );
+}
+
+function isDolaSeedreamImageModel(model: string) {
+    return /^dola-seedream-\d+/i.test(model.trim());
+}
+
+async function requestNewApiAsyncImage(config: AiConfig, prompt: string, params: ImageRequestParams): Promise<GeneratedImage[]> {
+    const endpoint = "/images/generations";
+    const body: Record<string, unknown> = { model: config.model, prompt: withPromptGuard(config, withSystemPrompt(config, prompt)), n: 1 };
+    if (params.size) body.size = params.size;
+    const startedAt = Date.now();
+    const response = await fetch(aiApiUrl(config, endpoint), { method: "POST", headers: aiHeaders(config, "application/json"), body: JSON.stringify(body) });
+    if (!response.ok) {
+        const error = await fetchErrorDetail(response, "图片任务创建失败");
+        throw new ImageRequestError(error.message, error.detail);
+    }
+    const submitted = (await response.json()) as { id?: string; task_id?: string; data?: { id?: string; task_id?: string } };
+    const taskId = submitted.id || submitted.task_id || submitted.data?.id || submitted.data?.task_id;
+    if (!taskId) {
+        const immediateUrls = collectAsyncImageUrls(submitted);
+        if (immediateUrls.length) return immediateUrls.map((url) => ({ id: nanoid(), dataUrl: url }));
+        throw new ImageRequestError("图片接口没有返回任务 ID", submitted);
+    }
+    const deadline = Date.now() + params.timeoutSeconds * 1000;
+    while (Date.now() < deadline) {
+        await new Promise((resolve) => window.setTimeout(resolve, 5000));
+        const taskResponse = await fetch(`${aiApiUrl(config, endpoint)}/${encodeURIComponent(taskId)}`, { headers: aiHeaders(config) });
+        if (!taskResponse.ok) {
+            const error = await fetchErrorDetail(taskResponse, "读取图片任务失败");
+            throw new ImageRequestError(error.message, error.detail);
+        }
+        const payload = (await taskResponse.json()) as Record<string, unknown>;
+        const urls = collectAsyncImageUrls(payload);
+        if (urls.length) {
+            void writeLocalAICallLog(config, endpoint, startedAt, 200, params.timeoutSeconds, stringifyLogPayload(body), stringifyLogPayload(payload), "");
+            return urls.map((url, index) => ({ id: `${taskId}-${index}`, dataUrl: url }));
+        }
+        const task = payload.data && !Array.isArray(payload.data) && typeof payload.data === "object" ? (payload.data as Record<string, unknown>) : payload;
+        const status = String(task.status || "").toLowerCase();
+        if (["failed", "error", "cancelled", "canceled"].includes(status)) {
+            const error = task.error && typeof task.error === "object" ? (task.error as { message?: string }).message : "";
+            throw new ImageRequestError(error || String(task.message || "Navivo 图片生成失败"), payload);
+        }
+    }
+    throw new Error(timeoutError(params.timeoutSeconds));
+}
+
+function collectAsyncImageUrls(value: unknown): string[] {
+    const urls = new Set<string>();
+    const visit = (item: unknown) => {
+        if (Array.isArray(item)) { item.forEach(visit); return; }
+        if (!item || typeof item !== "object") return;
+        const record = item as Record<string, unknown>;
+        for (const key of ["url", "downloadUrl", "remoteUrl"]) {
+            const url = record[key];
+            if (typeof url === "string" && /^https?:\/\//i.test(url)) urls.add(url);
+        }
+        for (const key of ["data", "results", "result", "output", "images", "metadata"]) visit(record[key]);
+    };
+    visit(value);
+    return [...urls];
 }
 
 function isTmlabTaskImageConfig(config: AiConfig) {
