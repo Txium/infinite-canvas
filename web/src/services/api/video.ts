@@ -4,7 +4,7 @@ import { dataUrlToFile, readFileAsDataUrl } from "@/lib/image-utils";
 import { isMiniMaxH3Config, normalizeMiniMaxH3Duration, normalizeMiniMaxH3Ratio, normalizeMiniMaxH3Resolution } from "@/lib/minimax-video";
 import { dataUrlToGeminiInlineData, geminiActionUrl, geminiDirectHeaders, geminiErrorMessage, geminiOperationUrl, isGeminiConfig, isGeminiVideoModel } from "@/lib/gemini";
 import { isGeminiVeo31Model, normalizeGeminiVideoDuration, normalizeGeminiVideoRatio, normalizeGeminiVideoResolution } from "@/lib/gemini-video";
-import { boolConfig, isSeedanceVideoConfig, normalizeSeedanceRatio } from "@/lib/seedance-video";
+import { boolConfig, isSeedanceVideoConfig, normalizeSeedanceDuration, normalizeSeedanceRatio, normalizeSeedanceResolution } from "@/lib/seedance-video";
 import { isKIEGrokVideoModel, isKIEKlingV3Config, kieKlingOmniVariant } from "@/components/video-settings-panel";
 import { isAgnesVideoV25Model, isCogVideoX3Model, modelKey, normalizeCogVideoX3Duration, supportsVideoAudioGeneration } from "@/lib/video-model-capabilities";
 import { resolveMediaUrl, uploadMediaFile } from "@/services/file-storage";
@@ -45,6 +45,7 @@ function aiApiUrl(config: AiConfig, path: string) {
 }
 
 function aiVideoPollUrl(config: AiConfig, model: string, id: string) {
+    if (isTmlabSeedanceConfig(config, model)) return tmlabApiUrl(config, `/tasks/${encodeURIComponent(id)}`);
     if (!usesAccountProxy(config) && isGeminiConfig(config, model)) {
         const channel = localChannelForActiveModel(config);
         return geminiOperationUrl(channel?.baseUrl || config.baseUrl, id);
@@ -112,19 +113,23 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
     const startedAt = Date.now();
     try {
         const createOptions = normalizeVideoTaskCreateOptions(options);
-        const accountProxy = usesAccountProxy(config);
+        const tmlabSeedance = isTmlabSeedanceConfig(config, model);
+        const accountProxy = usesAccountProxy(config) && !tmlabSeedance;
         const headers = { ...aiHeaders(config), ...(accountProxy && createOptions.clientTaskId ? { "X-Client-Video-Task-ID": createOptions.clientTaskId } : {}), ...(accountProxy && createOptions.source ? { "X-Video-Task-Source": createOptions.source } : {}), ...(accountProxy && createOptions.sourceId ? { "X-Video-Task-Source-ID": createOptions.sourceId } : {}) };
         const directProvider = !accountProxy ? directAIProviderForConfig(config) : null;
         const channel = localChannelForActiveModel(config);
-        const createUrl = !accountProxy && isGeminiConfig(config, model)
+        const createUrl = tmlabSeedance
+            ? tmlabApiUrl(config, "/tasks")
+            : !accountProxy && isGeminiConfig(config, model)
             ? geminiActionUrl(channel?.baseUrl || config.baseUrl, model, "predictLongRunning")
             : !accountProxy && isMiniMaxH3Config(config, model)
                 ? miniMaxApiUrl(config, "/v2/video_generation")
                 : aiApiUrl(config, !accountProxy && (isGrok2APIVideoConfig(config, model) || isCogVideoX3Model(model)) ? "/videos/generations" : "/videos");
         const requestBody = !accountProxy && isGeminiConfig(config, model) ? withoutVideoModel(body) : body;
+        const requestHeaders = tmlabSeedance ? tmlabHeaders(config) : headers;
         const created = directProvider
             ? await (await import("@/services/api/direct-ai")).createDirectVideoTask(config, directProvider, body)
-            : unwrapVideoResponseForConfig(config, model, (await axios.post<ApiVideoResponse>(createUrl, requestBody, { headers })).data);
+            : unwrapVideoResponseForConfig(config, model, (await axios.post<ApiVideoResponse>(createUrl, requestBody, { headers: requestHeaders })).data);
         if (!created.id && !created.video_id) throw new Error("视频接口没有返回任务 ID");
         if (typeof created.progress === "number") onProgress?.(created.progress, created);
         return { task: created, pollId: videoPollId(model, created), startedAt, requestBody: body };
@@ -147,7 +152,7 @@ export async function pollCreatedVideoGenerationTask(config: AiConfig, task: Vid
     const directPoll = directProvider ? (await import("@/services/api/direct-ai")).pollDirectVideoTask : null;
     const pollOnce = directProvider && directPoll
         ? () => directPoll(config, directProvider, pollId)
-        : async () => unwrapVideoResponseForConfig(config, model, (await axios.get<ApiVideoResponse>(aiVideoPollUrl(config, model, pollId), { headers: aiHeaders(config), params: usesAccountProxy(config) ? { model } : undefined })).data);
+        : async () => unwrapVideoResponseForConfig(config, model, (await axios.get<ApiVideoResponse>(aiVideoPollUrl(config, model, pollId), { headers: isTmlabSeedanceConfig(config, model) ? tmlabHeaders(config) : aiHeaders(config), params: usesAccountProxy(config) && !isTmlabSeedanceConfig(config, model) ? { model } : undefined })).data);
     let completed: VideoResponse | null = null;
     try {
         if (initialDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, initialDelayMs));
@@ -182,7 +187,10 @@ export async function pollVideoGenerationTaskStatus(config: AiConfig, task: Vide
     const directProvider = !usesAccountProxy(config) ? directAIProviderForConfig(config) : null;
     const result = directProvider
         ? await (await import("@/services/api/direct-ai")).pollDirectVideoTask(config, directProvider, pollId)
-        : unwrapVideoResponseForConfig(config, model, (await axios.get<ApiVideoResponse>(aiVideoPollUrl(config, model, pollId), { headers: aiHeaders(config), params: usesAccountProxy(config) ? { model } : undefined })).data);
+        : unwrapVideoResponseForConfig(config, model, (await axios.get<ApiVideoResponse>(aiVideoPollUrl(config, model, pollId), {
+            headers: isTmlabSeedanceConfig(config, model) ? tmlabHeaders(config) : aiHeaders(config),
+            params: usesAccountProxy(config) && !isTmlabSeedanceConfig(config, model) ? { model } : undefined,
+        })).data);
     return cacheProtectedGeminiVideo(config, model, await cacheProtectedGrokVideo(config, model, result));
 }
 
@@ -260,6 +268,7 @@ async function createAgnesVideoV25RequestBody(config: AiConfig, model: string, p
 
 async function createVideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
     const size = normalizeVideoSize(config.size);
+    if (isTmlabSeedanceConfig(config, model)) return createTmlabSeedanceRequestBody(config, model, prompt, input);
     if (isGeminiVideoModel(model) && isGeminiConfig(config, model)) return createGeminiVeoRequestBody(config, model, prompt, input);
     if (isGrok2APIVideoConfig(config, model)) return createGrok2APIVideoRequestBody(config, model, prompt, input);
     if (isMiniMaxH3Config(config, model)) return createMiniMaxH3VideoRequestBody(config, model, prompt, input);
@@ -339,6 +348,48 @@ async function createVideoRequestBody(config: AiConfig, model: string, prompt: s
     const audioFiles = kling ? [] : await Promise.all(input.audioReferences.map(mediaReferenceToFormValue));
     audioFiles.forEach((file) => body.append("audio_reference[]", file));
     return body;
+}
+
+async function createTmlabSeedanceRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
+    if (input.videoReferences.length) throw new VideoRequestError("Z-API 的 Seedance 2.0 稳定版暂不支持参考视频");
+    const imageInputs = [...input.references, ...(input.firstFrame ? [input.firstFrame] : []), ...(input.lastFrame ? [input.lastFrame] : [])].slice(0, 9);
+    const imageValues = await Promise.all(imageInputs.map(imageReferenceToFormValue));
+    if (imageValues.some((value) => typeof value !== "string" || !/^https?:\/\//i.test(value))) {
+        throw new VideoRequestError("Z-API Seedance 参考图必须具有公网访问地址");
+    }
+    const audioValues = await Promise.all(input.audioReferences.slice(0, 3).map(mediaReferenceToFormValue));
+    if (audioValues.some((value) => typeof value !== "string" || !/^https?:\/\//i.test(value))) {
+        throw new VideoRequestError("Z-API Seedance 参考音频必须具有公网访问地址");
+    }
+    return {
+        model,
+        prompt,
+        mode_type: imageValues.length ? "image2video" : "text2video",
+        ratio: normalizeSeedanceRatio(config.size),
+        resolution: normalizeSeedanceResolution(config.vquality, model),
+        duration: normalizeSeedanceDuration(config.videoSeconds),
+        enable_sound: boolConfig(config.videoGenerateAudio, false) ? "on" : "off",
+        ...(imageValues.length ? { image_urls: imageValues as string[] } : {}),
+        ...(audioValues.length ? { audio_urls: audioValues as string[] } : {}),
+    };
+}
+
+function isTmlabSeedanceConfig(config: AiConfig, model: string) {
+    const channel = localChannelForActiveModel(config);
+    const baseUrl = (channel?.baseUrl || config.baseUrl).toLowerCase();
+    return /(^|\.)api\.tmlab\.store(?:\/|$)/.test(baseUrl.replace(/^https?:\/\//, "")) && /^seedance-2\.0-(mini|fast|pro)$/i.test(model.trim());
+}
+
+function tmlabApiUrl(config: AiConfig, path: string) {
+    const channel = localChannelForActiveModel(config);
+    return buildApiUrl(channel?.baseUrl || config.baseUrl, path);
+}
+
+function tmlabHeaders(config: AiConfig) {
+    const channel = localChannelForActiveModel(config);
+    const apiKey = channel?.apiKey || config.apiKey;
+    if (!apiKey.trim()) throw new VideoRequestError("请先配置 Z-API 密钥");
+    return { Authorization: `Bearer ${apiKey}` };
 }
 
 async function createMiniMaxH3VideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
@@ -675,6 +726,15 @@ function unwrapVideoResponse(payload: ApiVideoResponse): VideoResponse {
 }
 
 function unwrapVideoResponseForConfig(config: AiConfig, model: string, payload: ApiVideoResponse) {
+    if (isTmlabSeedanceConfig(config, model)) {
+        const root = payload as unknown as Record<string, unknown>;
+        return normalizeVideoResponse({
+            ...root,
+            id: firstString(root.task_id, root.id),
+            video_url: firstString(root.result_url, root.remote_url),
+            error: firstString(root.failure_reason) ? { message: firstString(root.failure_reason) } : undefined,
+        });
+    }
     if (isGeminiVideoModel(model) && isGeminiConfig(config, model)) return normalizeGeminiVideoResponse(payload);
     if (isMiniMaxH3Config(config, model)) {
         const root = payload as unknown as Record<string, unknown>;
@@ -884,7 +944,7 @@ function normalizeVideoResponse(value: unknown): VideoResponse {
         userChannelId: firstString(record.userChannelId, record.user_channel_id),
         channelName: firstString(record.channelName, record.channel_name),
         status: firstString(record.status, record.state, record.task_status),
-        video_url: firstString(record.video_url, record.videoUrl, record.remixed_from_video_id, record.output_url, record.download_url, firstVideoUrl(record)),
+        video_url: firstString(record.video_url, record.videoUrl, record.result_url, record.remote_url, record.remixed_from_video_id, record.output_url, record.download_url, firstVideoUrl(record)),
         progress: typeof record.progress === "number" ? record.progress : (typeof record.progress === "string" ? parseFloat(record.progress) : undefined),
     };
 }
