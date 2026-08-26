@@ -25,9 +25,12 @@ export function ModelPicker({ config, value, channelId, capability, onChange, cl
     const channelOptions = useMemo(() => {
         const channels =
             config.channelMode === "remote"
-                ? config.publicChannels.map((channel) => ({ id: channel.id, protocol: channel.protocol, name: channel.name || "云端渠道", baseUrl: channel.baseUrl, models: channel.models }))
-                : normalizeLocalChannels(config).map((channel) => ({ id: channel.id, protocol: channel.protocol, name: channel.name || "本地渠道", baseUrl: channel.baseUrl, models: channel.models }));
-        const models = channels.flatMap((channel) => (channel.models ?? []).map((model) => ({ key: `${channel.id}::${model}`, channelId: channel.id, channelName: channel.name, protocol: channel.protocol, model })));
+                ? config.publicChannels.map((channel) => ({ id: channel.id, protocol: channel.protocol, purpose: "general" as const, name: channel.name || "云端渠道", baseUrl: channel.baseUrl, models: channel.models }))
+                : normalizeLocalChannels(config).map((channel) => ({ id: channel.id, protocol: channel.protocol, purpose: channel.purpose || "general", name: channel.name || "本地渠道", baseUrl: channel.baseUrl, models: channel.models }));
+        const matchingChannels = capability === "image" || capability === "video"
+            ? channels.filter((channel) => channel.purpose === "general" || channel.purpose === capability)
+            : channels;
+        const models = matchingChannels.flatMap((channel) => (channel.models ?? []).map((model) => ({ key: `${channel.id}::${model}`, channelId: channel.id, channelName: channel.name, protocol: channel.protocol, model })));
         if (!capability) return models;
         return models.filter((item) => filterModelsByCapability([item.model], capability, item.protocol || "").length > 0);
     }, [capability, config]);
