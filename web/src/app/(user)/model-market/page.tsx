@@ -27,6 +27,7 @@ const capabilityMeta: Record<MarketCapability, { noun: string; apiLabel: string;
 export default function ModelMarketPage() {
     const { message } = App.useApp();
     const [capability, setCapability] = useState<MarketCapability>("image");
+    const [scope, setScope] = useState<"available" | "catalog">("available");
     const [query, setQuery] = useState("");
     const config = useConfigStore((state) => state.config);
     const updateConfig = useConfigStore((state) => state.updateConfig);
@@ -64,8 +65,8 @@ export default function ModelMarketPage() {
 
     const visibleModels = useMemo(() => {
         const keyword = query.trim().toLowerCase();
-        return allModels.filter((item) => item.capability === capability && (!keyword || `${item.model} ${item.channelName}`.toLowerCase().includes(keyword)));
-    }, [allModels, capability, query]);
+        return allModels.filter((item) => item.capability === capability && (scope === "available" ? item.available : !item.available) && (!keyword || `${item.model} ${item.channelName}`.toLowerCase().includes(keyword)));
+    }, [allModels, capability, query, scope]);
     const visibleChannels = useMemo(() => {
         const groups = new Map<string, { id: string; name: string; models: MarketModel[] }>();
         visibleModels.forEach((item) => {
@@ -99,9 +100,12 @@ export default function ModelMarketPage() {
         message.success(`已切换到 ${item.model}`);
     };
 
-    const imageCount = allModels.filter((item) => item.capability === "image").length;
-    const videoCount = allModels.filter((item) => item.capability === "video").length;
-    const textCount = allModels.filter((item) => item.capability === "text").length;
+    const scopedModels = allModels.filter((item) => scope === "available" ? item.available : !item.available);
+    const imageCount = scopedModels.filter((item) => item.capability === "image").length;
+    const videoCount = scopedModels.filter((item) => item.capability === "video").length;
+    const textCount = scopedModels.filter((item) => item.capability === "text").length;
+    const availableCount = allModels.filter((item) => item.available).length;
+    const catalogCount = allModels.filter((item) => !item.available).length;
     const meta = capabilityMeta[capability];
 
     return (
@@ -111,11 +115,23 @@ export default function ModelMarketPage() {
                     <div>
                         <div className="mb-2 flex items-center gap-2 text-sm text-stone-500"><RefreshCw className="size-4" /> 模型来自你已经接入的通用 Key</div>
                         <h1 className="text-3xl font-semibold tracking-tight text-stone-950 dark:text-white">模型广场</h1>
-                        <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-500">图片、视频和语言模型分开展示。选择模型不会购买新的 Key，只会切换当前画布使用的模型。</p>
+                        <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-500">默认只展示你的 Key 当前能调用的模型；全部模型库单独收录参考画布模型，不会把待接入模型算作可用。</p>
                     </div>
                     <Button icon={<Settings2 className="size-4" />} onClick={() => openConfigDialog(false)}>管理通用 Key / 拉取模型</Button>
                 </section>
 
+                <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <Segmented
+                        size="large"
+                        value={scope}
+                        onChange={(value) => setScope(value as "available" | "catalog")}
+                        options={[
+                            { label: `已接入可用 ${availableCount}`, value: "available" },
+                            { label: `全部模型库 ${catalogCount}`, value: "catalog" },
+                        ]}
+                    />
+                    <Input allowClear value={query} onChange={(event) => setQuery(event.target.value)} prefix={<Search className="size-4 text-stone-400" />} placeholder="搜索模型或渠道" className="md:max-w-sm" />
+                </div>
                 <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <Segmented
                         size="large"
@@ -127,7 +143,7 @@ export default function ModelMarketPage() {
                             { label: `语言模型 ${textCount}`, value: "text", icon: <MessageSquareText className="size-4" /> },
                         ]}
                     />
-                    <Input allowClear value={query} onChange={(event) => setQuery(event.target.value)} prefix={<Search className="size-4 text-stone-400" />} placeholder="搜索模型或渠道" className="md:max-w-sm" />
+                    <div className="text-sm text-stone-500">{scope === "available" ? "可直接切换使用" : "选择接入后才可使用"}</div>
                 </div>
 
                 {visibleModels.length ? (
@@ -166,8 +182,8 @@ export default function ModelMarketPage() {
                     </div>
                 ) : (
                     <div className="rounded-3xl border border-dashed border-stone-300 bg-white py-20 dark:border-stone-700 dark:bg-stone-900">
-                        <Empty description={query ? "没有匹配的模型" : `还没有${meta.noun}模型`}>
-                            <Button type="primary" onClick={() => openConfigDialog(false)}>配置通用 Key 并拉取模型</Button>
+                        <Empty description={query ? "没有匹配的模型" : scope === "available" ? `还没有可用的${meta.noun}模型` : `模型库暂无${meta.noun}模型`}>
+                            {scope === "available" ? <Button type="primary" onClick={() => openConfigDialog(false)}>配置通用 Key 并拉取模型</Button> : null}
                         </Empty>
                     </div>
                 )}
