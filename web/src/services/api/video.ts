@@ -17,6 +17,7 @@ import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 export type VideoResponse = { id: string; task_id?: string; video_id?: string; source_id?: string; sourceId?: string; channelId?: string; userChannelId?: string; channelName?: string; channel_id?: string; user_channel_id?: string; channel_name?: string; status?: string; video_url?: string; url?: string; storageKey?: string; progress?: number; error?: { message?: string }; size?: string; seconds?: string; model?: string; created_at?: string | number; createdAt?: string | number; started_at?: string | number; startedAt?: string | number; request_body?: string };
 type ApiVideoEnvelope = { code: number; data?: VideoResponse | VideoResponse[] | null; msg?: string; message?: string };
 type ApiVideoResponse = VideoResponse | ApiVideoEnvelope;
+type ReferenceMediaUploadEnvelope = { code: number; data?: { url?: string } | null; msg?: string };
 export type VideoGenerationResult = { id: string; url: string; durationMs: number; width: number; height: number; bytes: number; mimeType: string; task: VideoResponse };
 export type CreatedVideoGenerationTask = { task: VideoResponse; pollId: string; startedAt: number; requestBody: unknown };
 export type VideoProgressHandler = (progress: number, task: VideoResponse) => void;
@@ -353,14 +354,8 @@ async function createVideoRequestBody(config: AiConfig, model: string, prompt: s
 async function createTmlabSeedanceRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
     if (input.videoReferences.length) throw new VideoRequestError("Z-API 的 Seedance 2.0 稳定版暂不支持参考视频");
     const imageInputs = [...input.references, ...(input.firstFrame ? [input.firstFrame] : []), ...(input.lastFrame ? [input.lastFrame] : [])].slice(0, 9);
-    const imageValues = await Promise.all(imageInputs.map(imageReferenceToFormValue));
-    if (imageValues.some((value) => typeof value !== "string" || !/^https?:\/\//i.test(value))) {
-        throw new VideoRequestError("Z-API Seedance 参考图必须具有公网访问地址");
-    }
-    const audioValues = await Promise.all(input.audioReferences.slice(0, 3).map(mediaReferenceToFormValue));
-    if (audioValues.some((value) => typeof value !== "string" || !/^https?:\/\//i.test(value))) {
-        throw new VideoRequestError("Z-API Seedance 参考音频必须具有公网访问地址");
-    }
+    const imageValues = await Promise.all(imageInputs.map(async (image) => ensurePublicReference(await imageReferenceToFormValue(image), "图片")));
+    const audioValues = await Promise.all(input.audioReferences.slice(0, 3).map(async (audio) => ensurePublicReference(await mediaReferenceToFormValue(audio), "音频")));
     return {
         model,
         prompt,
@@ -372,6 +367,32 @@ async function createTmlabSeedanceRequestBody(config: AiConfig, model: string, p
         ...(imageValues.length ? { image_urls: imageValues as string[] } : {}),
         ...(audioValues.length ? { audio_urls: audioValues as string[] } : {}),
     };
+}
+
+async function ensurePublicReference(value: string | File, label: string) {
+    if (typeof value === "string") {
+        const publicUrl = publicHttpUrl(value);
+        if (publicUrl) return publicUrl;
+    }
+    const file = typeof value === "string" ? await mediaUrlToFile(value, `reference-${Date.now()}`) : value;
+    const token = useUserStore.getState().token;
+    if (!token) throw new VideoRequestError(`请先登录画布账号，系统才能自动上传本地参考${label}`);
+    const body = new FormData();
+    body.append("file", file, file.name || `reference-${Date.now()}`);
+    const response = await fetch("/api/v1/media/references", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body });
+    const payload = (await response.json().catch(() => null)) as ReferenceMediaUploadEnvelope | null;
+    const url = payload?.data?.url || "";
+    if (!response.ok || payload?.code !== 0 || !publicHttpUrl(url)) {
+        throw new VideoRequestError(payload?.msg || `本地参考${label}上传失败，请检查 PUBLIC_BASE_URL`);
+    }
+    return url;
+}
+
+async function mediaUrlToFile(url: string, name: string) {
+    const response = await fetch(url);
+    if (!response.ok) throw new VideoRequestError(`本地参考素材读取失败：${response.status}`);
+    const blob = await response.blob();
+    return new File([blob], name, { type: blob.type || "application/octet-stream" });
 }
 
 function isTmlabSeedanceConfig(config: AiConfig, model: string) {

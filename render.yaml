@@ -20,3 +20,5 @@ services:
         value: sqlite
       - key: DATABASE_DSN
         value: data/infinite-canvas.db
+      - key: PUBLIC_BASE_URL
+        value: https://infinite-canvas-9353.onrender.com
