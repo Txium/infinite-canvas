@@ -43,6 +43,7 @@ export function AppConfigModal() {
     const { message } = App.useApp();
     const [loadingModels, setLoadingModels] = useState(false);
     const [savingConfig, setSavingConfig] = useState(false);
+    const [keyCategory, setKeyCategory] = useState<"image" | "video" | "general">("image");
     const [modelSelectChannelId, setModelSelectChannelId] = useState("");
     const [remoteStorageSyncEnabled, setRemoteStorageSyncEnabled] = useState(false);
     const [remoteWebDAVStorageSyncEnabled, setRemoteWebDAVStorageSyncEnabled] = useState(false);
@@ -363,15 +364,30 @@ export function AppConfigModal() {
                                         <Button size="small" type="primary" icon={<ExternalLink className="size-3.5" />} href={Z_API_WALLET_URL} target="_blank">
                                             去充值
                                         </Button>
-                                        <Button size="small" onClick={() => addLocalChannel("image")}>添加图片 Key</Button>
-                                        <Button size="small" onClick={() => addLocalChannel("video")}>添加视频 Key</Button>
-                                        <Button size="small" onClick={addPaisioChannel}>添加 Paisio</Button>
-                                        <Button size="small" onClick={() => addLocalChannel("general")}>
-                                            其他
+                                    </div>
+                                </div>
+                                <Segmented
+                                    block
+                                    value={keyCategory}
+                                    onChange={(value) => setKeyCategory(value as "image" | "video" | "general")}
+                                    options={[
+                                        { label: `图片通用 Key（${normalizeLocalChannels(config).filter((item) => item.purpose === "image").length}）`, value: "image" },
+                                        { label: `视频通用 Key（${normalizeLocalChannels(config).filter((item) => item.purpose === "video").length}）`, value: "video" },
+                                        { label: `文本与其他（${normalizeLocalChannels(config).filter((item) => item.purpose !== "image" && item.purpose !== "video").length}）`, value: "general" },
+                                    ]}
+                                />
+                                <div className="flex items-center justify-between gap-3 rounded-md bg-stone-50 px-3 py-2 dark:bg-stone-900">
+                                    <div className="text-xs text-stone-500">
+                                        {keyCategory === "image" ? "这里的 Key 只管理全部图片模型" : keyCategory === "video" ? "这里的 Key 只管理全部视频模型" : "这里管理语言、音频和兼容多类型模型"}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        {keyCategory === "general" ? <Button size="small" onClick={addPaisioChannel}>添加 Paisio</Button> : null}
+                                        <Button size="small" type="primary" onClick={() => addLocalChannel(keyCategory)}>
+                                            添加{keyCategory === "image" ? "图片" : keyCategory === "video" ? "视频" : "其他"} Key
                                         </Button>
                                     </div>
                                 </div>
-                                {normalizeLocalChannels(config).map((channel, index) => (
+                                {normalizeLocalChannels(config).filter((channel) => keyCategory === "general" ? channel.purpose !== "image" && channel.purpose !== "video" : channel.purpose === keyCategory).map((channel, index) => (
                                     <div key={channel.id} className="space-y-2 rounded-md bg-stone-50 p-2 dark:bg-stone-900">
                                         <div className="grid gap-2 md:grid-cols-[130px_120px_140px_minmax(0,1fr)_minmax(0,1fr)_auto]">
                                             <Input value={channel.name} placeholder="渠道名称" onChange={(event) => patchLocalChannel(channel.id, { name: event.target.value })} />
@@ -416,6 +432,11 @@ export function AppConfigModal() {
                                         </div>
                                     </div>
                                 ))}
+                                {!normalizeLocalChannels(config).some((channel) => keyCategory === "general" ? channel.purpose !== "image" && channel.purpose !== "video" : channel.purpose === keyCategory) ? (
+                                    <div className="rounded-md border border-dashed border-stone-300 px-4 py-7 text-center text-sm text-stone-500 dark:border-stone-700">
+                                        还没有{keyCategory === "image" ? "图片" : keyCategory === "video" ? "视频" : "文本或其他"}通用 Key，点击上方按钮添加
+                                    </div>
+                                ) : null}
                             </div>
                             <div className="mb-5 flex items-center justify-between gap-3 rounded-lg border border-stone-200 px-3 py-2 dark:border-stone-800">
                                 <div className="min-w-0">
