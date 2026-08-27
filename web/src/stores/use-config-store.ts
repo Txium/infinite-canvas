@@ -233,6 +233,7 @@ function isVideoModelName(model: string) {
     const value = model.toLowerCase();
     return (
         value.includes("video") ||
+        /^sd2(?:-|$)/.test(value) ||
         value.includes("seedance") ||
         value.includes("sora") ||
         value.includes("veo") ||

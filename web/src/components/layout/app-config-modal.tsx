@@ -30,6 +30,7 @@ type ModelGroup = {
 };
 
 const Z_API_WALLET_URL = "https://api.tmlab.store/wallet";
+const PAISIO_BASE_URL = "https://api.paisio.online";
 
 const modelGroups: ModelGroup[] = [
     { capability: "image", modelKey: "imageModel", channelKey: "imageChannelId", modelsKey: "imageModels", defaultLabel: "默认生图模型", optionsLabel: "生图模型可选项" },
@@ -245,6 +246,16 @@ export function AppConfigModal() {
         updateLocalChannels([...normalizeLocalChannels(config), { id: "local-" + Date.now(), protocol: "openai", purpose, name, baseUrl: modelChannelDefaultBaseUrls.openai, apiKey: "", models: [] }]);
     };
 
+    const addPaisioChannel = () => {
+        const existing = normalizeLocalChannels(config).find((channel) => channel.baseUrl.replace(/\/+$/, "") === PAISIO_BASE_URL);
+        if (existing) {
+            message.info("Paisio 已经接入，请填写 Key 后拉取模型");
+            return;
+        }
+        updateLocalChannels([...normalizeLocalChannels(config), { id: "paisio-" + Date.now(), protocol: "openai", purpose: "general", name: "Paisio", baseUrl: PAISIO_BASE_URL, apiKey: "", models: [] }]);
+        message.success("已添加 Paisio，请填写 API Key 后点击拉取全部渠道");
+    };
+
     const removeLocalChannel = (id: string) => {
         updateLocalChannels(normalizeLocalChannels(config).filter((channel) => channel.id !== id));
     };
@@ -354,6 +365,7 @@ export function AppConfigModal() {
                                         </Button>
                                         <Button size="small" onClick={() => addLocalChannel("image")}>添加图片 Key</Button>
                                         <Button size="small" onClick={() => addLocalChannel("video")}>添加视频 Key</Button>
+                                        <Button size="small" onClick={addPaisioChannel}>添加 Paisio</Button>
                                         <Button size="small" onClick={() => addLocalChannel("general")}>
                                             其他
                                         </Button>

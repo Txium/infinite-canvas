@@ -270,6 +270,7 @@ async function createAgnesVideoV25RequestBody(config: AiConfig, model: string, p
 async function createVideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
     const size = normalizeVideoSize(config.size);
     if (isTmlabSeedanceConfig(config, model)) return createTmlabSeedanceRequestBody(config, model, prompt, input);
+    if (isPaisioConfig(config)) return createPaisioVideoRequestBody(config, model, prompt, input);
     if (isGeminiVideoModel(model) && isGeminiConfig(config, model)) return createGeminiVeoRequestBody(config, model, prompt, input);
     if (isGrok2APIVideoConfig(config, model)) return createGrok2APIVideoRequestBody(config, model, prompt, input);
     if (isMiniMaxH3Config(config, model)) return createMiniMaxH3VideoRequestBody(config, model, prompt, input);
@@ -351,6 +352,27 @@ async function createVideoRequestBody(config: AiConfig, model: string, prompt: s
     return body;
 }
 
+async function createPaisioVideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
+    const imageValues = await Promise.all(input.references.slice(0, 9).map(async (image) => ensurePublicReference(await imageReferenceToFormValue(image), "图片")));
+    const videoValues = await Promise.all(input.videoReferences.slice(0, 3).map(async (video) => ensurePublicReference(await mediaReferenceToFormValue(video), "视频")));
+    const audioValues = await Promise.all(input.audioReferences.slice(0, 3).map(async (audio) => ensurePublicReference(await mediaReferenceToFormValue(audio), "音频")));
+    const firstFrame = input.firstFrame ? await ensurePublicReference(await imageReferenceToFormValue(input.firstFrame), "首帧图片") : "";
+    const lastFrame = input.lastFrame ? await ensurePublicReference(await imageReferenceToFormValue(input.lastFrame), "尾帧图片") : "";
+    const mainImage = firstFrame || imageValues[0] || "";
+    return {
+        model,
+        prompt,
+        duration: normalizeSeedanceDuration(config.videoSeconds),
+        aspect_ratio: normalizeSeedanceRatio(config.size),
+        ...(mainImage ? { image_url: mainImage } : {}),
+        ...(imageValues.length > (firstFrame ? 0 : 1) ? { extra_images: imageValues.slice(firstFrame ? 0 : 1) } : {}),
+        ...(videoValues.length ? { extra_videos: videoValues } : {}),
+        ...(audioValues.length ? { extra_audios: audioValues } : {}),
+        ...(firstFrame ? { start_image_url: firstFrame } : {}),
+        ...(lastFrame ? { end_image_url: lastFrame } : {}),
+    };
+}
+
 async function createTmlabSeedanceRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
     if (input.videoReferences.length) throw new VideoRequestError("Z-API 的 Seedance 2.0 稳定版暂不支持参考视频");
     const imageInputs = [...input.references, ...(input.firstFrame ? [input.firstFrame] : []), ...(input.lastFrame ? [input.lastFrame] : [])].slice(0, 9);
@@ -399,6 +421,11 @@ function isTmlabSeedanceConfig(config: AiConfig, model: string) {
     const channel = localChannelForActiveModel(config);
     const baseUrl = (channel?.baseUrl || config.baseUrl).toLowerCase();
     return /^(?:api|api-cn)\.tmlab\.store(?:\/|$)/.test(baseUrl.replace(/^https?:\/\//, "")) && /^seedance-2\.0-(mini|fast|pro)(?:\(\d+\))?$/i.test(model.trim());
+}
+
+function isPaisioConfig(config: AiConfig) {
+    const channel = localChannelForActiveModel(config);
+    return /(^|\.)paisio\.online$/i.test(new URL((channel?.baseUrl || config.baseUrl).replace(/\/+$/, "")).hostname);
 }
 
 function tmlabApiUrl(config: AiConfig, path: string) {
