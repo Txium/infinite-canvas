@@ -22,6 +22,7 @@ const userModelChannelHeader = "X-User-Model-Channel-ID"
 func selectAIRequestChannel(user model.AuthUser, modelName string, channelID string, userChannelID string) (model.ModelChannel, string, error) {
 	userChannelID = strings.TrimSpace(userChannelID)
 	if userChannelID != "" {
+		if user.Role != model.UserRoleAdmin { return model.ModelChannel{}, "", fmt.Errorf("普通用户只能使用平台云端模型") }
 		channel, err := service.SelectUserLocalModelChannelForModel(user.ID, modelName, userChannelID)
 		return channel, userChannelID, err
 	}
@@ -35,7 +36,7 @@ func selectAIRequestChannel(user model.AuthUser, modelName string, channelID str
 func failAIChannelSelect(w http.ResponseWriter, err error, fallback string) {
 	message := strings.TrimSpace(err.Error())
 	switch message {
-	case "当前账号未开放云端渠道", "请先登录", "缺少模型名称", "缺少模型渠道", "本地渠道不存在", "本地渠道配置不完整", "本地渠道不支持该模型", "指定模型渠道不可用":
+	case "当前账号未开放云端渠道", "普通用户只能使用平台云端模型", "当前模型档位未上架", "动态价格尚未接入真实成本结算，当前不能生成", "请先登录", "缺少模型名称", "缺少模型渠道", "本地渠道不存在", "本地渠道配置不完整", "本地渠道不支持该模型", "指定模型渠道不可用":
 		Fail(w, message)
 	default:
 		Fail(w, fallback)
@@ -154,7 +155,7 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		if err == nil && !marketCost { credits, err = service.ModelCost(requestedModel) }
 		if err != nil {
 			log.Printf("AI proxy read model cost failed: model=%s err=%v", modelName, err)
-			Fail(w, "AI 接口请求失败")
+			Fail(w, err.Error())
 			return
 		}
 		credits *= readAIRequestCount(body, contentType)

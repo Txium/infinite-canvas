@@ -5,6 +5,7 @@ type VideoTask struct {
 	UserID          string `json:"userId" gorm:"index"`
 	UserDisplayName string `json:"userDisplayName"`
 	Model           string `json:"model" gorm:"index"`
+	UpstreamModel   string `json:"-" gorm:"column:upstream_model"`
 	ChannelID       string `json:"channelId" gorm:"index"`
 	UserChannelID   string `json:"userChannelId" gorm:"index"`
 	ChannelName     string `json:"channelName"`

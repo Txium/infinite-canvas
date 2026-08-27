@@ -29,6 +29,7 @@ type VideoTaskCreateInput struct {
 	UserID          string
 	UserDisplayName string
 	Model           string
+	UpstreamModel   string
 	ChannelID       string
 	UserChannelID   string
 	ChannelName     string
@@ -73,6 +74,7 @@ func CreateVideoTask(input VideoTaskCreateInput) (model.VideoTask, error) {
 		UserID:          strings.TrimSpace(input.UserID),
 		UserDisplayName: strings.TrimSpace(input.UserDisplayName),
 		Model:           strings.TrimSpace(input.Model),
+		UpstreamModel:   strings.TrimSpace(input.UpstreamModel),
 		ChannelID:       strings.TrimSpace(input.ChannelID),
 		UserChannelID:   strings.TrimSpace(input.UserChannelID),
 		ChannelName:     strings.TrimSpace(input.ChannelName),
@@ -134,9 +136,6 @@ func VideoTaskResponse(task model.VideoTask) map[string]any {
 		"id":           task.ID,
 		"object":       "video",
 		"model":        task.Model,
-		"channelId":    task.ChannelID,
-		"userChannelId": task.UserChannelID,
-		"channelName":  task.ChannelName,
 		"source":       task.Source,
 		"source_id":    task.SourceID,
 		"status":       task.Status,
@@ -151,7 +150,12 @@ func VideoTaskResponse(task model.VideoTask) map[string]any {
 		"completed_at": task.CompletedAt,
 		"createdAt":    task.CreatedAt,
 		"updatedAt":    task.UpdatedAt,
-		"request_body": task.RequestBody,
+	}
+	if strings.TrimSpace(task.UpstreamModel) == "" {
+		result["channelId"] = task.ChannelID
+		result["userChannelId"] = task.UserChannelID
+		result["channelName"] = task.ChannelName
+		result["request_body"] = task.RequestBody
 	}
 	if task.VideoURL != "" {
 		result["url"] = task.VideoURL

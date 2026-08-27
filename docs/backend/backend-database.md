@@ -32,8 +32,21 @@ description: 当前后端主要数据表与字段说明
 - `canvas_projects`
 - `user_configs`
 - `storage_objects`
+- `model_providers`
+- `market_models`
+- `model_variants`
+- `model_routes`
+- `model_catalog_versions`
 
 后续新增表时再同步补充本文档，未实际使用的规划表不提前写入。
+
+### 模型广场与上游路由
+
+`market_models` 只保存用户看到的一张模型卡；`model_variants` 保存该卡片下的分辨率、质量、时长或能力档位以及人民币售价。`model_routes` 使用 `variant_id` 将一个具体档位映射到上游线路，供应商密钥只保存在 `model_providers`，公开模型广场接口不会返回密钥、供应商代码、上游 Model ID 或成本价。
+
+第一版供应商代码只允许：`302`、`wavespeed`、`lec`、`seedance_nz`。默认模型目录由最终接入定价表生成，供应商与线路默认停用，填写服务器端 Base URL/API Key 并完成真实测试后才能启用。
+
+普通用户的模型配置会强制保存为云端模式，并移除 `apiKey`、`baseUrl` 和 `localChannels`；管理员仍可在受管理员鉴权保护的入口测试本地直连参数。
 
 ### users
 
@@ -408,7 +421,7 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 
 ### model_providers
 
-模型路由层的上游供应商。`api_key` 只由后端保存，管理接口列表不会返回明文。
+模型路由层的上游供应商。四家上游的 Key 使用服务器环境变量保存，不写入数据库；目录升级会清空遗留的 `api_key` 字段，管理接口只返回 `hasApiKey` 状态。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -416,7 +429,7 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | `name` | string | 后台显示名称 |
 | `code` | string | 唯一供应商代码 |
 | `base_url` | string | 上游 API Base URL |
-| `api_key` | string | 上游密钥 |
+| `api_key` | string | 遗留字段，当前四家上游保持为空 |
 | `enabled` | boolean | 是否启用 |
 | `priority` | number | 后台排序优先级 |
 | `timeout` | number | 请求超时秒数 |
@@ -428,32 +441,25 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 
 主要字段包括名称、分类、图标、描述、生成模式、分辨率、时长、比例、参考图数量、人物/首尾帧/音频参考能力、速度、热门标记、状态、启用状态和排序。
 
+### model_variants
+
+模型卡下面的具体档位与售价。固定售价使用人民币分整数；动态定价档位在真实成本结算完成前保持不可生成。供应商代码、上游模型 ID、成本、退款策略和来源链接只供管理员使用，公开模型接口会转换为不含这些字段的 DTO。
+
 ### model_routes
 
-自有模型到上游供应商模型的映射。同一 `model_id` 可按 `priority` 配置多条线路。
+模型档位到上游供应商模型的映射。同一 `variant_id` 可按 `priority` 配置主线路和备用线路。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | string | 线路 ID |
 | `model_id` | string | 自有模型 ID |
+| `variant_id` | string | 自有模型档位 ID |
 | `provider_id` | string | 供应商 ID |
 | `upstream_model_id` | string | 实际上游模型 ID |
 | `protocol` | string | 请求协议/适配器名称 |
 | `priority` | number | 线路顺序，数字越小越优先 |
 | `enabled` | boolean | 是否启用 |
 
-### model_prices
+### video_tasks
 
-自有模型的规格成本与用户售价。成本单位为人民币分，用户售价单位为站内算力点。
-
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `id` | string | 价格 ID |
-| `model_id` | string | 自有模型 ID |
-| `variant` | string | 规格标识 |
-| `billing_mode` | string | 计费方式 |
-| `unit` | string | 次、秒或其他计费单位 |
-| `cost_fen` | number | 成本，人民币分 |
-| `price_credits` | number | 用户售价，算力点 |
-| `currency` | string | 成本币种 |
-| `enabled` | boolean | 是否启用 |
+平台模型广场发起的视频任务同时保存公开档位 ID 和仅服务器使用的 `upstream_model`。用户任务响应只返回公开档位 ID，不返回供应商、线路、上游模型 ID或请求体；服务器轮询使用 `upstream_model`。

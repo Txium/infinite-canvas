@@ -16,11 +16,13 @@ func ListMarketModels(category string, featured bool) ([]model.MarketModel, erro
 	return items, err
 }
 
-func ListModelPrices(modelIDs []string) ([]model.ModelPrice, error) {
-	if len(modelIDs) == 0 { return []model.ModelPrice{}, nil }
+func ListModelVariants(modelIDs []string, enabledOnly bool) ([]model.ModelVariant, error) {
+	if len(modelIDs) == 0 { return []model.ModelVariant{}, nil }
 	db, err := DB(); if err != nil { return nil, err }
-	var items []model.ModelPrice
-	err = db.Where("model_id IN ? AND enabled = ?", modelIDs, true).Find(&items).Error
+	var items []model.ModelVariant
+	tx := db.Where("model_id IN ?", modelIDs)
+	if enabledOnly { tx = tx.Where("enabled = ?", true) }
+	err = tx.Order("model_id asc, sort asc, name asc").Find(&items).Error
 	return items, err
 }
 
@@ -34,7 +36,7 @@ func ListModelProviders() ([]model.ModelProvider, error) {
 func ListModelRoutes() ([]model.ModelRoute, error) {
 	db, err := DB(); if err != nil { return nil, err }
 	var items []model.ModelRoute
-	err = db.Order("model_id asc, priority asc").Find(&items).Error
+	err = db.Order("model_id asc, variant_id asc, priority asc").Find(&items).Error
 	return items, err
 }
 
@@ -49,46 +51,29 @@ func ListEnabledModelRoutes(modelIDs []string) ([]model.ModelRoute, error) {
 func SaveModelProvider(item model.ModelProvider) error { db, err := DB(); if err != nil { return err }; return db.Save(&item).Error }
 func SaveMarketModel(item model.MarketModel) error { db, err := DB(); if err != nil { return err }; return db.Save(&item).Error }
 func SaveModelRoute(item model.ModelRoute) error { db, err := DB(); if err != nil { return err }; return db.Save(&item).Error }
-func SaveModelPrice(item model.ModelPrice) error { db, err := DB(); if err != nil { return err }; return db.Save(&item).Error }
+func SaveModelVariant(item model.ModelVariant) error { db, err := DB(); if err != nil { return err }; return db.Save(&item).Error }
 
-func SeedMarketModels(items []model.MarketModel) error {
-	db, err := DB(); if err != nil { return err }
-	return db.Transaction(func(tx *gorm.DB) error {
-		for _, item := range items {
-			if err := tx.Where("id = ?", item.ID).FirstOrCreate(&item).Error; err != nil { return err }
-		}
-		return nil
-	})
-}
-
-func SeedModelPrices(items []model.ModelPrice) error {
-	db, err := DB()
-	if err != nil { return err }
-	return db.Transaction(func(tx *gorm.DB) error {
-		for _, item := range items {
-			if err := tx.Where("id = ?", item.ID).FirstOrCreate(&item).Error; err != nil { return err }
-		}
-		return nil
-	})
-}
-
-func SyncDefaultModelCatalog(version int, models []model.MarketModel, prices []model.ModelPrice, retiredModelIDs []string, updatedAt string) error {
+func SyncDefaultModelCatalog(version int, models []model.MarketModel, variants []model.ModelVariant, providers []model.ModelProvider, routes []model.ModelRoute, updatedAt string) error {
 	db, err := DB()
 	if err != nil { return err }
 	return db.Transaction(func(tx *gorm.DB) error {
 		var current model.ModelCatalogVersion
 		if err := tx.Where("key = ?", "default").First(&current).Error; err == nil && current.Version >= version { return nil }
-		if len(retiredModelIDs) > 0 { if err := tx.Model(&model.MarketModel{}).Where("id IN ?", retiredModelIDs).Update("enabled", false).Error; err != nil { return err } }
+		modelIDs := make([]string, 0, len(models)); for _, item := range models { modelIDs = append(modelIDs, item.ID) }
+		if err := tx.Model(&model.MarketModel{}).Where("id NOT IN ?", modelIDs).Update("enabled", false).Error; err != nil { return err }
 		for _, item := range models { if err := tx.Save(&item).Error; err != nil { return err } }
-		for _, item := range prices { if err := tx.Save(&item).Error; err != nil { return err } }
+		for _, item := range variants { if err := tx.Save(&item).Error; err != nil { return err } }
+		for _, item := range providers { if err := tx.Where("id = ?", item.ID).FirstOrCreate(&item).Error; err != nil { return err } }
+		if err := tx.Model(&model.ModelProvider{}).Where("code IN ?", []string{"302", "wavespeed", "lec", "seedance_nz"}).Update("api_key", "").Error; err != nil { return err }
+		for _, item := range routes { if err := tx.Where("id = ?", item.ID).FirstOrCreate(&item).Error; err != nil { return err } }
 		return tx.Save(&model.ModelCatalogVersion{Key:"default",Version:version,UpdatedAt:updatedAt}).Error
 	})
 }
 
-func EnabledRoutesForModel(modelID string) ([]model.ModelRoute, error) {
+func EnabledRoutesForVariant(variantID string) ([]model.ModelRoute, error) {
 	db, err := DB(); if err != nil { return nil, err }
 	var items []model.ModelRoute
-	err = db.Where("model_id = ? AND enabled = ?", modelID, true).Order("priority asc").Find(&items).Error
+	err = db.Where("variant_id = ? AND enabled = ?", variantID, true).Order("priority asc").Find(&items).Error
 	return items, err
 }
 
@@ -106,9 +91,16 @@ func SavedModelProviderByID(id string) (model.ModelProvider, error) {
 	return item, err
 }
 
-func MarketModelPrice(modelID string) (model.ModelPrice, error) {
-	db, err := DB(); if err != nil { return model.ModelPrice{}, err }
-	var item model.ModelPrice
-	err = db.Where("model_id = ? AND enabled = ?", modelID, true).Order("created_at asc").First(&item).Error
+func SavedModelVariantByID(id string) (model.ModelVariant, error) {
+	db, err := DB(); if err != nil { return model.ModelVariant{}, err }
+	var item model.ModelVariant
+	err = db.Where("id = ?", id).First(&item).Error
+	return item, err
+}
+
+func MarketVariantByID(variantID string) (model.ModelVariant, error) {
+	db, err := DB(); if err != nil { return model.ModelVariant{}, err }
+	var item model.ModelVariant
+	err = db.Where("id = ?", variantID).First(&item).Error
 	return item, err
 }

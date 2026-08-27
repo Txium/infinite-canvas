@@ -83,8 +83,8 @@ func DB() (*gorm.DB, error) {
 			&model.CanvasProject{},
 			&model.ModelProvider{},
 			&model.MarketModel{},
+			&model.ModelVariant{},
 			&model.ModelRoute{},
-			&model.ModelPrice{},
 			&model.ModelCatalogVersion{},
 		)
 	})

@@ -66,18 +66,30 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		Fail(w, "未登录或权限不足")
 		return
 	}
-	channel, userChannelID, err := selectAIRequestChannel(user, modelName, r.Header.Get("X-Model-Channel-ID"), r.Header.Get(userModelChannelHeader))
+	requestedModel := modelName
+	channel, upstreamModel, routed, err := service.ResolveMarketRoute(requestedModel)
+	userChannelID := ""
+	if err == nil && routed {
+		body, err = replaceAIRequestModel(body, contentType, upstreamModel)
+		modelName = upstreamModel
+	} else if err == nil {
+		channel, userChannelID, err = selectAIRequestChannel(user, modelName, r.Header.Get("X-Model-Channel-ID"), r.Header.Get(userModelChannelHeader))
+	}
 	if err != nil {
-		log.Printf("AI video select channel failed: model=%s err=%v", modelName, err)
+		log.Printf("AI video select channel failed: model=%s err=%v", requestedModel, err)
 		failAIChannelSelect(w, err, "AI 接口请求失败")
 		return
 	}
 	credits := 0
 	if userChannelID == "" {
-		credits, err = service.ModelCost(modelName)
+		var marketCost bool
+		credits, marketCost, err = service.MarketModelCost(requestedModel)
+		if err == nil && !marketCost {
+			credits, err = service.ModelCost(requestedModel)
+		}
 		if err != nil {
-			log.Printf("AI video read model cost failed: model=%s err=%v", modelName, err)
-			Fail(w, "AI 接口请求失败")
+			log.Printf("AI video read model cost failed: model=%s err=%v", requestedModel, err)
+			Fail(w, err.Error())
 			return
 		}
 		credits *= readAIRequestCount(body, contentType)
@@ -103,7 +115,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		StartedAt:       startedAt,
 		Endpoint:        "/videos",
 		Method:          http.MethodPost,
-		Model:           modelName,
+		Model:           requestedModel,
 		Channel:         channel,
 		UserID:          user.ID,
 		UserDisplayName: firstNonEmpty(user.DisplayName, user.Username),
@@ -111,7 +123,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		RequestBody:     summarizeAIRequest(body, contentType),
 	}
 	if credits > 0 {
-		if err := service.ConsumeUserCredits(user.ID, modelName, credits, upstreamPath); err != nil {
+		if err := service.ConsumeUserCredits(user.ID, requestedModel, credits, upstreamPath); err != nil {
 			FailError(w, err)
 			return
 		}
@@ -119,7 +131,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	payload, status, err := doAIRequest(request, channel)
 	if err != nil {
 		if credits > 0 {
-			refundVideoCredits(user.ID, modelName, credits, upstreamPath)
+			refundVideoCredits(user.ID, requestedModel, credits, upstreamPath)
 		}
 		saveAIProxyLog(logContext, 0, "", err.Error())
 		Fail(w, "AI 接口请求失败")
@@ -128,7 +140,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	if status >= http.StatusBadRequest {
 		message := readUpstreamAIErrorMessage(payload, status)
 		if credits > 0 {
-			refundVideoCredits(user.ID, modelName, credits, upstreamPath)
+			refundVideoCredits(user.ID, requestedModel, credits, upstreamPath)
 		}
 		saveAIProxyLog(logContext, status, string(payload), strings.TrimSpace(string(payload)))
 		Fail(w, message)
@@ -137,7 +149,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	transformed := transformVideoCreatePayload(payload, request, channel, modelName)
 	if message := readVideoCreateErrorMessage(payload, transformed, channel, modelName); message != "" {
 		if credits > 0 {
-			refundVideoCredits(user.ID, modelName, credits, upstreamPath)
+			refundVideoCredits(user.ID, requestedModel, credits, upstreamPath)
 		}
 		saveAIProxyLog(logContext, status, string(payload), message)
 		Fail(w, message)
@@ -146,7 +158,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	parsed := parseVideoTaskPayload(transformed, modelName)
 	if parsed.UpstreamTaskID == "" && parsed.UpstreamVideoID == "" {
 		if credits > 0 {
-			refundVideoCredits(user.ID, modelName, credits, upstreamPath)
+			refundVideoCredits(user.ID, requestedModel, credits, upstreamPath)
 		}
 		saveAIProxyLog(logContext, status, string(transformed), "视频接口没有返回任务 ID")
 		Fail(w, "视频接口没有返回任务 ID")
@@ -155,7 +167,8 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	task, err := service.CreateVideoTask(service.VideoTaskCreateInput{
 		UserID:          user.ID,
 		UserDisplayName: firstNonEmpty(user.DisplayName, user.Username),
-		Model:           modelName,
+		Model:           requestedModel,
+		UpstreamModel:   modelName,
 		ChannelID:       channel.ID,
 		UserChannelID:   userChannelID,
 		ChannelName:     channel.Name,
@@ -232,10 +245,11 @@ func serveGeminiVideoTaskContent(w http.ResponseWriter, r *http.Request, id stri
 		return false
 	}
 	var channel model.ModelChannel
+	upstreamModel := videoTaskUpstreamModel(task)
 	if strings.TrimSpace(task.UserChannelID) != "" {
-		channel, err = service.SelectUserLocalModelChannelForModel(task.UserID, task.Model, task.UserChannelID)
+		channel, err = service.SelectUserLocalModelChannelForModel(task.UserID, upstreamModel, task.UserChannelID)
 	} else {
-		channel, err = service.SelectModelChannelForModel(task.Model, task.ChannelID)
+		channel, err = service.SelectModelChannelForModel(upstreamModel, task.ChannelID)
 	}
 	if err != nil || !service.IsGeminiChannel(channel) {
 		return false
@@ -271,24 +285,25 @@ func serveGeminiVideoTaskContent(w http.ResponseWriter, r *http.Request, id stri
 func pollVideoTaskFromUpstream(task model.VideoTask) (service.VideoTaskPollUpdate, error) {
 	var channel model.ModelChannel
 	var err error
+	upstreamModel := videoTaskUpstreamModel(task)
 	if strings.TrimSpace(task.UserChannelID) != "" {
-		channel, err = service.SelectUserLocalModelChannelForModel(task.UserID, task.Model, task.UserChannelID)
+		channel, err = service.SelectUserLocalModelChannelForModel(task.UserID, upstreamModel, task.UserChannelID)
 	} else {
-		channel, err = service.SelectModelChannelForModel(task.Model, task.ChannelID)
+		channel, err = service.SelectModelChannelForModel(upstreamModel, task.ChannelID)
 	}
 	if err != nil {
 		return service.VideoTaskPollUpdate{}, err
 	}
 	pollID := firstNonEmpty(task.UpstreamTaskID, task.ID)
-	if isAgnesVideoModel(task.Model) && strings.HasPrefix(task.UpstreamVideoID, "video_") {
+	if isAgnesVideoModel(upstreamModel) && strings.HasPrefix(task.UpstreamVideoID, "video_") {
 		pollID = task.UpstreamVideoID
 	}
 	if strings.TrimSpace(pollID) == "" {
 		return service.VideoTaskPollUpdate{}, errors.New("视频任务缺少上游任务 ID")
 	}
 	endpoint := "/videos/" + pollID
-	upstreamPath := resolveAIProxyPath(channel, task.Model, endpoint)
-	request, err := http.NewRequest(http.MethodGet, resolveAIProxyURL(channel, task.Model, upstreamPath), nil)
+	upstreamPath := resolveAIProxyPath(channel, upstreamModel, endpoint)
+	request, err := http.NewRequest(http.MethodGet, resolveAIProxyURL(channel, upstreamModel, upstreamPath), nil)
 	if err != nil {
 		return service.VideoTaskPollUpdate{}, err
 	}
@@ -317,12 +332,12 @@ func pollVideoTaskFromUpstream(task model.VideoTask) (service.VideoTaskPollUpdat
 		}
 		return service.VideoTaskPollUpdate{Status: "failed", Error: message, ErrorDetail: message, ResponseBody: string(payload)}, nil
 	}
-	transformed := transformVideoStatusPayload(payload, request, channel, task.Model)
-	parsed := parseVideoTaskPayload(transformed, task.Model)
+	transformed := transformVideoStatusPayload(payload, request, channel, upstreamModel)
+	parsed := parseVideoTaskPayload(transformed, upstreamModel)
 	if parsed.Status == "failed" && parsed.Error == "" {
 		parsed.Error = firstNonEmpty(parsed.ErrorDetail, "视频任务生成失败")
 	}
-	if errMessage := readVideoStatusErrorMessage(payload, transformed, channel, task.Model); errMessage != "" {
+	if errMessage := readVideoStatusErrorMessage(payload, transformed, channel, upstreamModel); errMessage != "" {
 		if parsed.Error == "" {
 			parsed.Error = errMessage
 		}
@@ -342,6 +357,10 @@ func pollVideoTaskFromUpstream(task model.VideoTask) (service.VideoTaskPollUpdat
 		ErrorDetail:  parsed.ErrorDetail,
 		ResponseBody: string(transformed),
 	}, nil
+}
+
+func videoTaskUpstreamModel(task model.VideoTask) string {
+	return firstNonEmpty(task.UpstreamModel, task.Model)
 }
 
 func normalizeVideoCreateBody(body []byte, contentType string, modelName string, channel model.ModelChannel, upstreamPath string) ([]byte, string, error) {

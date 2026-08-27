@@ -14,6 +14,14 @@ services:
         generateValue: true
       - key: JWT_EXPIRE_HOURS
         value: 168
+      - key: MODEL_PROVIDER_302_API_KEY
+        sync: false
+      - key: MODEL_PROVIDER_WAVESPEED_API_KEY
+        sync: false
+      - key: MODEL_PROVIDER_LEC_API_KEY
+        sync: false
+      - key: MODEL_PROVIDER_SEEDANCE_NZ_API_KEY
+        sync: false
       - key: PORT
         value: 3000
       - key: STORAGE_DRIVER

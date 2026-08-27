@@ -1,12 +1,15 @@
 import { apiDelete, apiGet, apiPost, compactApiParams } from "@/services/api/request";
 import type { Prompt, PromptListResponse } from "@/services/api/prompts";
 
-export type AdminModelProvider = { id: string; name: string; code: string; baseUrl: string; apiKey?: string; enabled: boolean; priority: number; timeout: number; remark: string };
-export type AdminModelRoute = { id: string; modelId: string; providerId: string; upstreamModelId: string; protocol: string; priority: number; enabled: boolean };
+export type AdminModelProvider = { id: string; name: string; code: string; baseUrl: string; hasApiKey: boolean; enabled: boolean; priority: number; timeout: number; remark: string };
+export type AdminModelRoute = { id: string; modelId: string; variantId: string; providerId: string; upstreamModelId: string; protocol: string; priority: number; enabled: boolean };
+export type AdminModelVariant = { id: string; modelId: string; name: string; providerCode: string; upstreamModelId: string; costCents?: number; costText: string; priceCents?: number; priceText: string; billingUnit: string; pricingMode: "fixed" | "dynamic" | "disabled"; priceFormula: string; marginText: string; personNote: string; refundPolicy: string; sourceUrl: string; remark: string; enabled: boolean; sort: number };
 export async function fetchAdminModelProviders(token: string) { return apiGet<AdminModelProvider[]>("/api/admin/model-providers", undefined, token); }
 export async function saveAdminModelProvider(token: string, item: Partial<AdminModelProvider>) { return apiPost<AdminModelProvider>("/api/admin/model-providers", item, token); }
 export async function fetchAdminModelRoutes(token: string) { return apiGet<AdminModelRoute[]>("/api/admin/model-routes", undefined, token); }
 export async function saveAdminModelRoute(token: string, item: Partial<AdminModelRoute>) { return apiPost<AdminModelRoute>("/api/admin/model-routes", item, token); }
+export async function fetchAdminModelVariants(token: string) { return apiGet<AdminModelVariant[]>("/api/admin/model-variants", undefined, token); }
+export async function saveAdminModelVariant(token: string, item: Partial<AdminModelVariant>) { return apiPost<AdminModelVariant>("/api/admin/model-variants", item, token); }
 
 export type AdminPromptCategory = {
     category: string;

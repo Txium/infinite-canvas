@@ -83,7 +83,7 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
         searchParams.delete("apiKey");
         searchParams.delete("apikey");
         window.history.replaceState(null, "", `${window.location.pathname}${searchParams.size ? `?${searchParams}` : ""}${window.location.hash}`);
-        if (!publicSettings.modelChannel.allowCustomChannel) {
+        if (user?.role !== "admin" || !publicSettings.modelChannel.allowCustomChannel) {
             openConfigDialog(false);
             message.error("后台未允许用户自定义渠道，请联系管理员进行配置");
             return;
@@ -92,7 +92,7 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
         if (baseUrl) updateConfig("baseUrl", baseUrl);
         if (apiKey) updateConfig("apiKey", apiKey);
         openConfigDialog(false);
-    }, [message, openConfigDialog, publicSettings, updateConfig]);
+    }, [message, openConfigDialog, publicSettings, updateConfig, user?.role]);
 
     return <>{children}</>;
 }
