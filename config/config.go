@@ -38,13 +38,47 @@ func Load() error {
 	}
 	normalizeDockerSQLiteDSN("/app/data")
 	if strings.TrimSpace(Cfg.JWTSecret) == "" || Cfg.JWTSecret == "infinite-canvas" {
-		secret, err := randomSecret()
+		secret, err := persistentJWTSecret()
 		if err != nil {
 			return err
 		}
 		Cfg.JWTSecret = secret
 	}
 	return nil
+}
+
+// persistentJWTSecret keeps issued login tokens valid across service restarts.
+// Production deployments should still prefer setting JWT_SECRET explicitly.
+func persistentJWTSecret() (string, error) {
+	secretPath := filepath.Join("data", ".jwt-secret")
+	dsn := strings.TrimSpace(Cfg.DatabaseDSN)
+	if dsn != "" && dsn != ":memory:" && !strings.HasPrefix(dsn, "file:") {
+		pathPart := dsn
+		if index := strings.Index(pathPart, "?"); index >= 0 {
+			pathPart = pathPart[:index]
+		}
+		if dir := filepath.Dir(pathPart); dir != "." && dir != "" {
+			secretPath = filepath.Join(dir, ".jwt-secret")
+		}
+	}
+	if data, err := os.ReadFile(secretPath); err == nil {
+		if secret := strings.TrimSpace(string(data)); secret != "" {
+			return secret, nil
+		}
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+	secret, err := randomSecret()
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(secretPath), 0700); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(secretPath, []byte(secret+"\n"), 0600); err != nil {
+		return "", err
+	}
+	return secret, nil
 }
 
 func normalizeDockerSQLiteDSN(appDataDir string) {

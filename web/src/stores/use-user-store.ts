@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import { AUTH_TOKEN_KEY, fetchCurrentUser, login, register, type AuthPayload, type AuthUser } from "@/services/api/auth";
+import { ApiError } from "@/services/api/request";
 
 type UserStore = {
     token: string;
@@ -40,8 +41,15 @@ export const useUserStore = create<UserStore>()(
                         return;
                     }
                     set({ user, isReady: true, isLoading: false });
-                } catch {
-                    set({ token: "", user: null, isReady: true, isLoading: false });
+                } catch (error) {
+                    // Only an explicit authentication rejection should erase a
+                    // saved session. Render cold starts and temporary network
+                    // failures must not force the user to sign in again.
+                    if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+                        set({ token: "", user: null, isReady: true, isLoading: false });
+                        return;
+                    }
+                    set({ isReady: true, isLoading: false });
                 }
             },
             login: async (payload) => {
