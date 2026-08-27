@@ -384,3 +384,24 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | `admin_adjust` | 后台手动调整 |
 | `ai_consume` | 调用后端模型接口消费 |
 | `ai_refund` | 后端模型接口调用失败返还 |
+| `recharge` | 管理员审核充值订单后到账 |
+
+### recharge_orders
+
+用户站内充值订单。当前支持用户提交付款信息、管理员审核到账；后续接入微信或支付宝商户接口时使用 `provider_trade_id` 保存第三方交易号。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 订单 ID |
+| `user_id` | string | 用户 ID |
+| `amount_cents` | number | 金额，单位为分 |
+| `credits` | number | 审核通过后增加的算力点 |
+| `status` | string | `pending`、`approved`、`rejected` |
+| `payment_method` | string | 微信、支付宝或其他 |
+| `payment_note` | string | 用户提交的付款备注或交易号 |
+| `provider_trade_id` | string | 第三方支付订单号，手工审核时为空 |
+| `admin_remark` | string | 管理员备注 |
+| `reviewed_by` | string | 审核管理员 ID |
+| `reviewed_at` | string | 审核时间 |
+| `created_at` | string | 创建时间 |
+| `updated_at` | string | 更新时间 |

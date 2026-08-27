@@ -94,6 +94,8 @@ func New() *gin.Engine {
 	v1.GET("/user-config", gin.WrapF(handler.UserConfig))
 	v1.POST("/user-config/model", gin.WrapF(handler.SaveUserModelConfig))
 	v1.POST("/user-config/storage", gin.WrapF(handler.SaveUserStorageProvider))
+	v1.GET("/wallet/recharge-orders", gin.WrapF(handler.UserRechargeOrders))
+	v1.POST("/wallet/recharge-orders", gin.WrapF(handler.CreateRechargeOrder))
 	v1.GET("/canvas/projects", gin.WrapF(handler.UserCanvasProjects))
 	v1.POST("/canvas/projects", gin.WrapF(handler.SaveUserCanvasProject))
 	v1.POST("/canvas/projects/sync", gin.WrapF(handler.SyncUserCanvasProjects))
@@ -129,6 +131,10 @@ func New() *gin.Engine {
 		handler.AdminDeleteUser(c.Writer, c.Request, c.Param("id"))
 	})
 	admin.GET("/credit-logs", gin.WrapF(handler.AdminCreditLogs))
+	admin.GET("/recharge-orders", gin.WrapF(handler.AdminRechargeOrders))
+	admin.POST("/recharge-orders/:id/review", func(c *gin.Context) {
+		handler.AdminReviewRechargeOrder(c.Writer, c.Request, c.Param("id"))
+	})
 	admin.POST("/credit-logs", gin.WrapF(handler.AdminSaveCreditLog))
 	admin.DELETE("/credit-logs/:id", func(c *gin.Context) {
 		handler.AdminDeleteCreditLog(c.Writer, c.Request, c.Param("id"))
