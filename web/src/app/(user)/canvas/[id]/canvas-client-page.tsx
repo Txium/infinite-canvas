@@ -3394,7 +3394,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             const batchRoot = node.metadata?.batchRootId ? nodesRef.current.find((item) => item.id === node.metadata?.batchRootId) : null;
             const savedImageMetadata = isCanvasImageNodeType(node.type) ? { ...batchRoot?.metadata, ...node.metadata } : undefined;
             const hasSavedImageMetadata = Boolean(savedImageMetadata?.generationType);
-            const generationConfig =
+            let generationConfig =
                 hasSavedImageMetadata && savedImageMetadata
                     ? {
                         ...effectiveConfig,
@@ -3406,6 +3406,13 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                         count: "1",
                     }
                     : { ...buildGenerationConfig(effectiveConfig, sourceNode, node.type === CanvasNodeType.Text ? "text" : node.type === CanvasNodeType.Video ? "video" : node.type === CanvasNodeType.Audio ? "audio" : "image"), count: "1" };
+            if (node.type === CanvasNodeType.Video) {
+                const savedVideoModel = node.metadata?.model || "";
+                const useSavedVideoModel = effectiveConfig.videoModels.includes(savedVideoModel);
+                const videoModel = useSavedVideoModel ? savedVideoModel : effectiveConfig.videoModel;
+                const videoChannelId = useSavedVideoModel ? node.metadata?.channelId || effectiveConfig.videoChannelId : effectiveConfig.videoChannelId;
+                generationConfig = { ...generationConfig, model: videoModel, videoModel, videoChannelId, activeChannelId: videoChannelId };
+            }
             if (!isAiConfigReady(generationConfig, generationConfig.model)) {
                 openConfigDialog(true);
                 return;
