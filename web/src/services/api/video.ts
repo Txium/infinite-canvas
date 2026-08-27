@@ -965,7 +965,7 @@ function normalizeVideoResponse(value: unknown): VideoResponse {
         userChannelId: firstString(record.userChannelId, record.user_channel_id),
         channelName: firstString(record.channelName, record.channel_name),
         status: firstString(record.status, record.state, record.task_status),
-        video_url: firstString(record.video_url, record.videoUrl, record.result_url, record.remote_url, record.remixed_from_video_id, record.output_url, record.download_url, firstVideoUrl(record)),
+        video_url: firstString(firstVideoUrl(record), record.video_url, record.videoUrl, record.result_url, record.remote_url, record.remixed_from_video_id, record.output_url, record.download_url),
         progress: typeof record.progress === "number" ? record.progress : (typeof record.progress === "string" ? parseFloat(record.progress) : undefined),
     };
 }
@@ -1006,24 +1006,24 @@ function nestedMessage(value: unknown) {
 }
 
 function firstVideoUrl(value: unknown, depth = 0): string {
-    if (depth > 5 || value == null) return "";
-    if (typeof value === "string") return /^https?:\/\//.test(value) ? value : "";
-    if (Array.isArray(value)) {
-        for (const item of value) {
-            const found = firstVideoUrl(item, depth + 1);
-            if (found) return found;
-        }
-        return "";
-    }
-    if (typeof value !== "object") return "";
-    const record = value as Record<string, unknown>;
-    const direct = firstString(record.video_url, record.videoUrl, record.url, record.remixed_from_video_id, record.output_url, record.download_url, record.file_url);
-    if (/^https?:\/\//.test(direct)) return direct;
-    for (const key of ["video_result", "video", "data", "output", "result", "content", "metadata"]) {
-        const found = firstVideoUrl(record[key], depth + 1);
-        if (found) return found;
-    }
-    return "";
+    const urls = collectMediaUrls(value, depth);
+    return urls.sort((left, right) => videoUrlScore(right) - videoUrlScore(left))[0] || "";
+}
+
+function collectMediaUrls(value: unknown, depth = 0): string[] {
+    if (depth > 6 || value == null) return [];
+    if (typeof value === "string") return /^https?:\/\//i.test(value) ? [value] : [];
+    if (Array.isArray(value)) return value.flatMap((item) => collectMediaUrls(item, depth + 1));
+    if (typeof value !== "object") return [];
+    return Object.values(value as Record<string, unknown>).flatMap((item) => collectMediaUrls(item, depth + 1));
+}
+
+function videoUrlScore(url: string) {
+    const clean = url.split(/[?#]/, 1)[0].toLowerCase();
+    if (/\.(mp4|webm|mov|m4v|m3u8)$/.test(clean)) return 100;
+    if (/\.(png|jpe?g|webp|gif|avif|bmp)$/.test(clean)) return -100;
+    if (/video|download/.test(clean)) return 20;
+    return 0;
 }
 
 function firstTaskId(value: unknown, depth = 0): string {
