@@ -24,6 +24,9 @@ type Config struct {
 	LinuxDoTokenURL     string `env:"LINUX_DO_TOKEN_URL" envDefault:"https://connect.linux.do/oauth2/token"`
 	LinuxDoUserInfoURL  string `env:"LINUX_DO_USERINFO_URL" envDefault:"https://connect.linux.do/api/user"`
 	AILogDir            string `env:"AI_LOG_DIR" envDefault:"data/logs/ai-calls"`
+	EpayAPIURL          string `env:"EPAY_API_URL"`
+	EpayMerchantID      string `env:"EPAY_MERCHANT_ID"`
+	EpayMerchantKey     string `env:"EPAY_MERCHANT_KEY"`
 }
 
 var Cfg Config

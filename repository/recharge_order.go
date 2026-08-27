@@ -13,6 +13,32 @@ func SaveRechargeOrder(order model.RechargeOrder) (model.RechargeOrder, error) {
 	return order, db.Save(&order).Error
 }
 
+func GetRechargeOrderByID(id string) (model.RechargeOrder, error) {
+	db, err := DB()
+	if err != nil { return model.RechargeOrder{}, err }
+	var order model.RechargeOrder
+	err = db.Where("id = ?", id).First(&order).Error
+	return order, err
+}
+
+func CompleteRechargeOrder(id, providerTradeID, paidAt string) (model.RechargeOrder, error) {
+	db, err := DB()
+	if err != nil { return model.RechargeOrder{}, err }
+	var result model.RechargeOrder
+	err = db.Transaction(func(tx *gorm.DB) error {
+		var order model.RechargeOrder
+		if err := tx.Where("id = ?", id).First(&order).Error; err != nil { return err }
+		if order.Status != model.RechargeOrderPending { result = order; return nil }
+		if err := tx.Model(&order).Updates(map[string]any{"status": model.RechargeOrderApproved, "provider_trade_id": providerTradeID, "admin_remark": "在线支付自动到账", "reviewed_by": "payment-gateway", "reviewed_at": paidAt, "updated_at": paidAt}).Error; err != nil { return err }
+		if err := tx.Model(&model.User{}).Where("id = ?", order.UserID).Updates(map[string]any{"credits": gorm.Expr("credits + ?", order.Credits), "updated_at": paidAt}).Error; err != nil { return err }
+		var user model.User
+		if err := tx.Where("id = ?", order.UserID).First(&user).Error; err != nil { return err }
+		if err := tx.Create(&model.CreditLog{ID: "credit_" + order.ID, UserID: order.UserID, Type: model.CreditLogTypeRecharge, Amount: order.Credits, Balance: user.Credits, RelatedID: order.ID, Remark: "在线充值自动到账", CreatedAt: paidAt}).Error; err != nil { return err }
+		return tx.Where("id = ?", id).First(&result).Error
+	})
+	return result, err
+}
+
 func ListUserRechargeOrders(userID string) ([]model.RechargeOrder, error) {
 	db, err := DB()
 	if err != nil { return nil, err }

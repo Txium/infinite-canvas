@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/service"
@@ -16,6 +17,14 @@ func UserRechargeOrders(w http.ResponseWriter, r *http.Request) {
 	result, err := service.ListUserRechargeOrders(user.ID)
 	if err != nil { FailError(w, err); return }
 	OK(w, result)
+}
+
+func EpayNotify(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	values := url.Values(r.Form)
+	if err := service.CompleteEpayRecharge(values); err != nil { http.Error(w, "fail", http.StatusBadRequest); return }
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = w.Write([]byte("success"))
 }
 
 func CreateRechargeOrder(w http.ResponseWriter, r *http.Request) {

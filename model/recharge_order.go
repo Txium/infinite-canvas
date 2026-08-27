@@ -30,3 +30,8 @@ type RechargeOrderList struct {
 	Items []RechargeOrder `json:"items"`
 	Total int             `json:"total"`
 }
+
+type RechargePayment struct {
+	Order  RechargeOrder `json:"order"`
+	PayURL string        `json:"payUrl"`
+}

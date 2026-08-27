@@ -28,6 +28,7 @@ export default function ModelMarketPage() {
     const { message } = App.useApp();
     const [capability, setCapability] = useState<MarketCapability>("image");
     const [scope, setScope] = useState<"available" | "catalog">("available");
+    const [channelFilter, setChannelFilter] = useState("all");
     const [query, setQuery] = useState("");
     const config = useConfigStore((state) => state.config);
     const updateConfig = useConfigStore((state) => state.updateConfig);
@@ -65,17 +66,8 @@ export default function ModelMarketPage() {
 
     const visibleModels = useMemo(() => {
         const keyword = query.trim().toLowerCase();
-        return allModels.filter((item) => item.capability === capability && (scope === "available" ? item.available : !item.available) && (!keyword || `${item.model} ${item.channelName}`.toLowerCase().includes(keyword)));
-    }, [allModels, capability, query, scope]);
-    const visibleChannels = useMemo(() => {
-        const groups = new Map<string, { id: string; name: string; models: MarketModel[] }>();
-        visibleModels.forEach((item) => {
-            const group = groups.get(item.channelId) || { id: item.channelId, name: item.channelName, models: [] };
-            group.models.push(item);
-            groups.set(item.channelId, group);
-        });
-        return Array.from(groups.values());
-    }, [visibleModels]);
+        return allModels.filter((item) => item.capability === capability && (scope === "available" ? item.available : !item.available) && (channelFilter === "all" || item.channelId === channelFilter) && (!keyword || `${item.model} ${item.channelName}`.toLowerCase().includes(keyword)));
+    }, [allModels, capability, channelFilter, query, scope]);
 
     const activeModel = capability === "image" ? config.imageModel : capability === "video" ? config.videoModel : config.textModel;
     const activeChannelId = capability === "image" ? config.imageChannelId : capability === "video" ? config.videoChannelId : config.textChannelId;
@@ -107,10 +99,15 @@ export default function ModelMarketPage() {
     const availableCount = allModels.filter((item) => item.available).length;
     const catalogCount = allModels.filter((item) => !item.available).length;
     const meta = capabilityMeta[capability];
+    const channelOptions = useMemo(() => {
+        const map = new Map<string, string>();
+        scopedModels.filter((item) => item.capability === capability).forEach((item) => map.set(item.channelId, item.channelName));
+        return Array.from(map, ([id, name]) => ({ id, name, count: scopedModels.filter((item) => item.capability === capability && item.channelId === id).length }));
+    }, [capability, scopedModels]);
 
     return (
-        <main className="min-h-[calc(100vh-64px)] bg-stone-50 px-4 py-8 dark:bg-stone-950 md:px-8">
-            <div className="mx-auto max-w-7xl">
+        <main className="h-full min-h-0 overflow-y-auto bg-stone-50 px-4 py-6 dark:bg-stone-950 md:px-8">
+            <div className="mx-auto max-w-[1500px]">
                 <section className="mb-7 flex flex-col gap-5 rounded-3xl border border-stone-200 bg-white p-6 shadow-sm dark:border-stone-800 dark:bg-stone-900 md:flex-row md:items-end md:justify-between">
                     <div>
                         <div className="mb-2 flex items-center gap-2 text-sm text-stone-500"><RefreshCw className="size-4" /> 模型来自你已经接入的通用 Key</div>
@@ -120,7 +117,7 @@ export default function ModelMarketPage() {
                     <Button icon={<Settings2 className="size-4" />} onClick={() => openConfigDialog(false)}>管理通用 Key / 拉取模型</Button>
                 </section>
 
-                <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900 md:flex-row md:items-center md:justify-between">
                     <Segmented
                         size="large"
                         value={scope}
@@ -132,33 +129,22 @@ export default function ModelMarketPage() {
                     />
                     <Input allowClear value={query} onChange={(event) => setQuery(event.target.value)} prefix={<Search className="size-4 text-stone-400" />} placeholder="搜索模型或渠道" className="md:max-w-sm" />
                 </div>
-                <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <Segmented
-                        size="large"
-                        value={capability}
-                        onChange={(value) => setCapability(value as MarketCapability)}
-                        options={[
-                            { label: `图片模型 ${imageCount}`, value: "image", icon: <ImageIcon className="size-4" /> },
-                            { label: `视频模型 ${videoCount}`, value: "video", icon: <Video className="size-4" /> },
-                            { label: `语言模型 ${textCount}`, value: "text", icon: <MessageSquareText className="size-4" /> },
-                        ]}
-                    />
-                    <div className="text-sm text-stone-500">{scope === "available" ? "可直接切换使用" : "选择接入后才可使用"}</div>
-                </div>
-
-                {visibleModels.length ? (
-                    <div className="space-y-8">
-                        {visibleChannels.map((channel) => (
-                            <section key={channel.id} className="rounded-3xl border border-stone-200 bg-white/60 p-4 dark:border-stone-800 dark:bg-stone-900/50 md:p-5">
-                                <div className="mb-4 flex items-center justify-between gap-3">
-                                    <div>
-                                        <h2 className="text-lg font-semibold text-stone-950 dark:text-white">{channel.name}</h2>
-                                        <p className="mt-1 text-xs text-stone-500">{channel.models.every((item) => item.available) ? `此网站可用 ${channel.models.length} 个${meta.noun}模型` : `模型库收录 ${channel.models.length} 个${meta.noun}模型`}</p>
-                                    </div>
-                                    <Tag color={meta.color}>{meta.apiLabel}</Tag>
-                                </div>
-                                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                        {channel.models.map((item) => {
+                <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
+                    <aside className="h-fit rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900 lg:sticky lg:top-4">
+                        <div className="mb-3 text-sm font-semibold">模型类型</div>
+                        <div className="grid gap-2">
+                            {([{ value: "image", label: "图片生成", count: imageCount, icon: <ImageIcon className="size-4" /> }, { value: "video", label: "视频生成", count: videoCount, icon: <Video className="size-4" /> }, { value: "text", label: "语言模型", count: textCount, icon: <MessageSquareText className="size-4" /> }] as const).map((item) => <button key={item.value} className={`flex items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition ${capability === item.value ? "bg-stone-900 text-white dark:bg-white dark:text-stone-950" : "hover:bg-stone-100 dark:hover:bg-stone-800"}`} onClick={() => { setCapability(item.value); setChannelFilter("all"); }}><span className="flex items-center gap-2">{item.icon}{item.label}</span><span>{item.count}</span></button>)}
+                        </div>
+                        <div className="mb-3 mt-6 text-sm font-semibold">供应渠道</div>
+                        <div className="grid max-h-80 gap-1 overflow-y-auto pr-1">
+                            <button className={`flex justify-between rounded-lg px-3 py-2 text-left text-sm ${channelFilter === "all" ? "bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300" : "hover:bg-stone-100 dark:hover:bg-stone-800"}`} onClick={() => setChannelFilter("all")}><span>全部渠道</span><span>{scopedModels.filter((item) => item.capability === capability).length}</span></button>
+                            {channelOptions.map((item) => <button key={item.id} className={`flex justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm ${channelFilter === item.id ? "bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300" : "hover:bg-stone-100 dark:hover:bg-stone-800"}`} onClick={() => setChannelFilter(item.id)}><span className="truncate">{item.name}</span><span>{item.count}</span></button>)}
+                        </div>
+                    </aside>
+                    <section>
+                        <div className="mb-4 flex items-center justify-between"><div><h2 className="text-xl font-semibold">{meta.noun}模型</h2><p className="mt-1 text-sm text-stone-500">找到 {visibleModels.length} 个模型 · {scope === "available" ? "可直接切换使用" : "接入渠道后使用"}</p></div><Tag color={meta.color}>{meta.apiLabel}</Tag></div>
+                        {visibleModels.length ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                        {visibleModels.map((item) => {
                             const selected = item.model === activeModel && item.channelId === activeChannelId;
                             return (
                                 <article key={item.key} className={`rounded-2xl border bg-white p-5 shadow-sm transition dark:bg-stone-900 ${selected ? "border-blue-500 ring-2 ring-blue-500/15" : "border-stone-200 hover:-translate-y-0.5 hover:shadow-md dark:border-stone-800"}`}>
@@ -176,17 +162,15 @@ export default function ModelMarketPage() {
                                 </article>
                             );
                         })}
-                                </div>
-                            </section>
-                        ))}
-                    </div>
-                ) : (
+                        </div> : (
                     <div className="rounded-3xl border border-dashed border-stone-300 bg-white py-20 dark:border-stone-700 dark:bg-stone-900">
                         <Empty description={query ? "没有匹配的模型" : scope === "available" ? `还没有可用的${meta.noun}模型` : `模型库暂无${meta.noun}模型`}>
                             {scope === "available" ? <Button type="primary" onClick={() => openConfigDialog(false)}>配置通用 Key 并拉取模型</Button> : null}
                         </Empty>
                     </div>
                 )}
+                    </section>
+                </div>
             </div>
         </main>
     );

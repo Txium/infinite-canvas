@@ -1,13 +1,13 @@
 "use client";
 
-import { App, Button, Card, Form, Input, InputNumber, Segmented, Space, Statistic, Table, Tag, Typography } from "antd";
+import { App, Button, Card, Form, InputNumber, Segmented, Statistic, Table, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createRechargeOrder, fetchRechargeOrders, type RechargeOrder } from "@/services/api/wallet";
 import { useUserStore } from "@/stores/use-user-store";
 
-const statusText = { pending: "待审核", approved: "已到账", rejected: "已拒绝" } as const;
+const statusText = { pending: "待支付", approved: "已到账", rejected: "已关闭" } as const;
 
 export default function WalletPage() {
     const { message } = App.useApp();
@@ -26,23 +26,21 @@ export default function WalletPage() {
         const values = await form.validateFields();
         setLoading(true);
         try {
-            await createRechargeOrder(token!, { amountCents: Math.round(values.amount * 100), paymentMethod: values.paymentMethod, paymentNote: values.paymentNote || "" });
-            message.success("充值申请已提交，管理员确认后自动到账");
-            form.resetFields(["paymentNote"]);
-            await load();
+            const payment = await createRechargeOrder(token!, { amountCents: Math.round(values.amount * 100), paymentMethod: values.paymentMethod, paymentNote: "" });
+            message.success("正在打开支付页面，付款成功后自动到账");
+            window.location.href = payment.payUrl;
         } finally { setLoading(false); }
     };
 
-    return <main className="mx-auto max-w-6xl px-4 py-8">
+    return <main className="h-full min-h-0 overflow-y-auto"><div className="mx-auto max-w-6xl px-4 py-8">
         <Typography.Title level={2}>我的钱包</Typography.Title>
         <div className="grid gap-4 md:grid-cols-2">
-            <Card><Statistic title="当前算力点" value={user?.credits || 0} /><Typography.Text type="secondary">当前规则：1 元申请兑换 100 算力点，管理员审核后到账。</Typography.Text></Card>
-            <Card title="申请充值">
-                <Form form={form} layout="vertical" initialValues={{ amount: 10, paymentMethod: "wechat" }}>
+            <Card><Statistic title="当前算力点" value={user?.credits || 0} /><Typography.Text type="secondary">当前规则：1 元兑换 100 算力点，在线支付成功后自动到账。</Typography.Text></Card>
+            <Card title="在线充值">
+                <Form form={form} layout="vertical" initialValues={{ amount: 10, paymentMethod: "wxpay" }}>
                     <Form.Item name="amount" label="充值金额（元）" rules={[{ required: true }]}><InputNumber min={1} max={100000} className="!w-full" /></Form.Item>
-                    <Form.Item name="paymentMethod" label="付款方式"><Segmented options={[{ label: "微信", value: "wechat" }, { label: "支付宝", value: "alipay" }, { label: "其他", value: "other" }]} /></Form.Item>
-                    <Form.Item name="paymentNote" label="付款备注/交易单号"><Input placeholder="填写付款人昵称或交易单号，方便管理员核对" /></Form.Item>
-                    <Button type="primary" loading={loading} onClick={() => void submit()}>提交充值申请</Button>
+                    <Form.Item name="paymentMethod" label="付款方式"><Segmented options={[{ label: "微信", value: "wxpay" }, { label: "支付宝", value: "alipay" }]} /></Form.Item>
+                    <Button type="primary" loading={loading} onClick={() => void submit()}>立即支付</Button>
                 </Form>
             </Card>
         </div>
@@ -56,5 +54,5 @@ export default function WalletPage() {
                 { title: "管理员备注", dataIndex: "adminRemark" },
             ]} />
         </Card>
-    </main>;
+    </div></main>;
 }
