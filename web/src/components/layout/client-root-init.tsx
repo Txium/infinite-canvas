@@ -34,10 +34,11 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
     }, [hydrateUser, isLoginPage]);
 
     useEffect(() => {
-        if (!token || user?.role !== "admin" || adminRemoteTokenRef.current === token) return;
+        const canUseUnifiedGateway = user?.role === "admin" || publicSettings?.modelChannel.allowUserRemoteChannel === true;
+        if (!token || !user || !canUseUnifiedGateway || adminRemoteTokenRef.current === token) return;
         adminRemoteTokenRef.current = token;
         if (channelMode !== "remote") updateConfig("channelMode", "remote");
-    }, [channelMode, token, updateConfig, user?.role]);
+    }, [channelMode, publicSettings?.modelChannel.allowUserRemoteChannel, token, updateConfig, user]);
 
     useEffect(() => {
         if (!token || !user?.id) return;
