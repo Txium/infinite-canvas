@@ -5,6 +5,7 @@ import { Check, ImageIcon, MessageSquareText, RefreshCw, Search, Settings2, Vide
 import { useMemo, useState } from "react";
 
 import { filterModelsByCapability, normalizeLocalChannels, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
+import { referenceModelCatalog } from "@/lib/reference-model-catalog";
 
 type MarketModel = {
     key: string;
@@ -12,6 +13,7 @@ type MarketModel = {
     channelId: string;
     channelName: string;
     capability: "image" | "video" | "text";
+    available: boolean;
 };
 
 type MarketCapability = MarketModel["capability"];
@@ -35,7 +37,7 @@ export default function ModelMarketPage() {
         const channels = effectiveConfig.channelMode === "remote"
             ? effectiveConfig.publicChannels.map((channel) => ({ id: channel.id || "remote", name: channel.name || "云端渠道", protocol: channel.protocol || "openai", purpose: "general", models: channel.models || [] }))
             : normalizeLocalChannels(config);
-        return channels.flatMap((channel) => (["image", "video", "text"] as const).flatMap((kind) => {
+        const connected = channels.flatMap((channel) => (["image", "video", "text"] as const).flatMap((kind) => {
             if (channel.purpose !== "general" && channel.purpose !== kind) return [];
             return filterModelsByCapability(channel.models || [], kind, channel.protocol || "openai").map((model) => ({
                 key: `${channel.id}::${kind}::${model}`,
@@ -43,8 +45,21 @@ export default function ModelMarketPage() {
                 channelId: channel.id || "",
                 channelName: channel.name || "模型渠道",
                 capability: kind,
+                available: true,
             }));
         }));
+        const connectedKeys = new Set(connected.map((item) => `${item.capability}::${item.model.toLowerCase()}`));
+        const catalog = referenceModelCatalog
+            .filter((item) => !connectedKeys.has(`${item.capability}::${item.model.toLowerCase()}`))
+            .map((item) => ({
+                key: `catalog::${item.source}::${item.capability}::${item.model}`,
+                model: item.model,
+                channelId: `catalog::${item.source}`,
+                channelName: `参考模型库 · ${item.source}`,
+                capability: item.capability,
+                available: false,
+            }));
+        return [...connected, ...catalog];
     }, [config, effectiveConfig]);
 
     const visibleModels = useMemo(() => {
@@ -64,6 +79,11 @@ export default function ModelMarketPage() {
     const activeModel = capability === "image" ? config.imageModel : capability === "video" ? config.videoModel : config.textModel;
     const activeChannelId = capability === "image" ? config.imageChannelId : capability === "video" ? config.videoChannelId : config.textChannelId;
     const chooseModel = (item: MarketModel) => {
+        if (!item.available) {
+            message.info(`${item.model} 已加入模型库，请先在通用 Key 渠道中拉取到该模型`);
+            openConfigDialog(false);
+            return;
+        }
         if (item.capability === "image") {
             updateConfig("imageModel", item.model);
             updateConfig("imageChannelId", item.channelId);
@@ -117,7 +137,7 @@ export default function ModelMarketPage() {
                                 <div className="mb-4 flex items-center justify-between gap-3">
                                     <div>
                                         <h2 className="text-lg font-semibold text-stone-950 dark:text-white">{channel.name}</h2>
-                                        <p className="mt-1 text-xs text-stone-500">此网站可用 {channel.models.length} 个{meta.noun}模型</p>
+                                        <p className="mt-1 text-xs text-stone-500">{channel.models.every((item) => item.available) ? `此网站可用 ${channel.models.length} 个${meta.noun}模型` : `模型库收录 ${channel.models.length} 个${meta.noun}模型`}</p>
                                     </div>
                                     <Tag color={meta.color}>{meta.apiLabel}</Tag>
                                 </div>
@@ -131,11 +151,11 @@ export default function ModelMarketPage() {
                                             <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-stone-100 dark:bg-stone-800">{item.capability === "image" ? <ImageIcon className="size-5" /> : item.capability === "video" ? <Video className="size-5" /> : <MessageSquareText className="size-5" />}</div>
                                             <div className="min-w-0"><h2 className="truncate font-medium text-stone-950 dark:text-white" title={item.model}>{item.model}</h2><p className="mt-1 truncate text-xs text-stone-500">{item.channelName}</p></div>
                                         </div>
-                                        {selected ? <Tag color="blue" icon={<Check className="size-3" />}>当前</Tag> : null}
+                                        {selected ? <Tag color="blue" icon={<Check className="size-3" />}>当前</Tag> : !item.available ? <Tag>待接入</Tag> : null}
                                     </div>
                                     <div className="mt-5 flex items-center justify-between gap-3">
-                                        <div className="flex flex-wrap gap-2"><Tag>{item.capability === "image" ? "生图" : item.capability === "video" ? "视频" : "语言"}</Tag><Tag>按渠道计费</Tag></div>
-                                        <Button type={selected ? "default" : "primary"} disabled={selected} onClick={() => chooseModel(item)}>{selected ? "正在使用" : "切换使用"}</Button>
+                                        <div className="flex flex-wrap gap-2"><Tag>{item.capability === "image" ? "生图" : item.capability === "video" ? "视频" : "语言"}</Tag><Tag>{item.available ? "按渠道计费" : "需要渠道支持"}</Tag></div>
+                                        <Button type={selected ? "default" : item.available ? "primary" : "default"} disabled={selected} onClick={() => chooseModel(item)}>{selected ? "正在使用" : item.available ? "切换使用" : "接入模型"}</Button>
                                     </div>
                                 </article>
                             );
