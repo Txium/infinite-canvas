@@ -338,7 +338,7 @@ func ConsumeUserCredits(userID string, modelName string, credits int, path strin
 		return err
 	}
 	if !ok {
-		return safeMessageError{message: "算力点不足"}
+		return safeMessageError{message: "余额不足"}
 	}
 	extra, _ := json.Marshal(map[string]string{"model": modelName, "path": path})
 	_, err = repository.SaveCreditLog(model.CreditLog{

@@ -21,7 +21,7 @@ func CreateRechargeOrder(user model.AuthUser, amountCents int, paymentMethod, pa
 	order := model.RechargeOrder{ID: newID("recharge"), UserID: user.ID, AmountCents: amountCents, Credits: amountCents, Status: model.RechargeOrderPending, PaymentMethod: strings.TrimSpace(paymentMethod), PaymentNote: strings.TrimSpace(paymentNote), CreatedAt: now(), UpdatedAt: now()}
 	saved, err := repository.SaveRechargeOrder(order)
 	if err != nil { return model.RechargePayment{}, err }
-	params := map[string]string{"pid": config.Cfg.EpayMerchantID, "type": paymentMethod, "out_trade_no": saved.ID, "notify_url": strings.TrimRight(config.Cfg.PublicBaseURL, "/") + "/api/payments/epay/notify", "return_url": strings.TrimRight(config.Cfg.PublicBaseURL, "/") + "/wallet?payment=return", "name": "灵感画布算力点", "money": fmt.Sprintf("%.2f", float64(amountCents)/100), "sign_type": "MD5"}
+	params := map[string]string{"pid": config.Cfg.EpayMerchantID, "type": paymentMethod, "out_trade_no": saved.ID, "notify_url": strings.TrimRight(config.Cfg.PublicBaseURL, "/") + "/api/payments/epay/notify", "return_url": strings.TrimRight(config.Cfg.PublicBaseURL, "/") + "/wallet?payment=return", "name": "灵感画布余额充值", "money": fmt.Sprintf("%.2f", float64(amountCents)/100), "sign_type": "MD5"}
 	params["sign"] = signPayment(params, config.Cfg.EpayMerchantKey)
 	values := url.Values{}
 	for key, value := range params { values.Set(key, value) }

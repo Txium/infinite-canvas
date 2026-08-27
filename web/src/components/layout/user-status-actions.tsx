@@ -9,7 +9,7 @@ import Link from "next/link";
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 import { GitHubLink } from "@/components/layout/github-link";
 import { VersionReleaseModal } from "@/components/layout/version-release-modal";
-import { CreditSymbol } from "@/constant/credits";
+import { CreditSymbol, formatCNY } from "@/constant/credits";
 import { cn } from "@/lib/utils";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useConfigStore } from "@/stores/use-config-store";
@@ -63,10 +63,10 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
             <VersionReleaseModal style={versionStyle} />
             <GitHubLink className={cn("bg-transparent hover:bg-transparent dark:hover:bg-transparent", gitHubClassName)} style={gitHubStyle} />
             {variant === "canvas" && user ? (
-                <Tooltip title="当前算力点余额" placement="bottom">
+                <Tooltip title="当前人民币余额" placement="bottom">
                     <div className="flex h-8 shrink-0 items-center gap-1.5 px-1.5 text-xs font-medium tabular-nums opacity-75 transition hover:opacity-100" style={{ color: canvasTheme.node.text }}>
                         <CreditSymbol className="text-sm leading-none" />
-                        <span>{credits.toLocaleString()}</span>
+                        <span>{formatCNY(credits).slice(1)}</span>
                     </div>
                 </Tooltip>
             ) : null}

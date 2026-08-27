@@ -12,6 +12,7 @@ import (
 
 func ListMarketModels(category string, featured bool) ([]model.MarketModelCard, error) {
 	if err := repository.SeedMarketModels(defaultMarketModels()); err != nil { return nil, err }
+	if err := repository.SeedModelPrices(defaultModelPrices()); err != nil { return nil, err }
 	items, err := repository.ListMarketModels(strings.TrimSpace(category), featured)
 	if err != nil { return nil, err }
 	ids := make([]string, 0, len(items)); for _, item := range items { ids = append(ids, item.ID) }
@@ -71,6 +72,13 @@ func defaultMarketModels() []model.MarketModel {
 		makeModel("tts","多语言 TTS","audio","多语言语音合成",[]string{"text-to-speech"},nil,nil,false,180),
 		makeModel("video_upscale","视频超分","tool","视频清晰度增强",[]string{"video-to-video"},[]string{"1080p","2K","4K"},nil,false,190),
 		makeModel("image_tools","图片超分与抠图","tool","图片放大、修复与背景移除",[]string{"image-to-image"},[]string{"2K","4K"},nil,false,200),
+		makeModel("gpt_image2_default","GPT Image 2 默认","image","低价日常生图",[]string{"text-to-image","image-to-image"},[]string{"默认"},nil,true,210),
+		makeModel("gpt_image2_2k","GPT Image 2 2K","image","日常高清生图与编辑",[]string{"text-to-image","image-to-image"},[]string{"2K"},nil,true,220),
+		makeModel("gpt_image2_4k","GPT Image 2 4K","image","4K 高清图片生成",[]string{"text-to-image","image-to-image"},[]string{"4K"},nil,false,230),
+		makeModel("gpt_image2_pro_4k","GPT Image 2 Pro 4K","image","最高质量 4K 图片生成",[]string{"text-to-image","image-to-image"},[]string{"4K"},nil,true,240),
+		makeModel("mj_standard","Midjourney 标准","image","高审美图片生成",[]string{"text-to-image","image-to-image"},[]string{"标准"},nil,true,250),
+		makeModel("mj_turbo","Midjourney Turbo","image","快速高审美图片生成",[]string{"text-to-image","image-to-image"},[]string{"Turbo"},nil,false,260),
+		makeModel("wan_ultra_fast_10","Wan Ultra Fast 10 秒","video","低价 10 秒视频生成",[]string{"text-to-video","image-to-video"},[]string{"480p","720p"},[]string{"10"},false,270),
 	}
 	for i := range items {
 		switch items[i].Category {
@@ -87,4 +95,24 @@ func defaultMarketModels() []model.MarketModel {
 	}
 	items[9].SupportsAudioReference = true
 	return items
+}
+
+func defaultModelPrices() []model.ModelPrice {
+	now := time.Now().Format(time.RFC3339)
+	price := func(id, modelID, variant string, cents int) model.ModelPrice { return model.ModelPrice{ID:id,ModelID:modelID,Variant:variant,BillingMode:"request",Unit:"次",PriceCredits:cents,Currency:"CNY",Enabled:true,CreatedAt:now,UpdatedAt:now} }
+	return []model.ModelPrice{
+		price("price_gpt_image2_default","gpt_image2_default","默认",10),
+		price("price_gpt_image2_2k","gpt_image2_2k","2K",15),
+		price("price_gpt_image2_4k","gpt_image2_4k","4K",20),
+		price("price_gpt_image2_pro_4k","gpt_image2_pro_4k","Pro 4K",29),
+		price("price_mj_standard","mj_standard","标准",59),
+		price("price_mj_turbo","mj_turbo","Turbo",99),
+		price("price_sd20_fast","sd20_fast","720P 特惠",199),
+		price("price_sd20_face_720","sd20_face_720","人物 720P",299),
+		price("price_sd20_face_1080","sd20_face_1080","人物 1080P",349),
+		price("price_nano2","nano2","默认",69),
+		price("price_flux2_klein","flux2_klein","默认",10),
+		price("price_wan_ultra_fast_5","wan_ultra_fast","5 秒",59),
+		price("price_wan_ultra_fast_10","wan_ultra_fast_10","10 秒",99),
+	}
 }

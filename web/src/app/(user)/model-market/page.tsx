@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchModelMarket, type MarketModelCard } from "@/services/api/model-market";
+import { formatCNY } from "@/constant/credits";
 import { useConfigStore } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 
@@ -64,7 +65,7 @@ export default function ModelMarketPage() {
                         <div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold">{item.name}</h2><p className="mt-1 text-xs text-stone-500">{item.id}</p></div><Tag color={item.status === "normal" ? "green" : item.status === "busy" ? "orange" : "red"}>{item.status === "normal" ? "正常" : item.status === "busy" ? "拥堵" : "维护"}</Tag></div>
                         <p className="mt-4 min-h-10 text-sm text-stone-500">{item.description}</p>
                         <div className="mt-4 flex flex-wrap gap-1.5">{item.resolutions.map((value) => <Tag key={value}>{value}</Tag>)}{item.durations.map((value) => <Tag key={value}>{value} 秒</Tag>)}{item.supportsPerson ? <Tag color="purple">人物参考</Tag> : null}{item.supportsFirstLastFrame ? <Tag>首尾帧</Tag> : null}</div>
-                        <div className="mt-5 flex items-end justify-between gap-3"><div><div className="text-xs text-stone-500">用户价格</div><div className="mt-1 text-lg font-semibold">{price ? `${price.priceCredits} 算力点 / ${price.unit}` : "待定价"}</div></div><Button type="primary" disabled={!item.available} onClick={() => useModel(item)}>{item.available ? "立即使用" : "待接入"}</Button></div>
+                        <div className="mt-5 flex items-end justify-between gap-3"><div><div className="text-xs text-stone-500">售价</div><div className="mt-1 text-lg font-semibold">{price ? `${formatCNY(price.priceCredits)} / ${price.unit}` : "待定价"}</div></div><Button type="primary" disabled={!item.available} onClick={() => useModel(item)}>{item.available ? "立即使用" : "待接入"}</Button></div>
                     </article>;
                 })}</div>}
             </div>

@@ -61,6 +61,17 @@ func SeedMarketModels(items []model.MarketModel) error {
 	})
 }
 
+func SeedModelPrices(items []model.ModelPrice) error {
+	db, err := DB()
+	if err != nil { return err }
+	return db.Transaction(func(tx *gorm.DB) error {
+		for _, item := range items {
+			if err := tx.Where("id = ?", item.ID).FirstOrCreate(&item).Error; err != nil { return err }
+		}
+		return nil
+	})
+}
+
 func EnabledRoutesForModel(modelID string) ([]model.ModelRoute, error) {
 	db, err := DB(); if err != nil { return nil, err }
 	var items []model.ModelRoute

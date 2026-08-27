@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createRechargeOrder, fetchRechargeOrders, type RechargeOrder } from "@/services/api/wallet";
+import { formatCNY } from "@/constant/credits";
 import { useUserStore } from "@/stores/use-user-store";
 
 const statusText = { pending: "待支付", approved: "已到账", rejected: "已关闭" } as const;
@@ -35,7 +36,7 @@ export default function WalletPage() {
     return <main className="h-full min-h-0 overflow-y-auto"><div className="mx-auto max-w-6xl px-4 py-8">
         <Typography.Title level={2}>我的钱包</Typography.Title>
         <div className="grid gap-4 md:grid-cols-2">
-            <Card><Statistic title="当前算力点" value={user?.credits || 0} /><Typography.Text type="secondary">当前规则：1 元兑换 100 算力点，在线支付成功后自动到账。</Typography.Text></Card>
+            <Card><Statistic title="当前余额" prefix="¥" value={(user?.credits || 0) / 100} precision={2} /><Typography.Text type="secondary">充值多少到账多少，生成时按模型标注售价从人民币余额扣除。</Typography.Text></Card>
             <Card title="在线充值">
                 <Form form={form} layout="vertical" initialValues={{ amount: 10, paymentMethod: "wxpay" }}>
                     <Form.Item name="amount" label="充值金额（元）" rules={[{ required: true }]}><InputNumber min={1} max={100000} className="!w-full" /></Form.Item>
@@ -48,7 +49,7 @@ export default function WalletPage() {
             <Table rowKey="id" dataSource={items} pagination={false} columns={[
                 { title: "时间", dataIndex: "createdAt" },
                 { title: "金额", dataIndex: "amountCents", render: (value: number) => `¥${(value / 100).toFixed(2)}` },
-                { title: "算力点", dataIndex: "credits" },
+                { title: "到账余额", dataIndex: "credits", render: (value: number) => formatCNY(value) },
                 { title: "状态", dataIndex: "status", render: (value: RechargeOrder["status"]) => <Tag color={value === "approved" ? "success" : value === "rejected" ? "error" : "processing"}>{statusText[value]}</Tag> },
                 { title: "备注", dataIndex: "paymentNote" },
                 { title: "管理员备注", dataIndex: "adminRemark" },
