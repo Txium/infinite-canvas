@@ -85,6 +85,7 @@ func DB() (*gorm.DB, error) {
 			&model.MarketModel{},
 			&model.ModelRoute{},
 			&model.ModelPrice{},
+			&model.ModelCatalogVersion{},
 		)
 	})
 	return db, dbErr

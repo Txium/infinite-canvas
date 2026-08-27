@@ -72,6 +72,19 @@ func SeedModelPrices(items []model.ModelPrice) error {
 	})
 }
 
+func SyncDefaultModelCatalog(version int, models []model.MarketModel, prices []model.ModelPrice, retiredModelIDs []string, updatedAt string) error {
+	db, err := DB()
+	if err != nil { return err }
+	return db.Transaction(func(tx *gorm.DB) error {
+		var current model.ModelCatalogVersion
+		if err := tx.Where("key = ?", "default").First(&current).Error; err == nil && current.Version >= version { return nil }
+		if len(retiredModelIDs) > 0 { if err := tx.Model(&model.MarketModel{}).Where("id IN ?", retiredModelIDs).Update("enabled", false).Error; err != nil { return err } }
+		for _, item := range models { if err := tx.Save(&item).Error; err != nil { return err } }
+		for _, item := range prices { if err := tx.Save(&item).Error; err != nil { return err } }
+		return tx.Save(&model.ModelCatalogVersion{Key:"default",Version:version,UpdatedAt:updatedAt}).Error
+	})
+}
+
 func EnabledRoutesForModel(modelID string) ([]model.ModelRoute, error) {
 	db, err := DB(); if err != nil { return nil, err }
 	var items []model.ModelRoute

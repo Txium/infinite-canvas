@@ -1,7 +1,7 @@
 "use client";
 
 import { App, Button, Empty, Input, Tag } from "antd";
-import { AudioLines, Flame, ImageIcon, Search, Settings2, Sparkles, UserRound, Video, Wrench } from "lucide-react";
+import { AudioLines, Box, Flame, ImageIcon, MessageSquare, Music2, Search, Settings2, Sparkles, UserRound, Video, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -13,10 +13,13 @@ import { useUserStore } from "@/stores/use-user-store";
 const categories = [
     { value: "all", label: "全部", icon: <Sparkles className="size-4" /> },
     { value: "hot", label: "热门", icon: <Flame className="size-4" /> },
+    { value: "llm", label: "大语言模型", icon: <MessageSquare className="size-4" /> },
     { value: "image", label: "图片", icon: <ImageIcon className="size-4" /> },
     { value: "video", label: "视频", icon: <Video className="size-4" /> },
     { value: "person", label: "人物", icon: <UserRound className="size-4" /> },
-    { value: "audio", label: "音频", icon: <AudioLines className="size-4" /> },
+    { value: "music", label: "音乐", icon: <Music2 className="size-4" /> },
+    { value: "voice", label: "语音", icon: <AudioLines className="size-4" /> },
+    { value: "3d", label: "3D", icon: <Box className="size-4" /> },
     { value: "tool", label: "工具", icon: <Wrench className="size-4" /> },
 ] as const;
 
@@ -42,7 +45,8 @@ export default function ModelMarketPage() {
     const useModel = (item: MarketModelCard) => {
         if (!item.available) { message.info("模型卡片已经建立，等待管理员配置主线路和备用线路"); return; }
         if (item.category === "image") updateConfig("imageModel", item.id);
-        else if (item.category === "audio") updateConfig("audioModel", item.id);
+        else if (item.category === "music" || item.category === "voice") updateConfig("audioModel", item.id);
+        else if (item.category === "llm") updateConfig("textModel", item.id);
         else updateConfig("videoModel", item.id);
         updateConfig("model", item.id);
         router.push(`/canvas?marketModel=${encodeURIComponent(item.id)}`);
@@ -60,12 +64,11 @@ export default function ModelMarketPage() {
                     <Input allowClear value={query} onChange={(event) => setQuery(event.target.value)} prefix={<Search className="size-4" />} placeholder="搜索模型" className="md:max-w-xs" />
                 </div>
                 {!loading && visible.length === 0 ? <Empty description="暂无模型" /> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{visible.map((item) => {
-                    const price = item.prices[0];
                     return <article key={item.id} className="rounded-2xl border border-stone-200 p-5 dark:border-stone-800">
                         <div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold">{item.name}</h2><p className="mt-1 text-xs text-stone-500">{item.id}</p></div><Tag color={item.status === "normal" ? "green" : item.status === "busy" ? "orange" : "red"}>{item.status === "normal" ? "正常" : item.status === "busy" ? "拥堵" : "维护"}</Tag></div>
                         <p className="mt-4 min-h-10 text-sm text-stone-500">{item.description}</p>
                         <div className="mt-4 flex flex-wrap gap-1.5">{item.resolutions.map((value) => <Tag key={value}>{value}</Tag>)}{item.durations.map((value) => <Tag key={value}>{value} 秒</Tag>)}{item.supportsPerson ? <Tag color="purple">人物参考</Tag> : null}{item.supportsFirstLastFrame ? <Tag>首尾帧</Tag> : null}</div>
-                        <div className="mt-5 flex items-end justify-between gap-3"><div><div className="text-xs text-stone-500">售价</div><div className="mt-1 text-lg font-semibold">{price ? `${formatCNY(price.priceCredits)} / ${price.unit}` : "待定价"}</div></div><Button type="primary" disabled={!item.available} onClick={() => useModel(item)}>{item.available ? "立即使用" : "待接入"}</Button></div>
+                        <div className="mt-5 flex items-end justify-between gap-3"><div><div className="text-xs text-stone-500">售价</div><div className="mt-1 space-y-0.5 text-sm font-semibold">{item.prices.length ? item.prices.slice(0, 2).map((price) => <div key={price.variant || price.unit}>{price.variant ? `${price.variant} ` : ""}{formatCNY(price.priceCredits)} / {price.unit}</div>) : "待定价"}</div></div><Button type="primary" disabled={!item.available} onClick={() => useModel(item)}>{item.available ? "立即使用" : "待接入"}</Button></div>
                     </article>;
                 })}</div>}
             </div>

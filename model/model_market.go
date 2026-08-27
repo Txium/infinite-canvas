@@ -68,3 +68,9 @@ type MarketModelCard struct {
 	Prices    []ModelPrice `json:"prices"`
 	Available bool         `json:"available"`
 }
+
+type ModelCatalogVersion struct {
+	Key       string `json:"key" gorm:"primaryKey"`
+	Version   int    `json:"version"`
+	UpdatedAt string `json:"updatedAt"`
+}

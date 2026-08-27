@@ -1,7 +1,7 @@
 import { apiGet } from "@/services/api/request";
 
 export type MarketModelCard = {
-    id: string; name: string; category: "image" | "video" | "person" | "audio" | "tool";
+    id: string; name: string; category: "llm" | "image" | "video" | "person" | "music" | "voice" | "3d" | "tool";
     icon: string; description: string; modes: string[]; resolutions: string[]; durations: string[]; ratios: string[];
     maxReferenceImages: number; supportsPerson: boolean; supportsFirstLastFrame: boolean; supportsAudioReference: boolean;
     speed: string; featured: boolean; status: "normal" | "busy" | "maintenance"; available: boolean;
