@@ -8,4 +8,14 @@ export type MarketModelCard = {
     prices: Array<{ variant: string; billingMode: string; unit: string; priceCredits: number; currency: string }>;
 };
 
-export function fetchModelMarket() { return apiGet<MarketModelCard[]>("/api/model-market"); }
+export async function fetchModelMarket() {
+    const items = await apiGet<MarketModelCard[]>("/api/model-market");
+    return items.map((item) => ({
+        ...item,
+        modes: item.modes || [],
+        resolutions: item.resolutions || [],
+        durations: item.durations || [],
+        ratios: item.ratios || [],
+        prices: item.prices || [],
+    }));
+}
