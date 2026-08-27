@@ -1,11 +1,10 @@
 "use client";
 
-import { App, Button, Empty, Input, Segmented, Tag } from "antd";
+import { App, Button, Empty, Input, Tag } from "antd";
 import { Check, ImageIcon, MessageSquareText, RefreshCw, Search, Settings2, Video } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { filterModelsByCapability, normalizeLocalChannels, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
-import { referenceModelCatalog } from "@/lib/reference-model-catalog";
 
 type MarketModel = {
     key: string;
@@ -27,7 +26,6 @@ const capabilityMeta: Record<MarketCapability, { noun: string; apiLabel: string;
 export default function ModelMarketPage() {
     const { message } = App.useApp();
     const [capability, setCapability] = useState<MarketCapability>("image");
-    const [scope, setScope] = useState<"available" | "catalog">("available");
     const [channelFilter, setChannelFilter] = useState("all");
     const [query, setQuery] = useState("");
     const config = useConfigStore((state) => state.config);
@@ -50,24 +48,13 @@ export default function ModelMarketPage() {
                 available: true,
             }));
         }));
-        const connectedKeys = new Set(connected.map((item) => `${item.capability}::${item.model.toLowerCase()}`));
-        const catalog = referenceModelCatalog
-            .filter((item) => !connectedKeys.has(`${item.capability}::${item.model.toLowerCase()}`))
-            .map((item) => ({
-                key: `catalog::${item.source}::${item.capability}::${item.model}`,
-                model: item.model,
-                channelId: `catalog::${item.source}`,
-                channelName: `参考模型库 · ${item.source}`,
-                capability: item.capability,
-                available: false,
-            }));
-        return [...connected, ...catalog];
+        return connected;
     }, [config, effectiveConfig]);
 
     const visibleModels = useMemo(() => {
         const keyword = query.trim().toLowerCase();
-        return allModels.filter((item) => item.capability === capability && (scope === "available" ? item.available : !item.available) && (channelFilter === "all" || item.channelId === channelFilter) && (!keyword || `${item.model} ${item.channelName}`.toLowerCase().includes(keyword)));
-    }, [allModels, capability, channelFilter, query, scope]);
+        return allModels.filter((item) => item.capability === capability && (channelFilter === "all" || item.channelId === channelFilter) && (!keyword || `${item.model} ${item.channelName}`.toLowerCase().includes(keyword)));
+    }, [allModels, capability, channelFilter, query]);
 
     const activeModel = capability === "image" ? config.imageModel : capability === "video" ? config.videoModel : config.textModel;
     const activeChannelId = capability === "image" ? config.imageChannelId : capability === "video" ? config.videoChannelId : config.textChannelId;
@@ -92,12 +79,10 @@ export default function ModelMarketPage() {
         message.success(`已切换到 ${item.model}`);
     };
 
-    const scopedModels = allModels.filter((item) => scope === "available" ? item.available : !item.available);
+    const scopedModels = allModels;
     const imageCount = scopedModels.filter((item) => item.capability === "image").length;
     const videoCount = scopedModels.filter((item) => item.capability === "video").length;
     const textCount = scopedModels.filter((item) => item.capability === "text").length;
-    const availableCount = allModels.filter((item) => item.available).length;
-    const catalogCount = allModels.filter((item) => !item.available).length;
     const meta = capabilityMeta[capability];
     const channelOptions = useMemo(() => {
         const map = new Map<string, string>();
@@ -112,21 +97,13 @@ export default function ModelMarketPage() {
                     <div>
                         <div className="mb-2 flex items-center gap-2 text-sm text-stone-500"><RefreshCw className="size-4" /> 模型来自你已经接入的通用 Key</div>
                         <h1 className="text-3xl font-semibold tracking-tight text-stone-950 dark:text-white">模型广场</h1>
-                        <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-500">默认只展示你的 Key 当前能调用的模型；全部模型库单独收录参考画布模型，不会把待接入模型算作可用。</p>
+                        <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-500">只展示新上游实际返回、当前能够调用的模型；不再混入参考模型或未接入模型。</p>
                     </div>
                     <Button icon={<Settings2 className="size-4" />} onClick={() => openConfigDialog(false)}>管理通用 Key / 拉取模型</Button>
                 </section>
 
                 <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900 md:flex-row md:items-center md:justify-between">
-                    <Segmented
-                        size="large"
-                        value={scope}
-                        onChange={(value) => setScope(value as "available" | "catalog")}
-                        options={[
-                            { label: `已接入可用 ${availableCount}`, value: "available" },
-                            { label: `全部模型库 ${catalogCount}`, value: "catalog" },
-                        ]}
-                    />
+                    <Tag color="green">已接入可用 {allModels.length}</Tag>
                     <Input allowClear value={query} onChange={(event) => setQuery(event.target.value)} prefix={<Search className="size-4 text-stone-400" />} placeholder="搜索模型或渠道" className="md:max-w-sm" />
                 </div>
                 <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
@@ -142,7 +119,7 @@ export default function ModelMarketPage() {
                         </div>
                     </aside>
                     <section>
-                        <div className="mb-4 flex items-center justify-between"><div><h2 className="text-xl font-semibold">{meta.noun}模型</h2><p className="mt-1 text-sm text-stone-500">找到 {visibleModels.length} 个模型 · {scope === "available" ? "可直接切换使用" : "接入渠道后使用"}</p></div><Tag color={meta.color}>{meta.apiLabel}</Tag></div>
+                        <div className="mb-4 flex items-center justify-between"><div><h2 className="text-xl font-semibold">{meta.noun}模型</h2><p className="mt-1 text-sm text-stone-500">找到 {visibleModels.length} 个模型 · 可直接切换使用</p></div><Tag color={meta.color}>{meta.apiLabel}</Tag></div>
                         {visibleModels.length ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                         {visibleModels.map((item) => {
                             const selected = item.model === activeModel && item.channelId === activeChannelId;
@@ -164,8 +141,8 @@ export default function ModelMarketPage() {
                         })}
                         </div> : (
                     <div className="rounded-3xl border border-dashed border-stone-300 bg-white py-20 dark:border-stone-700 dark:bg-stone-900">
-                        <Empty description={query ? "没有匹配的模型" : scope === "available" ? `还没有可用的${meta.noun}模型` : `模型库暂无${meta.noun}模型`}>
-                            {scope === "available" ? <Button type="primary" onClick={() => openConfigDialog(false)}>配置通用 Key 并拉取模型</Button> : null}
+                        <Empty description={query ? "没有匹配的模型" : `还没有可用的${meta.noun}模型`}>
+                            <Button type="primary" onClick={() => openConfigDialog(false)}>配置新上游并拉取模型</Button>
                         </Empty>
                     </div>
                 )}
