@@ -43,6 +43,15 @@ export default function ModelMarketPage() {
         const keyword = query.trim().toLowerCase();
         return allModels.filter((item) => item.capability === capability && (!keyword || `${item.model} ${item.channelName}`.toLowerCase().includes(keyword)));
     }, [allModels, capability, query]);
+    const visibleChannels = useMemo(() => {
+        const groups = new Map<string, { id: string; name: string; models: MarketModel[] }>();
+        visibleModels.forEach((item) => {
+            const group = groups.get(item.channelId) || { id: item.channelId, name: item.channelName, models: [] };
+            group.models.push(item);
+            groups.set(item.channelId, group);
+        });
+        return Array.from(groups.values());
+    }, [visibleModels]);
 
     const activeModel = capability === "image" ? config.imageModel : config.videoModel;
     const activeChannelId = capability === "image" ? config.imageChannelId : config.videoChannelId;
@@ -88,8 +97,18 @@ export default function ModelMarketPage() {
                 </div>
 
                 {visibleModels.length ? (
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                        {visibleModels.map((item) => {
+                    <div className="space-y-8">
+                        {visibleChannels.map((channel) => (
+                            <section key={channel.id} className="rounded-3xl border border-stone-200 bg-white/60 p-4 dark:border-stone-800 dark:bg-stone-900/50 md:p-5">
+                                <div className="mb-4 flex items-center justify-between gap-3">
+                                    <div>
+                                        <h2 className="text-lg font-semibold text-stone-950 dark:text-white">{channel.name}</h2>
+                                        <p className="mt-1 text-xs text-stone-500">此网站可用 {channel.models.length} 个{capability === "image" ? "图片" : "视频"}模型</p>
+                                    </div>
+                                    <Tag color={capability === "image" ? "blue" : "purple"}>{capability === "image" ? "生图 API" : "视频 API"}</Tag>
+                                </div>
+                                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                        {channel.models.map((item) => {
                             const selected = item.model === activeModel && item.channelId === activeChannelId;
                             return (
                                 <article key={item.key} className={`rounded-2xl border bg-white p-5 shadow-sm transition dark:bg-stone-900 ${selected ? "border-blue-500 ring-2 ring-blue-500/15" : "border-stone-200 hover:-translate-y-0.5 hover:shadow-md dark:border-stone-800"}`}>
@@ -107,6 +126,9 @@ export default function ModelMarketPage() {
                                 </article>
                             );
                         })}
+                                </div>
+                            </section>
+                        ))}
                     </div>
                 ) : (
                     <div className="rounded-3xl border border-dashed border-stone-300 bg-white py-20 dark:border-stone-700 dark:bg-stone-900">

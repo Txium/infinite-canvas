@@ -3,7 +3,7 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { Cpu } from "lucide-react";
 
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { filterModelsByCapability, normalizeLocalChannels, type AiConfig, type ModelCapability } from "@/stores/use-config-store";
 
@@ -96,11 +96,24 @@ export function ModelPicker({ config, value, channelId, capability, onChange, cl
                 onMouseDown={(event) => event.stopPropagation()}
             >
                 {options.length ? (
-                    options.map((option) => (
-                        <SelectItem key={option.key} value={option.key} textValue={`${option.model} ${option.channelName}`}>
-                            <ModelLabel model={option.model} channelName={option.channelName} />
-                        </SelectItem>
-                    ))
+                    Array.from(new Set(options.map((option) => option.channelId))).map((optionChannelId, groupIndex) => {
+                        const channelModels = options.filter((option) => option.channelId === optionChannelId);
+                        const channelName = channelModels[0]?.channelName || "模型渠道";
+                        return (
+                            <SelectGroup key={optionChannelId}>
+                                {groupIndex ? <SelectSeparator /> : null}
+                                <SelectLabel className="flex items-center justify-between px-2 py-1.5 font-medium">
+                                    <span>{channelName}</span>
+                                    <span>{channelModels.length} 个模型</span>
+                                </SelectLabel>
+                                {channelModels.map((option) => (
+                                    <SelectItem key={option.key} value={option.key} textValue={`${option.model} ${option.channelName}`}>
+                                        <ModelLabel model={option.model} />
+                                    </SelectItem>
+                                ))}
+                            </SelectGroup>
+                        );
+                    })
                 ) : (
                     <SelectItem value="__empty__" disabled>
                         {config.channelMode === "remote" ? "暂无可用模型" : "请先到配置里拉取模型列表"}

@@ -11,7 +11,7 @@ import { deleteCanvasProjects, deleteCanvasTasks } from "@/services/api/canvas-t
 import { createCanvasImageTask, pollCanvasImageTaskStatus, requestImageQuestion, type CanvasImageTask } from "@/services/api/image";
 import { createCanvasAudioTask, pollCanvasAudioTaskStatus, type CanvasAudioTask } from "@/services/api/audio";
 import { createVideoGenerationTask, pollVideoGenerationTaskStatus, VIDEO_POLL_INTERVAL_MS, type VideoResponse } from "@/services/api/video";
-import { channelProtocolForConfig, defaultConfig, type AiConfig, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
+import { channelProtocolForConfig, defaultConfig, modelMatchesCapability, normalizeLocalChannels, type AiConfig, type ModelCapability, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import { collectImageStorageKeys, deleteStoredImages, resolveImageUrl, uploadImage, uploadRemoteImageToServer, type UploadedImage } from "@/services/image-storage";
 import { resolveMediaUrl, uploadMediaFile, uploadRemoteMediaToServer, type UploadedFile } from "@/services/file-storage";
 import { nanoid } from "nanoid";
@@ -4937,7 +4937,21 @@ function isCanvasAgentKlingV26(key: string) {
 
 function buildGenerationConfig(config: AiConfig, node: CanvasNodeData | undefined, mode: CanvasNodeGenerationMode): AiConfig {
     const defaultModel = mode === "image" ? config.imageModel : mode === "video" ? config.videoModel : mode === "audio" ? config.audioModel : config.textModel;
-    const channelId = node?.metadata?.channelId || "";
+    const capability = mode as ModelCapability;
+    const savedModel = node?.metadata?.model || "";
+    const savedChannelId = node?.metadata?.channelId || "";
+    const channels = config.channelMode === "remote" ? config.publicChannels : normalizeLocalChannels(config);
+    const savedChannel = channels.find((channel) => channel.id === savedChannelId);
+    const savedChannelPurpose = "purpose" in (savedChannel || {}) ? savedChannel?.purpose : "general";
+    const savedSelectionMatchesMode = Boolean(
+        savedModel &&
+        modelMatchesCapability(savedModel, capability, savedChannel?.protocol || "") &&
+        savedChannel &&
+        (savedChannel.models || []).includes(savedModel) &&
+        (savedChannelPurpose === "general" || savedChannelPurpose === capability),
+    );
+    const model = savedSelectionMatchesMode ? savedModel : defaultModel || (mode === "audio" ? defaultConfig.audioModel : config.model || defaultConfig.model);
+    const channelId = savedSelectionMatchesMode ? savedChannelId : "";
     const imageChannelId = mode === "image" ? channelId || config.imageChannelId : config.imageChannelId;
     const videoChannelId = mode === "video" ? channelId || config.videoChannelId : config.videoChannelId;
     const textChannelId = mode === "text" ? channelId || config.textChannelId : config.textChannelId;
@@ -4945,7 +4959,7 @@ function buildGenerationConfig(config: AiConfig, node: CanvasNodeData | undefine
     const activeChannelId = mode === "image" ? imageChannelId : mode === "video" ? videoChannelId : mode === "text" ? textChannelId : mode === "audio" ? audioChannelId || config.activeChannelId : config.activeChannelId;
     return {
         ...config,
-        model: node?.metadata?.model || defaultModel || (mode === "audio" ? defaultConfig.audioModel : config.model || defaultConfig.model),
+        model,
         activeChannelId,
         imageChannelId,
         videoChannelId,
