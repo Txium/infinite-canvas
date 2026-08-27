@@ -405,3 +405,55 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | `reviewed_at` | string | 审核时间 |
 | `created_at` | string | 创建时间 |
 | `updated_at` | string | 更新时间 |
+
+### model_providers
+
+模型路由层的上游供应商。`api_key` 只由后端保存，管理接口列表不会返回明文。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 供应商 ID |
+| `name` | string | 后台显示名称 |
+| `code` | string | 唯一供应商代码 |
+| `base_url` | string | 上游 API Base URL |
+| `api_key` | string | 上游密钥 |
+| `enabled` | boolean | 是否启用 |
+| `priority` | number | 后台排序优先级 |
+| `timeout` | number | 请求超时秒数 |
+| `remark` | string | 管理备注 |
+
+### market_models
+
+模型广场对用户展示的自有模型定义。用户和画布只使用 `id`，不依赖供应商名称和实际上游模型 ID。
+
+主要字段包括名称、分类、图标、描述、生成模式、分辨率、时长、比例、参考图数量、人物/首尾帧/音频参考能力、速度、热门标记、状态、启用状态和排序。
+
+### model_routes
+
+自有模型到上游供应商模型的映射。同一 `model_id` 可按 `priority` 配置多条线路。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 线路 ID |
+| `model_id` | string | 自有模型 ID |
+| `provider_id` | string | 供应商 ID |
+| `upstream_model_id` | string | 实际上游模型 ID |
+| `protocol` | string | 请求协议/适配器名称 |
+| `priority` | number | 线路顺序，数字越小越优先 |
+| `enabled` | boolean | 是否启用 |
+
+### model_prices
+
+自有模型的规格成本与用户售价。成本单位为人民币分，用户售价单位为站内算力点。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 价格 ID |
+| `model_id` | string | 自有模型 ID |
+| `variant` | string | 规格标识 |
+| `billing_mode` | string | 计费方式 |
+| `unit` | string | 次、秒或其他计费单位 |
+| `cost_fen` | number | 成本，人民币分 |
+| `price_credits` | number | 用户售价，算力点 |
+| `currency` | string | 成本币种 |
+| `enabled` | boolean | 是否启用 |

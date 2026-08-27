@@ -133,15 +133,25 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		Fail(w, "未登录或权限不足")
 		return
 	}
-	channel, userChannelID, err := selectAIRequestChannel(user, modelName, r.Header.Get("X-Model-Channel-ID"), r.Header.Get(userModelChannelHeader))
+	requestedModel := modelName
+	channel, upstreamModel, routed, err := service.ResolveMarketRoute(requestedModel)
+	userChannelID := ""
+	if err == nil && routed {
+		body, err = replaceAIRequestModel(body, contentType, upstreamModel)
+		modelName = upstreamModel
+	} else if err == nil {
+		channel, userChannelID, err = selectAIRequestChannel(user, modelName, r.Header.Get("X-Model-Channel-ID"), r.Header.Get(userModelChannelHeader))
+	}
 	if err != nil {
-		log.Printf("AI proxy select channel failed: model=%s err=%v", modelName, err)
+		log.Printf("AI proxy select channel failed: model=%s err=%v", requestedModel, err)
 		failAIChannelSelect(w, err, "AI 接口请求失败")
 		return
 	}
 	credits := 0
 	if userChannelID == "" {
-		credits, err = service.ModelCost(modelName)
+		var marketCost bool
+		credits, marketCost, err = service.MarketModelCost(requestedModel)
+		if err == nil && !marketCost { credits, err = service.ModelCost(requestedModel) }
 		if err != nil {
 			log.Printf("AI proxy read model cost failed: model=%s err=%v", modelName, err)
 			Fail(w, "AI 接口请求失败")
@@ -201,7 +211,7 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		request.Header.Set("Content-Type", contentType)
 	}
 	if credits > 0 {
-		if err := service.ConsumeUserCredits(user.ID, modelName, credits, upstreamPath); err != nil {
+		if err := service.ConsumeUserCredits(user.ID, requestedModel, credits, upstreamPath); err != nil {
 			FailError(w, err)
 			return
 		}
@@ -210,7 +220,7 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		StartedAt:       startedAt,
 		Endpoint:        path,
 		Method:          http.MethodPost,
-		Model:           modelName,
+		Model:           requestedModel,
 		Channel:         channel,
 		UserID:          user.ID,
 		UserDisplayName: firstNonEmpty(user.DisplayName, user.Username),
@@ -218,11 +228,19 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		RequestBody:     summarizeAIRequest(body, contentType),
 	}, func() {
 		if credits > 0 {
-			if err := service.RefundUserCredits(user.ID, modelName, credits, upstreamPath); err != nil {
-				log.Printf("AI proxy refund credits failed: user=%s model=%s credits=%d err=%v", user.ID, modelName, credits, err)
+			if err := service.RefundUserCredits(user.ID, requestedModel, credits, upstreamPath); err != nil {
+				log.Printf("AI proxy refund credits failed: user=%s model=%s credits=%d err=%v", user.ID, requestedModel, credits, err)
 			}
 		}
 	})
+}
+
+func replaceAIRequestModel(body []byte, contentType string, modelName string) ([]byte, error) {
+	if strings.Contains(strings.ToLower(contentType), "multipart/form-data") { return body, nil }
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil { return nil, err }
+	payload["model"] = modelName
+	return json.Marshal(payload)
 }
 
 func geminiStreamRequested(body []byte) bool {
