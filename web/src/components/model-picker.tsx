@@ -12,7 +12,7 @@ type ModelPickerProps = {
     value?: string;
     channelId?: string;
     capability?: ModelCapability;
-    onChange: (model: string, channelId?: string) => void;
+    onChange: (model: string, channelId?: string, capability?: ModelCapability) => void;
     className?: string;
     fullWidth?: boolean;
     placeholder?: string;
@@ -26,7 +26,7 @@ export function ModelPicker({ config, value, channelId, capability, onChange, cl
         if (config.channelMode === "remote" && config.marketModels.length) {
             return config.marketModels
                 .filter((item) => !capability || item.capability === capability)
-                .map((item) => ({ key: `market::${item.id}`, channelId: `market:${item.group}`, channelName: item.group, protocol: "openai" as const, model: item.id, label: item.label, priceText: item.priceText }));
+                .map((item) => ({ key: `market::${item.id}`, channelId: `market:${item.group}`, channelName: item.group, protocol: "openai" as const, model: item.id, label: item.label, priceText: item.priceText, capability: item.capability }));
         }
         const channels =
             config.channelMode === "remote"
@@ -35,7 +35,7 @@ export function ModelPicker({ config, value, channelId, capability, onChange, cl
         const matchingChannels = capability === "image" || capability === "video"
             ? channels.filter((channel) => channel.purpose === "general" || channel.purpose === capability)
             : channels;
-        const models = matchingChannels.flatMap((channel) => (channel.models ?? []).map((model) => ({ key: `${channel.id}::${model}`, channelId: channel.id, channelName: channel.name, protocol: channel.protocol, model, label: model, priceText: "" })));
+        const models = matchingChannels.flatMap((channel) => (channel.models ?? []).map((model) => ({ key: `${channel.id}::${model}`, channelId: channel.id, channelName: channel.name, protocol: channel.protocol, model, label: model, priceText: "", capability })));
         if (!capability) return models;
         return models.filter((item) => filterModelsByCapability([item.model], capability, item.protocol || "").length > 0);
     }, [capability, config]);
@@ -73,7 +73,7 @@ export function ModelPicker({ config, value, channelId, capability, onChange, cl
             }}
             onValueChange={(nextValue) => {
                 const option = options.find((item) => item.key === nextValue);
-                if (option) onChange(option.model, option.channelId);
+                if (option) onChange(option.model, option.channelId, option.capability);
             }}
         >
             <SelectTrigger

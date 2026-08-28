@@ -68,8 +68,8 @@ export function AppConfigModal() {
     const canUseRemoteChannel = isLoggedIn;
     // Upstream credentials belong in the administrator's gateway. Ordinary
     // users receive one platform account/token and never need to manage keys.
-    const allowCustomChannel = false;
-    const effectiveMode: AiConfig["channelMode"] = "remote";
+    const allowCustomChannel = Boolean(modelChannel?.allowCustomChannel && false);
+    const effectiveMode: AiConfig["channelMode"] = canUseRemoteChannel ? (allowCustomChannel ? config.channelMode : "remote") : "remote";
     const localModelConfig: AiConfig = effectiveMode === "local" && config.channelMode !== "local" ? { ...config, channelMode: "local" } : config;
     const modelConfig = effectiveMode === "remote" ? effectiveConfig : localModelConfig;
     const canUseUserStorageProvider = allowUserStorageProvider;
