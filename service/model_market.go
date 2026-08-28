@@ -149,17 +149,42 @@ func TestModelProviderConnection(id string) (ModelProviderConnectionTest, error)
 		return result, nil
 	}
 	if provider.Code == "302" || provider.Code == "lec" {
-		var payload struct { Data []struct { ID string `json:"id"` } `json:"data"` }
+		var payload map[string]any
 		if json.Unmarshal(body, &payload) != nil { return ModelProviderConnectionTest{}, errors.New("模型列表响应无法解析") }
-		for _, item := range payload.Data { if name := strings.TrimSpace(item.ID); name != "" { result.Models = append(result.Models, name) } }
+		result.Models = append(result.Models, modelIDsFromPayload(payload["data"])...)
 		sort.Strings(result.Models)
-		result.Message = fmt.Sprintf("连接正常；上游返回 %d 个模型", len(result.Models))
+		if len(result.Models) == 0 {
+			result.Message = "连接正常；上游鉴权通过（模型列表结构未自动统计）"
+		} else {
+			result.Message = fmt.Sprintf("连接正常；上游返回 %d 个模型", len(result.Models))
+		}
 		return result, nil
 	}
 	// seedance.nz wallet schemas may evolve. A successful authenticated HTTP
 	// response is sufficient for connectivity; never guess its currency/value.
 	result.Message = "连接正常；钱包接口鉴权通过（余额币种未自动换算）"
 	return result, nil
+}
+
+func modelIDsFromPayload(value any) []string {
+	result := []string{}
+	var walk func(any)
+	walk = func(current any) {
+		switch typed := current.(type) {
+		case []any:
+			for _, item := range typed { walk(item) }
+		case map[string]any:
+			if id, ok := typed["id"].(string); ok {
+				if id = strings.TrimSpace(id); id != "" { result = append(result, id) }
+			}
+			for key, item := range typed {
+				if key == "id" { continue }
+				walk(item)
+			}
+		}
+	}
+	walk(value)
+	return result
 }
 
 func providerOriginURL(baseURL string, path string) (string, error) {

@@ -11,3 +11,16 @@ func TestProviderOriginURL(t *testing.T) {
 		t.Fatalf("providerOriginURL = %q, want %q", got, want)
 	}
 }
+
+func TestModelIDsFromPayloadAcceptsNestedData(t *testing.T) {
+	payload := map[string]any{
+		"models": []any{
+			map[string]any{"id": "model-a"},
+			map[string]any{"id": "model-b"},
+		},
+	}
+	got := modelIDsFromPayload(payload)
+	if len(got) != 2 || got[0] != "model-a" || got[1] != "model-b" {
+		t.Fatalf("modelIDsFromPayload = %#v", got)
+	}
+}
