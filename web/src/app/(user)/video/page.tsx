@@ -2517,6 +2517,8 @@ function isFailedVideoTask(task: VideoResponse) {
 
 function isTransientVideoPollError(error: unknown) {
     if (!axios.isAxiosError(error)) return false;
+    const message = JSON.stringify(error.response?.data || error.message || "");
+    if (["没有可用模型渠道", "渠道不可用", "模型未配置", "渠道不存在"].some((text) => message.includes(text))) return false;
     const status = error.response?.status;
     return !error.response || status === 500 || status === 502 || status === 503 || status === 504;
 }

@@ -296,7 +296,16 @@ func pollVideoTaskFromUpstream(task model.VideoTask) (service.VideoTaskPollUpdat
 		channel, err = service.SelectModelChannelForModel(upstreamModel, task.ChannelID)
 	}
 	if err != nil {
-		return service.VideoTaskPollUpdate{}, err
+		// A persisted task cannot recover when its configured channel has been
+		// removed, disabled, or no longer exposes the routed upstream model.
+		// Mark it failed so the billing finalizer releases frozen credits instead
+		// of polling forever until the 30-minute timeout.
+		message := "视频任务渠道不可用，费用已自动退回"
+		return service.VideoTaskPollUpdate{
+			Status:      "failed",
+			Error:       message,
+			ErrorDetail: err.Error(),
+		}, nil
 	}
 	pollID := firstNonEmpty(task.UpstreamTaskID, task.ID)
 	if isAgnesVideoModel(upstreamModel) && strings.HasPrefix(task.UpstreamVideoID, "video_") {
