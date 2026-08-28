@@ -40,10 +40,10 @@ export default function ModelMarketPage() {
 
     const visible = useMemo(() => {
         const keyword = query.trim().toLowerCase();
-        return items.filter((item) => item.available && (category === "all" || (category === "hot" ? item.featured : item.category === category)) && (!keyword || `${item.name} ${item.description} ${item.id}`.toLowerCase().includes(keyword)));
+        return items.filter((item) => (category === "all" || (category === "hot" ? item.featured : item.category === category)) && (!keyword || `${item.name} ${item.description} ${item.id}`.toLowerCase().includes(keyword)));
     }, [category, items, query]);
 
-    const selectedVariant = (item: MarketModelCard) => item.variants.find((variant) => variant.id === selectedVariants[item.id] && item.availableVariantIds.includes(variant.id)) || item.variants.find((variant) => item.availableVariantIds.includes(variant.id));
+    const selectedVariant = (item: MarketModelCard) => item.variants.find((variant) => variant.id === selectedVariants[item.id]) || item.variants.find((variant) => item.availableVariantIds.includes(variant.id)) || item.variants[0];
     const useModel = (item: MarketModelCard, variant: MarketModelVariant | undefined) => {
         if (!variant || !item.availableVariantIds.includes(variant.id)) { message.info("这个档位等待管理员配置并启用 API 线路"); return; }
         if (item.category === "image") updateConfig("imageModel", variant.id);
@@ -69,11 +69,11 @@ export default function ModelMarketPage() {
                     const variant = selectedVariant(item);
                     const variantAvailable = Boolean(variant && item.availableVariantIds.includes(variant.id));
                     return <article key={item.id} className="rounded-2xl border border-stone-200 p-5 dark:border-stone-800">
-                        <div className="flex items-start justify-between gap-3"><h2 className="font-semibold">{item.name}</h2><Tag color={item.status === "normal" ? "green" : item.status === "busy" ? "orange" : "red"}>{item.status === "normal" ? "正常" : item.status === "busy" ? "拥堵" : "维护"}</Tag></div>
+                        <div className="flex items-start justify-between gap-3"><h2 className="font-semibold">{item.name}</h2><Tag color={!item.available ? "orange" : item.status === "normal" ? "green" : item.status === "busy" ? "orange" : "red"}>{!item.available ? "线路配置中" : item.status === "normal" ? "正常" : item.status === "busy" ? "拥堵" : "维护"}</Tag></div>
                         <p className="mt-4 min-h-10 text-sm text-stone-500">{item.description}</p>
                         <div className="mt-4 flex flex-wrap gap-1.5">{item.resolutions.map((value) => <Tag key={value}>{value}</Tag>)}{item.durations.map((value) => <Tag key={value}>{value} 秒</Tag>)}{item.supportsPerson ? <Tag color="purple">人物参考</Tag> : null}{item.supportsFirstLastFrame ? <Tag>首尾帧</Tag> : null}</div>
-                        <Select className="mt-4 w-full" value={variant?.id} onChange={(value) => setSelectedVariants((current) => ({...current,[item.id]:value}))} options={item.variants.filter((option) => item.availableVariantIds.includes(option.id)).map((option) => ({value:option.id,label:option.name}))} placeholder="选择档位" />
-                        <div className="mt-5 flex items-end justify-between gap-3"><div><div className="text-xs text-stone-500">售价</div><div className="mt-1 text-sm font-semibold">{variant ? variant.pricingMode === "fixed" && typeof variant.priceCents === "number" ? `${formatCNY(variant.priceCents)} ${variant.billingUnit}` : variant.pricingMode === "dynamic" ? variant.priceFormula : "暂不上架" : "待定价"}</div></div><Button type="primary" disabled={!variantAvailable} onClick={() => useModel(item,variant)}>{variantAvailable ? "立即使用" : "待接入"}</Button></div>
+                        <Select className="mt-4 w-full" value={variant?.id} onChange={(value) => setSelectedVariants((current) => ({...current,[item.id]:value}))} options={item.variants.map((option) => ({value:option.id,label:item.availableVariantIds.includes(option.id) ? option.name : `${option.name}（线路配置中）`}))} placeholder="选择档位" />
+                        <div className="mt-5 flex items-end justify-between gap-3"><div><div className="text-xs text-stone-500">售价</div><div className="mt-1 text-sm font-semibold">{variant ? variant.pricingMode === "fixed" && typeof variant.priceCents === "number" ? `${formatCNY(variant.priceCents)} ${variant.billingUnit}` : variant.pricingMode === "dynamic" ? variant.priceFormula : "暂不上架" : "待定价"}</div></div><Button type="primary" disabled={!variantAvailable} onClick={() => useModel(item,variant)}>{variantAvailable ? "立即使用" : "线路配置中"}</Button></div>
                     </article>;
                 })}</div>}
             </div>
