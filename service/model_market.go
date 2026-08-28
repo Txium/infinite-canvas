@@ -129,6 +129,13 @@ func TestModelProviderConnection(id string) (ModelProviderConnectionTest, error)
 		requestURL = BuildModelChannelURL(channel, "/balance")
 	case "seedance_nz":
 		requestURL, err = providerOriginURL(provider.BaseURL, "/api/usage/wallet/")
+	case "302":
+		// 302's canonical API host is api.302.ai. Keep the provider Base URL at
+		// the origin because media endpoints are not all nested under /v1.
+		// The models endpoint accepts these query flags and is a free,
+		// authenticated way to verify the key without running inference.
+		requestURL, err = providerOriginURL(provider.BaseURL, "/v1/models")
+		if err == nil { requestURL += "?llm=1&include_custom_models=1" }
 	default:
 		requestURL = BuildModelChannelURL(channel, "/models")
 	}
@@ -136,6 +143,8 @@ func TestModelProviderConnection(id string) (ModelProviderConnectionTest, error)
 	request, err := http.NewRequest(http.MethodGet, requestURL, nil)
 	if err != nil { return ModelProviderConnectionTest{}, err }
 	SetModelChannelAuthHeader(request, channel)
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("User-Agent", "Mozilla/5.0 (compatible; InfiniteCanvas/0.5; +https://github.com/Txium/infinite-canvas)")
 	response, err := HTTPClientForChannel(channel).Do(request)
 	if err != nil { return ModelProviderConnectionTest{}, safeMessageError{message:"连接失败：上游接口无响应或网络不可达"} }
 	defer response.Body.Close()
