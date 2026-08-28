@@ -33,10 +33,45 @@ type userExtra struct {
 }
 
 func EnsureDefaultAdmin() error {
-	if strings.TrimSpace(config.Cfg.AdminUsername) == "" || strings.TrimSpace(config.Cfg.AdminPassword) == "" {
+	username := strings.TrimSpace(config.Cfg.AdminUsername)
+	password := strings.TrimSpace(config.Cfg.AdminPassword)
+	if username == "" || password == "" {
 		return nil
 	}
 	WarnDefaultSecurityConfig()
+
+	// Keep the configured owner account usable after ADMIN_PASSWORD changes.
+	// Previously these environment variables were only applied on the first
+	// startup, so changing the Render secret left the database password hash
+	// unchanged and locked the owner out of /admin.
+	if admin, ok, err := repository.GetUserByUsername(username); err != nil {
+		return err
+	} else if ok {
+		changed := false
+		if bcrypt.CompareHashAndPassword([]byte(admin.Password), []byte(password)) != nil {
+			hash, hashErr := hashPassword(password)
+			if hashErr != nil {
+				return hashErr
+			}
+			admin.Password = hash
+			changed = true
+		}
+		if admin.Role != model.UserRoleAdmin {
+			admin.Role = model.UserRoleAdmin
+			changed = true
+		}
+		if admin.Status != model.UserStatusActive {
+			admin.Status = model.UserStatusActive
+			changed = true
+		}
+		if !changed {
+			return nil
+		}
+		admin.UpdatedAt = now()
+		_, err = repository.SaveUser(admin)
+		return err
+	}
+
 	hasAdmin, err := repository.HasAdmin()
 	if err != nil || hasAdmin {
 		return err
@@ -47,7 +82,7 @@ func EnsureDefaultAdmin() error {
 	}
 	_, err = repository.SaveUser(model.User{
 		ID:        newID("user"),
-		Username:  strings.TrimSpace(config.Cfg.AdminUsername),
+		Username:  username,
 		Password:  hash,
 		Role:      model.UserRoleAdmin,
 		AffCode:   newAffCode(),
