@@ -30,8 +30,15 @@ export default function AdminModelRoutingPage() {
     const [variantForm] = Form.useForm<VariantForm>();
     const load = async () => {
         if (!token) return;
-        const [nextProviders, nextModels, nextRoutes, nextVariants] = await Promise.all([fetchAdminModelProviders(token), fetchAdminMarketModels(token), fetchAdminModelRoutes(token), fetchAdminModelVariants(token)]);
-        setProviders(nextProviders); setModels(nextModels); setRoutes(nextRoutes); setVariants(nextVariants);
+        const results = await Promise.allSettled([fetchAdminModelProviders(token), fetchAdminMarketModels(token), fetchAdminModelRoutes(token), fetchAdminModelVariants(token)]);
+        const labels = ["中转站", "模型", "线路", "档位"];
+        results.forEach((result, index) => {
+            if (result.status === "rejected") message.error(`${labels[index]}资料加载失败，请稍后重试`);
+        });
+        if (results[0].status === "fulfilled") setProviders(results[0].value);
+        if (results[1].status === "fulfilled") setModels(results[1].value);
+        if (results[2].status === "fulfilled") setRoutes(results[2].value);
+        if (results[3].status === "fulfilled") setVariants(results[3].value);
     };
     useEffect(() => { void load(); }, [token]);
     const saveModel = async () => {

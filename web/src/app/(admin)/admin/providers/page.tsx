@@ -32,6 +32,7 @@ export default function AdminProvidersPage() {
     const [items, setItems] = useState<AdminModelProvider[]>([]);
     const [editing, setEditing] = useState<AdminModelProvider | null>(null);
     const [testingID, setTestingID] = useState("");
+    const [testedModels, setTestedModels] = useState<{ provider: string; models: string[] } | null>(null);
     const [form] = Form.useForm<ProviderForm>();
     const load = async () => { if (token) setItems(await fetchAdminModelProviders(token)); };
     useEffect(() => { void load(); }, [token]);
@@ -67,6 +68,7 @@ export default function AdminProvidersPage() {
         try {
             const result = await testAdminModelProvider(token, item.id);
             message.success([result.message, result.balanceText].filter(Boolean).join("；"));
+            if (result.models?.length) setTestedModels({ provider: item.name, models: result.models });
         } finally {
             setTestingID("");
         }
@@ -100,6 +102,10 @@ export default function AdminProvidersPage() {
                     <Form.Item name="enabled" label="启用供应商" valuePropName="checked"><Switch /></Form.Item>
                 </Space>
             </Form>
+        </Modal>
+        <Modal title={`${testedModels?.provider || "中转站"} 实际返回模型`} open={!!testedModels} footer={<Button type="primary" onClick={() => setTestedModels(null)}>知道了</Button>} onCancel={() => setTestedModels(null)} width={760}>
+            <Typography.Paragraph type="secondary">以下是上游接口当前真实返回的模型 ID，可用于核对线路；这里只显示模型名，不显示 API Key。</Typography.Paragraph>
+            <div className="max-h-[55vh] overflow-auto rounded-lg border border-stone-200 p-3 dark:border-stone-700"><Space wrap>{testedModels?.models.map((model) => <Tag key={model}>{model}</Tag>)}</Space></div>
         </Modal>
     </div>;
 }
