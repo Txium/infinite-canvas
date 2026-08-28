@@ -4943,12 +4943,15 @@ function buildGenerationConfig(config: AiConfig, node: CanvasNodeData | undefine
     const channels = config.channelMode === "remote" ? config.publicChannels : normalizeLocalChannels(config);
     const savedChannel = channels.find((channel) => channel.id === savedChannelId);
     const savedChannelPurpose = config.channelMode === "local" ? normalizeLocalChannels(config).find((channel) => channel.id === savedChannelId)?.purpose || "general" : "general";
+    const savedMarketModel = config.channelMode === "remote" ? config.marketModels.find((item) => item.id === savedModel && item.capability === capability) : undefined;
     const savedSelectionMatchesMode = Boolean(
         savedModel &&
-        modelMatchesCapability(savedModel, capability, savedChannel?.protocol || "") &&
-        savedChannel &&
-        (savedChannel.models || []).includes(savedModel) &&
-        (savedChannelPurpose === "general" || savedChannelPurpose === capability),
+        (savedMarketModel || (
+            modelMatchesCapability(savedModel, capability, savedChannel?.protocol || "") &&
+            savedChannel &&
+            (savedChannel.models || []).includes(savedModel) &&
+            (savedChannelPurpose === "general" || savedChannelPurpose === capability)
+        )),
     );
     const model = savedSelectionMatchesMode ? savedModel : defaultModel || (mode === "audio" ? defaultConfig.audioModel : config.model || defaultConfig.model);
     const channelId = savedSelectionMatchesMode ? savedChannelId : "";

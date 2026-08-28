@@ -1163,7 +1163,11 @@ export async function pollCanvasImageTaskStatus(taskId: string): Promise<CanvasI
 
 async function createCanvasImageTaskRequest(config: AiConfig & { seedIndex?: number; seedCount?: number }, prompt: string, references: ReferenceImage[], params: ImageRequestParams, options: CanvasImageTaskOptions): Promise<RequestInit> {
     assertImageReferencesSupported(config.model, references);
-    const taskChannelId = channelIdForActiveModel(config);
+    const selectedTaskChannelId = channelIdForActiveModel(config);
+    // `market:*` is only a frontend grouping marker. Market requests are
+    // routed by the variant ID in `model`; never serialize the marker into an
+    // HTTP header (older saved canvases may contain `market:图片`).
+    const taskChannelId = selectedTaskChannelId.startsWith("market:") ? "" : selectedTaskChannelId;
     const taskChannelHeader: Record<string, string> = config.channelMode === "remote" && taskChannelId ? { "X-Model-Channel-ID": taskChannelId } : {};
     const tokenHeaders = { ...aiHeaders(config), ...taskChannelHeader };
     const jsonHeaders = { ...aiHeaders(config, "application/json"), ...taskChannelHeader };

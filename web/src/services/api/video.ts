@@ -80,9 +80,11 @@ function agnesBaseUrl(baseUrl: string) {
 
 function aiHeaders(config: AiConfig) {
     const token = useUserStore.getState().token;
+    const selectedChannelId = channelIdForActiveModel(config);
+    const requestChannelId = selectedChannelId.startsWith("market:") ? "" : selectedChannelId;
     if (config.channelMode === "remote" && !token) throw new Error("请先登录后再使用云端渠道");
-    if (config.channelMode === "remote") return { Authorization: `Bearer ${token}`, ...(channelIdForActiveModel(config) ? { "X-Model-Channel-ID": channelIdForActiveModel(config) } : {}) };
-    if (token) return { Authorization: `Bearer ${token}`, ...(channelIdForActiveModel(config) ? { "X-User-Model-Channel-ID": channelIdForActiveModel(config) } : {}) };
+    if (config.channelMode === "remote") return { Authorization: `Bearer ${token}`, ...(requestChannelId ? { "X-Model-Channel-ID": requestChannelId } : {}) };
+    if (token) return { Authorization: `Bearer ${token}`, ...(requestChannelId ? { "X-User-Model-Channel-ID": requestChannelId } : {}) };
     if (isGeminiConfig(config)) return geminiDirectHeaders(config);
     return { Authorization: `Bearer ${localChannelForActiveModel(config)?.apiKey || config.apiKey}` };
 }
@@ -109,6 +111,7 @@ export async function requestVideoGeneration(config: AiConfig, prompt: string, r
 
 export async function createVideoGenerationTask(config: AiConfig, prompt: string, references: ReferenceImage[] | VideoReferenceInput = [], onProgress?: VideoProgressHandler, options?: string | VideoTaskCreateOptions): Promise<CreatedVideoGenerationTask> {
     const model = config.model || config.videoModel;
+    validateMarketVideoVariant(model, config.videoSeconds);
     const systemPrompt = (config.systemPrompts.video || config.systemPrompt).trim();
     const body = await createVideoRequestBody(config, model, systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt, normalizeVideoReferenceInput(references));
     const startedAt = Date.now();
@@ -138,6 +141,14 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
         const { message, detail } = readAxiosError(error, "视频生成失败");
         void writeVideoAICallLog(config, model, "/videos", "POST", startedAt, axios.isAxiosError(error) ? error.response?.status || 0 : 0, stringifyLogPayload(summarizeVideoRequestBody(body)), stringifyLogPayload(detail), message);
         throw new VideoRequestError(message, detail);
+    }
+}
+
+function validateMarketVideoVariant(model: string, seconds: string) {
+    const normalizedModel = model.trim().toLowerCase();
+    const duration = Number(seconds);
+    if (normalizedModel === "seedance_2__01" && duration !== 10 && duration !== 15) {
+        throw new VideoRequestError("Seedance 2.0 人物特惠 720P（900）仅支持 10 秒或 15 秒，请修改时长后重试");
     }
 }
 

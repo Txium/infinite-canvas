@@ -26,7 +26,10 @@ export function ModelPicker({ config, value, channelId, capability, onChange, cl
         if (config.channelMode === "remote" && config.marketModels.length) {
             return config.marketModels
                 .filter((item) => !capability || item.capability === capability)
-                .map((item) => ({ key: `market::${item.id}`, channelId: `market:${item.group}`, channelName: item.group, protocol: "openai" as const, model: item.id, label: item.label, priceText: item.priceText, capability: item.capability }));
+                // Market channel IDs are UI-only routing hints. Keep them ASCII:
+                // Fetch rejects non ISO-8859-1 header values such as
+                // `market:图片` before the request can reach our server.
+                .map((item) => ({ key: `market::${item.id}`, channelId: `market:${item.capability}`, channelName: item.group, protocol: "openai" as const, model: item.id, label: item.label, priceText: item.priceText, capability: item.capability }));
         }
         const channels =
             config.channelMode === "remote"
