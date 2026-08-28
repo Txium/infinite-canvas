@@ -248,13 +248,7 @@ func serveGeminiVideoTaskContent(w http.ResponseWriter, r *http.Request, id stri
 	if err != nil || !found {
 		return false
 	}
-	var channel model.ModelChannel
-	upstreamModel := videoTaskUpstreamModel(task)
-	if strings.TrimSpace(task.UserChannelID) != "" {
-		channel, err = service.SelectUserLocalModelChannelForModel(task.UserID, upstreamModel, task.UserChannelID)
-	} else {
-		channel, err = service.SelectModelChannelForModel(upstreamModel, task.ChannelID)
-	}
+	channel, _, err := selectPersistedVideoTaskChannel(task)
 	if err != nil || !service.IsGeminiChannel(channel) {
 		return false
 	}
@@ -287,14 +281,7 @@ func serveGeminiVideoTaskContent(w http.ResponseWriter, r *http.Request, id stri
 }
 
 func pollVideoTaskFromUpstream(task model.VideoTask) (service.VideoTaskPollUpdate, error) {
-	var channel model.ModelChannel
-	var err error
-	upstreamModel := videoTaskUpstreamModel(task)
-	if strings.TrimSpace(task.UserChannelID) != "" {
-		channel, err = service.SelectUserLocalModelChannelForModel(task.UserID, upstreamModel, task.UserChannelID)
-	} else {
-		channel, err = service.SelectModelChannelForModel(upstreamModel, task.ChannelID)
-	}
+	channel, upstreamModel, err := selectPersistedVideoTaskChannel(task)
 	if err != nil {
 		// A persisted task cannot recover when its configured channel has been
 		// removed, disabled, or no longer exposes the routed upstream model.
@@ -370,6 +357,39 @@ func pollVideoTaskFromUpstream(task model.VideoTask) (service.VideoTaskPollUpdat
 		ErrorDetail:  parsed.ErrorDetail,
 		ResponseBody: string(transformed),
 	}, nil
+}
+
+// selectPersistedVideoTaskChannel restores the same managed-market provider
+// used when the asynchronous task was created. Managed providers are not part
+// of the legacy settings channel list, so polling them through
+// SelectModelChannelForModel incorrectly reported "没有可用模型渠道".
+func selectPersistedVideoTaskChannel(task model.VideoTask) (model.ModelChannel, string, error) {
+	upstreamModel := videoTaskUpstreamModel(task)
+	if strings.TrimSpace(task.UserChannelID) != "" {
+		channel, err := service.SelectUserLocalModelChannelForModel(task.UserID, upstreamModel, task.UserChannelID)
+		return channel, upstreamModel, err
+	}
+	candidates, routed, err := service.ResolveMarketRoutes(task.Model)
+	if err != nil {
+		return model.ModelChannel{}, upstreamModel, err
+	}
+	if routed {
+		for _, candidate := range candidates {
+			if candidate.Channel.ID == task.ChannelID && candidate.UpstreamModel == upstreamModel {
+				return candidate.Channel, candidate.UpstreamModel, nil
+			}
+		}
+		for _, candidate := range candidates {
+			if candidate.Channel.ID == task.ChannelID {
+				return candidate.Channel, candidate.UpstreamModel, nil
+			}
+		}
+		if len(candidates) > 0 {
+			return candidates[0].Channel, candidates[0].UpstreamModel, nil
+		}
+	}
+	channel, err := service.SelectModelChannelForModel(upstreamModel, task.ChannelID)
+	return channel, upstreamModel, err
 }
 
 func videoTaskUpstreamModel(task model.VideoTask) string {
