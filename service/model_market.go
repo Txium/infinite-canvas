@@ -150,7 +150,9 @@ func TestModelProviderConnection(id string) (ModelProviderConnectionTest, error)
 	}
 	if provider.Code == "302" || provider.Code == "lec" {
 		var payload map[string]any
-		if json.Unmarshal(body, &payload) != nil { return ModelProviderConnectionTest{}, errors.New("模型列表响应无法解析") }
+		if json.Unmarshal(body, &payload) != nil {
+			return ModelProviderConnectionTest{}, safeMessageError{message:"上游返回非 JSON 页面，可能拦截 Render 服务器访问；暂勿启用该线路"}
+		}
 		result.Models = append(result.Models, modelIDsFromPayload(payload["data"])...)
 		sort.Strings(result.Models)
 		if len(result.Models) == 0 {
