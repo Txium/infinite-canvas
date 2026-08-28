@@ -35,8 +35,9 @@ export default function WalletPage() {
 
     return <main className="h-full min-h-0 overflow-y-auto"><div className="mx-auto max-w-6xl px-4 py-8">
         <Typography.Title level={2}>我的钱包</Typography.Title>
-        <div className="grid gap-4 md:grid-cols-2">
-            <Card><Statistic title="当前余额" prefix="¥" value={(user?.credits || 0) / 100} precision={2} /><Typography.Text type="secondary">充值多少到账多少，生成时按模型标注售价从人民币余额扣除。</Typography.Text></Card>
+        <div className="grid gap-4 md:grid-cols-3">
+            <Card><Statistic title="可用余额" prefix="¥" value={(user?.credits || 0) / 100} precision={2} /><Typography.Text type="secondary">充值多少到账多少，生成时按模型标注售价结算。</Typography.Text></Card>
+            <Card><Statistic title="冻结余额" prefix="¥" value={(user?.frozenCredits || 0) / 100} precision={2} /><Typography.Text type="secondary">任务生成中暂时冻结；成功后结算，失败自动退回可用余额。</Typography.Text></Card>
             <Card title="在线充值">
                 <Form form={form} layout="vertical" initialValues={{ amount: 10, paymentMethod: "wxpay" }}>
                     <Form.Item name="amount" label="充值金额（元）" rules={[{ required: true }]}><InputNumber min={1} max={100000} className="!w-full" /></Form.Item>

@@ -119,7 +119,61 @@ func RefundUserCredits(id string, credits int, now string) (model.User, bool, er
 	return user, ok && tx.RowsAffected > 0, err
 }
 
-// SaveCreditLog 保存算力点变更流水。
+func FreezeUserCredits(id string, credits int, log model.CreditLog, now string) (model.User, bool, error) {
+	return updateFrozenCredits(id, credits, log, now, "freeze")
+}
+
+func SettleUserCredits(id string, credits int, log model.CreditLog, now string) (model.User, bool, error) {
+	return updateFrozenCredits(id, credits, log, now, "settle")
+}
+
+func ReleaseUserCredits(id string, credits int, log model.CreditLog, now string) (model.User, bool, error) {
+	return updateFrozenCredits(id, credits, log, now, "release")
+}
+
+func updateFrozenCredits(id string, credits int, log model.CreditLog, now string, operation string) (model.User, bool, error) {
+	db, err := DB()
+	if err != nil { return model.User{}, false, err }
+	var result model.User
+	applied := false
+	err = db.Transaction(func(tx *gorm.DB) error {
+		var existing int64
+		if err := tx.Model(&model.CreditLog{}).Where("id = ?", log.ID).Count(&existing).Error; err != nil { return err }
+		if existing > 0 {
+			applied = true
+			return tx.Where("id = ?", id).First(&result).Error
+		}
+		updates := map[string]any{"updated_at": now}
+		query := tx.Model(&model.User{}).Where("id = ?", id)
+		switch operation {
+		case "freeze":
+			query = query.Where("credits >= ?", credits)
+			updates["credits"] = gorm.Expr("credits - ?", credits)
+			updates["frozen_credits"] = gorm.Expr("frozen_credits + ?", credits)
+		case "settle":
+			query = query.Where("frozen_credits >= ?", credits)
+			updates["frozen_credits"] = gorm.Expr("frozen_credits - ?", credits)
+		case "release":
+			query = query.Where("frozen_credits >= ?", credits)
+			updates["credits"] = gorm.Expr("credits + ?", credits)
+			updates["frozen_credits"] = gorm.Expr("frozen_credits - ?", credits)
+		}
+		updated := query.Updates(updates)
+		if updated.Error != nil { return updated.Error }
+		if updated.RowsAffected == 0 {
+			return tx.Where("id = ?", id).First(&result).Error
+		}
+		if err := tx.Where("id = ?", id).First(&result).Error; err != nil { return err }
+		log.Balance = result.Credits
+		log.FrozenBalance = result.FrozenCredits
+		if err := tx.Create(&log).Error; err != nil { return err }
+		applied = true
+		return nil
+	})
+	return result, applied, err
+}
+
+// SaveCreditLog 保存人民币钱包变更流水。
 func SaveCreditLog(log model.CreditLog) (model.CreditLog, error) {
 	db, err := DB()
 	if err != nil {

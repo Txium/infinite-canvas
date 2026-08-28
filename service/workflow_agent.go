@@ -11,6 +11,7 @@ import (
 
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/repository"
+	"github.com/google/uuid"
 )
 
 func DraftCreativeWorkflow(ctx context.Context, request WorkflowAgentDraftRequest) (WorkflowAgentDraftResponse, error) {
@@ -38,14 +39,15 @@ func DraftCreativeWorkflow(ctx context.Context, request WorkflowAgentDraftReques
 
 	credits, _ := ModelCost(modelName)
 	chargedCredits := request.ChannelMode != "local"
+	billingID := "workflow_" + uuid.NewString()
 	if chargedCredits {
-		if err := ConsumeUserCredits(user.ID, modelName, credits, "/workflows/agent-draft"); err != nil {
+		if err := FreezeUserCredits(user.ID, modelName, credits, "/workflows/agent-draft", billingID); err != nil {
 			return WorkflowAgentDraftResponse{}, err
 		}
 	}
 	refundCredits := func() {
 		if chargedCredits {
-			_ = RefundUserCredits(user.ID, modelName, credits, "/workflows/agent-draft")
+			_ = ReleaseUserCredits(user.ID, modelName, credits, "/workflows/agent-draft", billingID)
 		}
 	}
 
@@ -160,6 +162,9 @@ func DraftCreativeWorkflow(ctx context.Context, request WorkflowAgentDraftReques
 		RequestBody:     requestLogBody,
 		ResponseBody:    string(responseBody),
 	})
+	if chargedCredits {
+		if err := SettleUserCredits(user.ID, modelName, credits, "/workflows/agent-draft", billingID); err != nil { return WorkflowAgentDraftResponse{}, err }
+	}
 	return WorkflowAgentDraftResponse{Draft: draft, Warnings: warnings, Model: modelName}, nil
 }
 

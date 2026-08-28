@@ -12,7 +12,7 @@ import (
 )
 
 const videoTaskPollInterval = 5 * time.Second
-const videoTaskFinishedRetention = 10 * time.Minute
+const videoTaskFinishedRetention = 30 * 24 * time.Hour
 const videoTaskCleanupInterval = 10 * time.Minute
 
 var (
@@ -48,6 +48,9 @@ type VideoTaskCreateInput struct {
 	RequestBody     string
 	ResponseBody    string
 	Credits         int
+	BillingID       string
+	BillingStatus   string
+	BillingPath     string
 }
 
 type VideoTaskPollUpdate struct {
@@ -93,6 +96,9 @@ func CreateVideoTask(input VideoTaskCreateInput) (model.VideoTask, error) {
 		ResponseBody:    input.ResponseBody,
 		LastResponse:    input.ResponseBody,
 		Credits:         input.Credits,
+		BillingID:       strings.TrimSpace(input.BillingID),
+		BillingStatus:   strings.TrimSpace(input.BillingStatus),
+		BillingPath:     strings.TrimSpace(input.BillingPath),
 		CreatedAt:       current,
 		UpdatedAt:       current,
 	}
@@ -105,6 +111,9 @@ func CreateVideoTask(input VideoTaskCreateInput) (model.VideoTask, error) {
 		task.CompletedAt = current
 	}
 	saved, err := repository.SaveVideoTask(task)
+	if err == nil && (IsCompletedVideoTaskStatus(saved.Status) || IsFailedVideoTaskStatus(saved.Status)) {
+		if err = finalizeVideoTaskBilling(&saved); err == nil { saved, err = repository.SaveVideoTask(saved) }
+	}
 	if err == nil && !IsCompletedVideoTaskStatus(saved.Status) && !IsFailedVideoTaskStatus(saved.Status) {
 		WakeVideoTaskPoller()
 	}
@@ -148,6 +157,7 @@ func VideoTaskResponse(task model.VideoTask) map[string]any {
 		"updated_at":   task.UpdatedAt,
 		"started_at":   task.StartedAt,
 		"completed_at": task.CompletedAt,
+		"billingStatus": task.BillingStatus,
 		"createdAt":    task.CreatedAt,
 		"updatedAt":    task.UpdatedAt,
 	}
@@ -303,8 +313,21 @@ func UpdateVideoTaskFromPoll(task model.VideoTask, update VideoTaskPollUpdate) e
 		task.Status = "failed"
 		task.CompletedAt = current
 	}
+	if err := finalizeVideoTaskBilling(&task); err != nil { return err }
 	_, err := repository.SaveVideoTask(task)
 	return err
+}
+
+func finalizeVideoTaskBilling(task *model.VideoTask) error {
+	if task == nil || task.Credits <= 0 || strings.TrimSpace(task.BillingID) == "" || task.BillingStatus != "frozen" { return nil }
+	if IsCompletedVideoTaskStatus(task.Status) {
+		if err := SettleUserCredits(task.UserID, task.Model, task.Credits, task.BillingPath, task.BillingID); err != nil { return err }
+		task.BillingStatus = "settled"
+	} else if IsFailedVideoTaskStatus(task.Status) {
+		if err := ReleaseUserCredits(task.UserID, task.Model, task.Credits, task.BillingPath, task.BillingID); err != nil { return err }
+		task.BillingStatus = "released"
+	}
+	return nil
 }
 
 func NormalizeVideoTaskStatus(status string) string {

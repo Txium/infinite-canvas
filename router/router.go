@@ -138,11 +138,8 @@ func New() *gin.Engine {
 	admin.POST("/recharge-orders/:id/review", func(c *gin.Context) {
 		handler.AdminReviewRechargeOrder(c.Writer, c.Request, c.Param("id"))
 	})
-	admin.POST("/credit-logs", gin.WrapF(handler.AdminSaveCreditLog))
-	admin.DELETE("/credit-logs/:id", func(c *gin.Context) {
-		handler.AdminDeleteCreditLog(c.Writer, c.Request, c.Param("id"))
-	})
 	admin.GET("/ai-logs", gin.WrapF(handler.AdminAICallLogs))
+	admin.GET("/generation-tasks", gin.WrapF(handler.AdminGenerationTasks))
 	admin.DELETE("/ai-logs", gin.WrapF(handler.AdminDeleteAICallLogs))
 	admin.GET("/settings", gin.WrapF(handler.AdminSettings))
 	admin.POST("/settings", gin.WrapF(handler.AdminSaveSettings))

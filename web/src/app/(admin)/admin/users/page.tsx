@@ -79,10 +79,16 @@ export default function AdminUsersPage() {
             render: (_, item) => <Tag color={item.status === "ban" ? "red" : "green"}>{item.status === "ban" ? "禁用" : "正常"}</Tag>,
         },
         {
-            title: "算力点",
+            title: "可用余额",
             dataIndex: "credits",
             width: 100,
-            render: (_, item) => <Typography.Text>{item.credits}</Typography.Text>,
+            render: (_, item) => <Typography.Text>¥{(item.credits / 100).toFixed(2)}</Typography.Text>,
+        },
+        {
+            title: "冻结余额",
+            dataIndex: "frozenCredits",
+            width: 100,
+            render: (_, item) => <Typography.Text type="secondary">¥{(item.frozenCredits / 100).toFixed(2)}</Typography.Text>,
         },
         {
             title: "Linux.do",
@@ -223,10 +229,10 @@ export default function AdminUsersPage() {
                     {editingUser?.id ? (
                         <>
                             <Divider style={{ margin: "4px 0 16px" }} />
-                            <Typography.Text strong>算力点调整</Typography.Text>
+                            <Typography.Text strong>可用余额调整</Typography.Text>
                             <Row gutter={14}>
                                 <Col span={12}>
-                                    <Form.Item label="算力点">
+                                    <Form.Item label="人民币分">
                                         <Space.Compact style={{ width: "100%" }}>
                                             <Form.Item name="credits" noStyle>
                                                 <InputNumber min={0} precision={0} style={{ width: "100%" }} />

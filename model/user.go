@@ -25,6 +25,7 @@ type User struct {
 	AvatarURL   string     `json:"avatarUrl"`
 	Role        UserRole   `json:"role"`
 	Credits     int        `json:"credits"`
+	FrozenCredits int      `json:"frozenCredits"`
 	AffCode     string     `json:"affCode" gorm:"uniqueIndex"`
 	AffCount    int        `json:"affCount"`
 	InviterID   string     `json:"inviterId"`
@@ -52,6 +53,7 @@ type AuthUser struct {
 	AvatarURL   string   `json:"avatarUrl"`
 	Role        UserRole `json:"role"`
 	Credits     int      `json:"credits"`
+	FrozenCredits int    `json:"frozenCredits"`
 	CreatedAt   string   `json:"createdAt"`
 	UpdatedAt   string   `json:"updatedAt"`
 }
@@ -70,6 +72,7 @@ func PublicUser(user User) AuthUser {
 		AvatarURL:   user.AvatarURL,
 		Role:        user.Role,
 		Credits:     user.Credits,
+		FrozenCredits: user.FrozenCredits,
 		CreatedAt:   user.CreatedAt,
 		UpdatedAt:   user.UpdatedAt,
 	}
@@ -81,16 +84,21 @@ const (
 	CreditLogTypeAdminAdjust CreditLogType = "admin_adjust"
 	CreditLogTypeAIConsume   CreditLogType = "ai_consume"
 	CreditLogTypeAIRefund    CreditLogType = "ai_refund"
+	CreditLogTypeAIFreeze    CreditLogType = "ai_freeze"
+	CreditLogTypeAISettle    CreditLogType = "ai_settle"
+	CreditLogTypeAIRelease   CreditLogType = "ai_release"
 	CreditLogTypeRecharge    CreditLogType = "recharge"
 )
 
-// CreditLog 用户算力点变更流水。
+// CreditLog 用户人民币钱包变更流水，金额单位为分。
 type CreditLog struct {
 	ID        string        `json:"id" gorm:"primaryKey"`
 	UserID    string        `json:"userId" gorm:"index"`
 	Type      CreditLogType `json:"type"`
 	Amount    int           `json:"amount"`
 	Balance   int           `json:"balance"`
+	FrozenAmount  int       `json:"frozenAmount"`
+	FrozenBalance int       `json:"frozenBalance"`
 	RelatedID string        `json:"relatedId"`
 	Remark    string        `json:"remark"`
 	Extra     string        `json:"extra" gorm:"type:text"`

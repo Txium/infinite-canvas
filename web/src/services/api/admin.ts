@@ -28,6 +28,7 @@ export type AdminUser = {
     avatarUrl: string;
     role: "user" | "admin";
     credits: number;
+    frozenCredits: number;
     affCode: string;
     affCount: number;
     inviterId: string;
@@ -50,6 +51,8 @@ export type AdminCreditLog = {
     type: string;
     amount: number;
     balance: number;
+    frozenAmount: number;
+    frozenBalance: number;
     relatedId: string;
     remark: string;
     extra: string;
@@ -320,6 +323,9 @@ export async function fetchAdminAICallLogs(token: string, query: AdminUserQuery 
 export async function deleteAdminAICallLogs(token: string, olderThanDays = 7) {
     return apiDelete<{ removedFiles: number }>(`/api/admin/ai-logs?olderThanDays=${encodeURIComponent(String(olderThanDays))}`, token);
 }
+
+export type AdminGenerationTask = { id: string; userId: string; userDisplayName: string; kind: "image" | "video" | "audio"; model: string; status: string; billingStatus: string; priceCents: number; source: string; resultUrl: string; error: string; createdAt: string; completedAt: string };
+export async function fetchAdminGenerationTasks(token: string) { return apiGet<AdminGenerationTask[]>("/api/admin/generation-tasks", undefined, token); }
 
 export type AdminSettings = {
     public: AdminPublicSettings;

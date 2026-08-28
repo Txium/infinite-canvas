@@ -220,9 +220,12 @@ func copyAPIMartImageResponse(w http.ResponseWriter, response *http.Response, re
 
 	taskID, _, ok := readAPIMartCreateTask(payload)
 	if !ok {
+		if onFailure != nil {
+			onFailure()
+		}
 		w.WriteHeader(response.StatusCode)
 		_, _ = w.Write(payload)
-		saveAIProxyLog(logContext, response.StatusCode, string(payload), "")
+		saveAIProxyLog(logContext, response.StatusCode, string(payload), "APIMart 未返回图片或任务 ID")
 		return true
 	}
 

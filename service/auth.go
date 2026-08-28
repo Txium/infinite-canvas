@@ -379,6 +379,45 @@ func RefundUserCredits(userID string, modelName string, credits int, path string
 	return err
 }
 
+func FreezeUserCredits(userID string, modelName string, credits int, path string, billingID string) error {
+	return changeFrozenCredits(userID, modelName, credits, path, billingID, "freeze")
+}
+
+func SettleUserCredits(userID string, modelName string, credits int, path string, billingID string) error {
+	return changeFrozenCredits(userID, modelName, credits, path, billingID, "settle")
+}
+
+func ReleaseUserCredits(userID string, modelName string, credits int, path string, billingID string) error {
+	return changeFrozenCredits(userID, modelName, credits, path, billingID, "release")
+}
+
+func changeFrozenCredits(userID string, modelName string, credits int, path string, billingID string, phase string) error {
+	if credits <= 0 { return nil }
+	billingID = strings.TrimSpace(billingID)
+	if billingID == "" { return errors.New("缺少计费任务 ID") }
+	extra, _ := json.Marshal(map[string]string{"model":modelName,"path":path,"billingId":billingID,"phase":phase})
+	log := model.CreditLog{ID:"credit_"+phase+"_"+billingID,UserID:userID,RelatedID:billingID,Extra:string(extra),CreatedAt:now()}
+	var user model.User
+	var applied bool
+	var err error
+	switch phase {
+	case "freeze":
+		log.Type=model.CreditLogTypeAIFreeze; log.Amount=-credits; log.FrozenAmount=credits; log.Remark="冻结模型费用 "+modelName
+		user, applied, err = repository.FreezeUserCredits(userID, credits, log, now())
+	case "settle":
+		log.Type=model.CreditLogTypeAISettle; log.FrozenAmount=-credits; log.Remark="结算模型费用 "+modelName
+		user, applied, err = repository.SettleUserCredits(userID, credits, log, now())
+	case "release":
+		log.Type=model.CreditLogTypeAIRelease; log.Amount=credits; log.FrozenAmount=-credits; log.Remark="生成失败解冻 "+modelName
+		user, applied, err = repository.ReleaseUserCredits(userID, credits, log, now())
+	}
+	if err != nil { return err }
+	if applied { return nil }
+	if phase == "freeze" { return safeMessageError{message:"余额不足"} }
+	if user.ID == "" { return safeMessageError{message:"用户不存在"} }
+	return safeMessageError{message:"冻结余额不足，任务账务状态异常"}
+}
+
 func ListCreditLogs(q model.Query) (model.CreditLogList, error) {
 	logs, total, err := repository.ListCreditLogs(q)
 	if err != nil {

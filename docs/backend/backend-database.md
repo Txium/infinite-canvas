@@ -50,7 +50,7 @@ description: 当前后端主要数据表与字段说明
 
 ### users
 
-系统用户表。用户基础信息、角色、算力点余额和第三方登录标识放在该表中。
+系统用户表。用户基础信息、角色、人民币可用余额、冻结余额和第三方登录标识放在该表中。金额字段均以人民币分整数保存。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -61,7 +61,8 @@ description: 当前后端主要数据表与字段说明
 | `display_name` | string | 昵称 |
 | `avatar_url` | string | 头像地址 |
 | `role` | string | 角色：`user`、`admin` |
-| `credits` | number | 算力点余额 |
+| `credits` | number | 可用余额，单位为人民币分 |
+| `frozen_credits` | number | 生成任务处理中冻结的余额，单位为人民币分 |
 | `aff_code` | string | 用户自己的邀请码，唯一索引 |
 | `aff_count` | number | 已邀请用户数量，冗余统计字段 |
 | `inviter_id` | string | 邀请人用户 ID |
@@ -173,7 +174,10 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | `request_body` | text | 创建任务时的请求摘要 |
 | `response_body` | text | 创建任务时的响应摘要 |
 | `last_response` | text | 最近一次状态响应摘要 |
-| `credits` | number | 创建任务时预扣算力点 |
+| `credits` | number | 本次任务售价，单位为人民币分 |
+| `billing_id` | string | 幂等计费任务 ID |
+| `billing_status` | string | 账务状态：`frozen`、`settled`、`released` |
+| `billing_path` | string | 计费关联的服务器端上游请求路径 |
 | `created_at` | string | 创建时间 |
 | `updated_at` | string | 更新时间 |
 | `started_at` | string | 上游开始时间 |
@@ -376,15 +380,17 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 
 ### credit_logs
 
-用户算力点变更流水表。当前记录后台手动调整、模型调用预扣和模型调用失败返还。
+用户人民币钱包流水表。记录后台调整、充值到账，以及模型调用的冻结、成功结算和失败解冻；流水只读，不提供修改和删除接口。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | string | 主键 |
 | `user_id` | string | 关联用户 ID |
-| `type` | string | 类型：`admin_adjust`、`ai_consume`、`ai_refund` |
-| `amount` | number | 本次变动数量，增加为正，扣减为负 |
-| `balance` | number | 变动后的用户算力点余额 |
+| `type` | string | 账务流水类型 |
+| `amount` | number | 本次可用余额变动，增加为正，扣减为负，单位为人民币分 |
+| `balance` | number | 变动后的可用余额，单位为人民币分 |
+| `frozen_amount` | number | 本次冻结余额变动，增加为正，减少为负，单位为人民币分 |
+| `frozen_balance` | number | 变动后的冻结余额，单位为人民币分 |
 | `related_id` | string | 关联业务 ID，可为空 |
 | `remark` | string | 备注 |
 | `extra` | json | 扩展信息 |
@@ -397,6 +403,9 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | `admin_adjust` | 后台手动调整 |
 | `ai_consume` | 调用后端模型接口消费 |
 | `ai_refund` | 后端模型接口调用失败返还 |
+| `ai_freeze` | 生成前从可用余额转入冻结余额 |
+| `ai_settle` | 生成成功后从冻结余额正式结算 |
+| `ai_release` | 生成失败后从冻结余额退回可用余额 |
 | `recharge` | 管理员审核充值订单后到账 |
 
 ### recharge_orders
@@ -462,4 +471,4 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 
 ### video_tasks
 
-平台模型广场发起的视频任务同时保存公开档位 ID 和仅服务器使用的 `upstream_model`。用户任务响应只返回公开档位 ID，不返回供应商、线路、上游模型 ID或请求体；服务器轮询使用 `upstream_model`。
+平台模型广场发起的视频任务同时保存公开档位 ID 和仅服务器使用的 `upstream_model`。用户任务响应只返回公开档位 ID，不返回供应商、线路、上游模型 ID或请求体；服务器轮询使用 `upstream_model`。完成或失败的视频任务保留 30 天，供管理员在“生成任务”中追踪用户、模型、结果、错误和账务状态。

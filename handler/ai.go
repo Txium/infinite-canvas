@@ -15,6 +15,7 @@ import (
 
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/service"
+	"github.com/google/uuid"
 )
 
 const userModelChannelHeader = "X-User-Model-Channel-ID"
@@ -118,7 +119,7 @@ func proxyAIGetRequest(w http.ResponseWriter, r *http.Request, path string) {
 		return
 	}
 	service.SetModelChannelAuthHeader(request, channel)
-	copyAIResponse(w, request, channel, aiLogContext{StartedAt: startedAt, Endpoint: path, Method: http.MethodGet, Model: modelName, Channel: channel, UserID: user.ID, UserDisplayName: firstNonEmpty(user.DisplayName, user.Username), RequestBody: summarizeQueryParams(r.URL.Query())}, nil)
+	copyAIResponse(w, request, channel, aiLogContext{StartedAt: startedAt, Endpoint: path, Method: http.MethodGet, Model: modelName, Channel: channel, UserID: user.ID, UserDisplayName: firstNonEmpty(user.DisplayName, user.Username), RequestBody: summarizeQueryParams(r.URL.Query())}, nil, nil)
 }
 
 func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
@@ -211,8 +212,9 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 	if contentType != "" {
 		request.Header.Set("Content-Type", contentType)
 	}
+	billingID := firstNonEmpty(r.Header.Get("X-Billing-Task-ID"), "request_"+uuid.NewString())
 	if credits > 0 {
-		if err := service.ConsumeUserCredits(user.ID, requestedModel, credits, upstreamPath); err != nil {
+		if err := service.FreezeUserCredits(user.ID, requestedModel, credits, upstreamPath, billingID); err != nil {
 			FailError(w, err)
 			return
 		}
@@ -229,8 +231,14 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		RequestBody:     summarizeAIRequest(body, contentType),
 	}, func() {
 		if credits > 0 {
-			if err := service.RefundUserCredits(user.ID, requestedModel, credits, upstreamPath); err != nil {
-				log.Printf("AI proxy refund credits failed: user=%s model=%s credits=%d err=%v", user.ID, requestedModel, credits, err)
+			if err := service.SettleUserCredits(user.ID, requestedModel, credits, upstreamPath, billingID); err != nil {
+				log.Printf("AI proxy settle credits failed: user=%s model=%s credits=%d err=%v", user.ID, requestedModel, credits, err)
+			}
+		}
+	}, func() {
+		if credits > 0 {
+			if err := service.ReleaseUserCredits(user.ID, requestedModel, credits, upstreamPath, billingID); err != nil {
+				log.Printf("AI proxy release credits failed: user=%s model=%s credits=%d err=%v", user.ID, requestedModel, credits, err)
 			}
 		}
 	})
@@ -263,13 +271,13 @@ type aiLogContext struct {
 	RequestBody     string
 }
 
-func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.ModelChannel, logContext aiLogContext, onFailure func()) {
+func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.ModelChannel, logContext aiLogContext, onSuccess func(), onFailure func()) {
+	failed := false
+	fail := func() { failed = true; if onFailure != nil { onFailure() } }
 	response, err := service.HTTPClientForChannel(channel).Do(request)
 	if err != nil {
 		log.Printf("AI proxy request failed: url=%s err=%v", request.URL.String(), err)
-		if onFailure != nil {
-			onFailure()
-		}
+		fail()
 		saveAIProxyLog(logContext, 0, "", err.Error())
 		Fail(w, "AI 接口请求失败")
 		return
@@ -279,25 +287,27 @@ func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.
 	if response.StatusCode >= http.StatusBadRequest {
 		payload, _ := io.ReadAll(io.LimitReader(response.Body, 256*1024))
 		log.Printf("AI upstream error: url=%s status=%d body=%s", request.URL.String(), response.StatusCode, strings.TrimSpace(string(payload)))
-		if onFailure != nil {
-			onFailure()
-		}
+		fail()
 		saveAIProxyLog(logContext, response.StatusCode, string(payload), strings.TrimSpace(string(payload)))
 		Fail(w, readUpstreamAIErrorMessage(payload, response.StatusCode))
 		return
 	}
 
-	if copyMiMoTTSResponse(w, response, logContext, onFailure) {
+	if copyMiMoTTSResponse(w, response, logContext, fail) {
+		if !failed && onSuccess != nil { onSuccess() }
 		return
 	}
-	if copyKIEVideoResponse(w, response, request, channel, logContext, onFailure) {
+	if copyKIEVideoResponse(w, response, request, channel, logContext, fail) {
+		if !failed && onSuccess != nil { onSuccess() }
 		return
 	}
 	if isAPIMartChannel(channel, logContext.Model) {
-		if copyAPIMartImageResponse(w, response, request, channel, logContext, onFailure) {
+		if copyAPIMartImageResponse(w, response, request, channel, logContext, fail) {
+			if !failed && onSuccess != nil { onSuccess() }
 			return
 		}
 		if copyAPIMartVideoResponse(w, response, request, channel, logContext) {
+			if onSuccess != nil { onSuccess() }
 			return
 		}
 	}
@@ -313,6 +323,7 @@ func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.
 	w.WriteHeader(response.StatusCode)
 	responseBody := copyAIResponseBody(w, response.Body)
 	saveAIProxyLog(logContext, response.StatusCode, responseBody, "")
+	if onSuccess != nil { onSuccess() }
 }
 
 func copyAIResponseBody(w http.ResponseWriter, body io.Reader) string {
