@@ -34,11 +34,12 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
     }, [hydrateUser, isLoginPage]);
 
     useEffect(() => {
-        const canUseUnifiedGateway = Boolean(user);
-        if (!token || !user || !canUseUnifiedGateway || adminRemoteTokenRef.current === token) return;
-        adminRemoteTokenRef.current = token;
+        const canUseUnifiedGateway = Boolean(publicSettings?.modelChannel);
+        const gatewayIdentity = token || "public-catalog";
+        if (!canUseUnifiedGateway || adminRemoteTokenRef.current === gatewayIdentity) return;
+        adminRemoteTokenRef.current = gatewayIdentity;
         if (channelMode !== "remote") updateConfig("channelMode", "remote");
-    }, [channelMode, token, updateConfig, user]);
+    }, [channelMode, publicSettings?.modelChannel, token, updateConfig]);
 
     useEffect(() => {
         if (!token || !user?.id) return;

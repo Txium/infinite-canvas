@@ -6,7 +6,6 @@ import { persist } from "zustand/middleware";
 
 import { apiGet } from "@/services/api/request";
 import type { AdminPublicSettings } from "@/services/api/admin";
-import { useUserStore } from "@/stores/use-user-store";
 
 export type LocalModelChannel = {
     id: string;
@@ -496,11 +495,9 @@ export function useEffectiveConfig() {
     const config = useConfigStore((state) => state.config);
     const modelChannel = useConfigStore((state) => state.publicSettings?.modelChannel || null);
     const marketModels = useConfigStore((state) => state.marketModels);
-    const token = useUserStore((state) => state.token);
-    const user = useUserStore((state) => state.user);
-    // Authenticated users always use the hosted, server-side provider gateway.
-    // Upstream credentials are administrator secrets and never browser config.
-    const canUseRemoteChannel = Boolean(token && user);
+    // The public catalog is safe to browse before login. Generation endpoints
+    // still enforce authentication and wallet checks on the server.
+    const canUseRemoteChannel = Boolean(modelChannel);
     return useMemo(() => resolveEffectiveConfig(config, modelChannel, canUseRemoteChannel, marketModels), [canUseRemoteChannel, config, marketModels, modelChannel]);
 }
 
