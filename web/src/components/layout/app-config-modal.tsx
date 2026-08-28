@@ -455,7 +455,7 @@ export function AppConfigModal() {
                     ) : (
                         <div className="mb-5 rounded-lg border border-stone-200 p-3 text-sm text-stone-500 dark:border-stone-800">
                             <div className="font-medium text-stone-900 dark:text-stone-100">云端渠道</div>
-                            <div className="mt-1">由系统后台渠道转发请求，当前可用 {modelChannel?.availableModels.length || 0} 个模型。</div>
+                            <div className="mt-1">由系统后台渠道转发请求，当前可用 {effectiveConfig.models.length} 个模型。</div>
                         </div>
                     )}
                     {effectiveMode === "local" ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
