@@ -65,11 +65,11 @@ export function AppConfigModal() {
     const effectiveConfig = useEffectiveConfig();
     const modelChannel = publicSettings?.modelChannel;
     const isLoggedIn = Boolean(token && user);
-    const canUseRemoteChannel = isLoggedIn && (user?.role === "admin" || modelChannel?.allowUserRemoteChannel === true);
+    const canUseRemoteChannel = isLoggedIn;
     // Upstream credentials belong in the administrator's gateway. Ordinary
     // users receive one platform account/token and never need to manage keys.
-    const allowCustomChannel = isLoggedIn && user?.role === "admin" && modelChannel?.allowCustomChannel === true;
-    const effectiveMode = canUseRemoteChannel ? (allowCustomChannel ? config.channelMode : "remote") : "local";
+    const allowCustomChannel = false;
+    const effectiveMode: AiConfig["channelMode"] = "remote";
     const localModelConfig: AiConfig = effectiveMode === "local" && config.channelMode !== "local" ? { ...config, channelMode: "local" } : config;
     const modelConfig = effectiveMode === "remote" ? effectiveConfig : localModelConfig;
     const canUseUserStorageProvider = allowUserStorageProvider;
@@ -458,13 +458,13 @@ export function AppConfigModal() {
                             <div className="mt-1">由系统后台渠道转发请求，当前可用 {modelChannel?.availableModels.length || 0} 个模型。</div>
                         </div>
                     )}
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    {effectiveMode === "local" ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                         {modelGroups.map((group) => (
                             <Form.Item key={group.modelKey} label={group.defaultLabel} className="mb-4">
                                 <ModelPicker config={modelConfig} value={modelConfig[group.modelKey]} channelId={modelConfig[group.channelKey]} onChange={(model, channelId) => { updateConfig(group.modelKey, model); if (channelId) updateConfig(group.channelKey, channelId); }} capability={group.capability} fullWidth />
                             </Form.Item>
                         ))}
-                    </div>
+                    </div> : null}
                     <div className="grid gap-4 md:grid-cols-4">
                         <Form.Item label="画布默认生图张数" extra="新建画布生图和配置节点默认使用，单个节点仍可单独覆盖。" className="mb-4">
                             <Input

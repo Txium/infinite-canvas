@@ -498,7 +498,9 @@ export function useEffectiveConfig() {
     const marketModels = useConfigStore((state) => state.marketModels);
     const token = useUserStore((state) => state.token);
     const user = useUserStore((state) => state.user);
-    const canUseRemoteChannel = Boolean(token && user && (user.role === "admin" || modelChannel?.allowUserRemoteChannel === true));
+    // Authenticated users always use the hosted, server-side provider gateway.
+    // Upstream credentials are administrator secrets and never browser config.
+    const canUseRemoteChannel = Boolean(token && user);
     return useMemo(() => resolveEffectiveConfig(config, modelChannel, canUseRemoteChannel, marketModels), [canUseRemoteChannel, config, marketModels, modelChannel]);
 }
 
