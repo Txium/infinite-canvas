@@ -51,14 +51,10 @@ func TestDatabasePersistentAcceptsMountedRenderSQLite(t *testing.T) {
 	}
 }
 
-func TestPaymentConfiguredRequiresAllSecrets(t *testing.T) {
+func TestPaymentConfiguredRejectsLegacyEpay(t *testing.T) {
 	Cfg = Config{EpayAPIURL: "https://pay.example.com", EpayMerchantID: "merchant", EpayMerchantKey: "secret", PublicBaseURL: "https://canvas.example.com"}
-	if !PaymentConfigured() {
-		t.Fatal("complete payment configuration should be ready")
-	}
-	Cfg.EpayMerchantKey = ""
 	if PaymentConfigured() {
-		t.Fatal("payment without merchant key must not be ready")
+		t.Fatal("legacy Epay variables must not enable the official Alipay wallet")
 	}
 }
 

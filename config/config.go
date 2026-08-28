@@ -126,13 +126,7 @@ func randomSecret() (string, error) {
 // PaymentConfigured reports whether the server has all credentials required to
 // create and verify an online payment order. It never exposes those credentials.
 func PaymentConfigured() bool {
-	if AlipayConfigured() {
-		return true
-	}
-	return strings.TrimSpace(Cfg.EpayAPIURL) != "" &&
-		strings.TrimSpace(Cfg.EpayMerchantID) != "" &&
-		strings.TrimSpace(Cfg.EpayMerchantKey) != "" &&
-		strings.TrimSpace(Cfg.PublicBaseURL) != ""
+	return AlipayConfigured()
 }
 
 // AlipayConfigured reports whether official Alipay RSA2 payment can be used.
