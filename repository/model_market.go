@@ -94,6 +94,23 @@ func SyncDefaultModelCatalog(version int, models []model.MarketModel, variants [
 			var saved model.ModelRoute
 			findErr := tx.Where("id = ?", item.ID).First(&saved).Error
 			if findErr == nil {
+				waveSpeedImageRoutes := map[string]bool{
+					"route_gpt_image_2__01": true, "route_gpt_image_2__02": true, "route_gpt_image_2__03": true,
+					"route_gpt_image_2__04": true, "route_gpt_image_2__05": true, "route_gpt_image_2__06": true,
+					"route_gpt_image_2__07": true, "route_gpt_image_2__08": true, "route_gpt_image_2__09": true,
+					"route_nano_banana__01": true, "route_nano_banana__02": true,
+					"route_seedream_5__01": true, "route_flux_2_klein__01": true,
+				}
+				// Catalog v11 promotes only WaveSpeed image routes whose concrete
+				// endpoint IDs and fixed RMB prices are present. Placeholder video
+				// IDs (wildcards, "or" alternatives) remain disabled until mapped.
+				if version >= 11 && waveSpeedImageRoutes[saved.ID] {
+					saved.Protocol = "wavespeed"
+					saved.UpstreamModelID = item.UpstreamModelID
+					saved.Enabled = true
+					if err := tx.Save(&saved).Error; err != nil { return err }
+					continue
+				}
 				// Catalog v10 activates the 302 routes after the provider's
 				// authenticated model-list check was made Render-compatible. These
 				// routes already have fixed RMB prices and verified documentation;
