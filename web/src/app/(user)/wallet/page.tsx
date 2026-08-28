@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, App, Button, Card, Form, InputNumber, Segmented, Space, Statistic, Table, Tag, Typography } from "antd";
+import { Alert, App, Button, Card, Form, InputNumber, Space, Statistic, Table, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -64,10 +64,11 @@ export default function WalletPage() {
             <Card><Statistic title="冻结余额" prefix="¥" value={(user?.frozenCredits || 0) / 100} precision={2} /><Typography.Text type="secondary">任务生成中暂时冻结；成功后结算，失败自动退回可用余额。</Typography.Text></Card>
             <Card title="在线充值">
 				{payment && !payment.ready ? <Alert type="warning" showIcon message="在线充值暂未开放" description={payment.message} className="mb-4" /> : null}
-                <Form form={form} layout="vertical" initialValues={{ amount: 10, paymentMethod: "wxpay" }}>
+                <Form form={form} layout="vertical" initialValues={{ amount: 10, paymentMethod: "alipay" }}>
                     <Space wrap className="mb-3">{[10, 20, 50, 100].map((amount) => <Button key={amount} onClick={() => form.setFieldValue("amount", amount)}>¥{amount}</Button>)}</Space>
                     <Form.Item name="amount" label="充值金额（元）" rules={[{ required: true }]}><InputNumber min={1} max={100000} className="!w-full" /></Form.Item>
-                    <Form.Item name="paymentMethod" label="付款方式"><Segmented options={[{ label: "微信", value: "wxpay" }, { label: "支付宝", value: "alipay" }]} /></Form.Item>
+                    <Form.Item name="paymentMethod" hidden><input type="hidden" /></Form.Item>
+                    <Typography.Paragraph>付款方式：支付宝</Typography.Paragraph>
                     <Button type="primary" disabled={payment?.ready !== true} loading={loading} onClick={() => void submit()}>立即支付</Button>
                 </Form>
             </Card>

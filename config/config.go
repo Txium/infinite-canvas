@@ -27,6 +27,10 @@ type Config struct {
 	EpayAPIURL          string `env:"EPAY_API_URL"`
 	EpayMerchantID      string `env:"EPAY_MERCHANT_ID"`
 	EpayMerchantKey     string `env:"EPAY_MERCHANT_KEY"`
+	AlipayAppID          string `env:"ALIPAY_APP_ID"`
+	AlipayAppPrivateKey  string `env:"ALIPAY_APP_PRIVATE_KEY"`
+	AlipayPublicKey      string `env:"ALIPAY_PUBLIC_KEY"`
+	AlipayGatewayURL     string `env:"ALIPAY_GATEWAY_URL" envDefault:"https://openapi.alipay.com/gateway.do"`
 	ManagedPlatformMode bool   `env:"MANAGED_PLATFORM_MODE" envDefault:"true"`
 	GenerationRPM      int    `env:"GENERATION_REQUESTS_PER_MINUTE" envDefault:"30"`
 }
@@ -121,9 +125,21 @@ func randomSecret() (string, error) {
 // PaymentConfigured reports whether the server has all credentials required to
 // create and verify an online payment order. It never exposes those credentials.
 func PaymentConfigured() bool {
+	if AlipayConfigured() {
+		return true
+	}
 	return strings.TrimSpace(Cfg.EpayAPIURL) != "" &&
 		strings.TrimSpace(Cfg.EpayMerchantID) != "" &&
 		strings.TrimSpace(Cfg.EpayMerchantKey) != "" &&
+		strings.TrimSpace(Cfg.PublicBaseURL) != ""
+}
+
+// AlipayConfigured reports whether official Alipay RSA2 payment can be used.
+func AlipayConfigured() bool {
+	return strings.TrimSpace(Cfg.AlipayAppID) != "" &&
+		strings.TrimSpace(Cfg.AlipayAppPrivateKey) != "" &&
+		strings.TrimSpace(Cfg.AlipayPublicKey) != "" &&
+		strings.TrimSpace(Cfg.AlipayGatewayURL) != "" &&
 		strings.TrimSpace(Cfg.PublicBaseURL) != ""
 }
 

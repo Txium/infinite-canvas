@@ -25,6 +25,7 @@ func New() *gin.Engine {
 	api.GET("/model-market", gin.WrapF(handler.ModelMarket))
 	api.GET("/payments/epay/notify", gin.WrapF(handler.EpayNotify))
 	api.POST("/payments/epay/notify", gin.WrapF(handler.EpayNotify))
+	api.POST("/payments/alipay/notify", gin.WrapF(handler.AlipayNotify))
 	api.GET("/storage/config", gin.WrapF(handler.StorageConfig))
 	api.GET("/media/references/:id", func(c *gin.Context) {
 		handler.ReferenceMedia(c.Writer, c.Request, c.Param("id"))

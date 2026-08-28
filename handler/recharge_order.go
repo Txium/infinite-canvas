@@ -27,6 +27,13 @@ func EpayNotify(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("success"))
 }
 
+func AlipayNotify(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	if err := service.CompleteOfficialAlipayRecharge(r.Form); err != nil { http.Error(w, "fail", http.StatusBadRequest); return }
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = w.Write([]byte("success"))
+}
+
 func CreateRechargeOrder(w http.ResponseWriter, r *http.Request) {
 	user, _ := service.UserFromContext(r.Context())
 	var request createRechargeOrderRequest

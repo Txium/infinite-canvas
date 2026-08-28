@@ -50,7 +50,7 @@ func RuntimeReadiness() model.RuntimeReadiness {
 		result.Issues = append(result.Issues, "当前数据库位于临时文件系统，重启或部署可能丢失账号、余额和订单")
 	}
 	if !result.PaymentConfigured {
-		result.Issues = append(result.Issues, "微信/支付宝支付商户尚未配置")
+		result.Issues = append(result.Issues, "支付宝支付商户尚未配置")
 	}
 	if !result.ManagedPlatform {
 		result.Issues = append(result.Issues, "平台托管模型模式未开启")
@@ -63,12 +63,12 @@ func RuntimeReadiness() model.RuntimeReadiness {
 }
 
 func publicPaymentSetting() model.PublicPaymentSetting {
-	result := model.PublicPaymentSetting{Ready: config.PaymentConfigured() && config.DatabasePersistent(), Methods: []string{"wxpay", "alipay"}}
+	result := model.PublicPaymentSetting{Ready: config.PaymentConfigured() && config.DatabasePersistent(), Methods: []string{"alipay"}}
 	switch {
 	case !config.DatabasePersistent():
 		result.Message = "平台正在升级持久化数据库，暂不能充值"
 	case !config.PaymentConfigured():
-		result.Message = "微信/支付宝商户尚未配置，暂不能充值"
+		result.Message = "支付宝商户尚未配置，暂不能充值"
 	default:
 		result.Message = "付款成功后余额自动到账"
 	}
