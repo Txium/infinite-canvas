@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "sourceFile": "模型广场V1最终模型数据库_最终接入定价版.xlsx",
   "sourceSheet": "最终接入定价",
   "providerWhitelist": [
@@ -1610,9 +1610,9 @@
       "variantId": "gpt_image_2__01",
       "providerId": "provider_wavespeed",
       "upstreamModelId": "openai/gpt-image-2/text-to-image",
-      "protocol": "custom",
+      "protocol": "wavespeed",
       "priority": 1,
-      "enabled": false
+      "enabled": true
     },
     {
       "id": "route_gpt_image_2__02",

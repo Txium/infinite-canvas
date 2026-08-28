@@ -90,7 +90,24 @@ func SyncDefaultModelCatalog(version int, models []model.MarketModel, variants [
 			if err := tx.Create(&item).Error; err != nil { return err }
 		}
 		if err := tx.Model(&model.ModelProvider{}).Where("code IN ?", []string{"302", "wavespeed", "lec", "seedance_nz"}).Update("api_key", "").Error; err != nil { return err }
-		for _, item := range routes { if err := tx.Where("id = ?", item.ID).FirstOrCreate(&item).Error; err != nil { return err } }
+		for _, item := range routes {
+			var saved model.ModelRoute
+			findErr := tx.Where("id = ?", item.ID).First(&saved).Error
+			if findErr == nil {
+				// Promote a catalog route only when it is still the original disabled
+				// placeholder.  Administrator edits remain authoritative afterwards.
+				if !saved.Enabled && saved.Protocol == "custom" && item.Enabled && item.Protocol != "custom" {
+					saved.Protocol = item.Protocol
+					saved.UpstreamModelID = item.UpstreamModelID
+					saved.Priority = item.Priority
+					saved.Enabled = true
+					if err := tx.Save(&saved).Error; err != nil { return err }
+				}
+				continue
+			}
+			if findErr != gorm.ErrRecordNotFound { return findErr }
+			if err := tx.Create(&item).Error; err != nil { return err }
+		}
 		return tx.Save(&model.ModelCatalogVersion{Key:"default",Version:version,UpdatedAt:updatedAt}).Error
 	})
 }

@@ -175,6 +175,14 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 			return
 		}
 	}
+	if isWaveSpeedChannel(channel) && (path == "/images/generations" || path == "/images/edits") {
+		body, contentType, err = normalizeWaveSpeedImageBody(body, contentType)
+		if err != nil {
+			log.Printf("AI proxy normalize WaveSpeed image request failed: model=%s err=%v", modelName, err)
+			Fail(w, "AI 接口请求失败")
+			return
+		}
+	}
 	if service.IsMiMoTTSModelName(modelName) && path == "/audio/speech" {
 		body, contentType, err = normalizeMiMoTTSBody(body, contentType, modelName)
 		if err != nil {
@@ -316,6 +324,10 @@ func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.
 			if onSuccess != nil { onSuccess() }
 			return
 		}
+	}
+	if copyWaveSpeedImageResponse(w, response, request, channel, logContext, fail) {
+		if !failed && onSuccess != nil { onSuccess() }
+		return
 	}
 
 	for key, values := range response.Header {
@@ -582,6 +594,17 @@ func agnesVideoQueryID(modelName string, path string) (string, bool) {
 }
 
 func resolveAIProxyPath(channel model.ModelChannel, modelName string, path string) string {
+	if isWaveSpeedChannel(channel) {
+		if path == "/images/generations" || path == "/images/edits" || path == "/videos" {
+			return "/" + strings.TrimLeft(strings.TrimSpace(modelName), "/")
+		}
+		if strings.HasPrefix(path, "/videos/") && !strings.HasSuffix(path, "/content") {
+			taskID := strings.TrimSpace(strings.TrimPrefix(path, "/videos/"))
+			if taskID != "" && !strings.Contains(taskID, "/") {
+				return "/predictions/" + url.PathEscape(taskID) + "/result"
+			}
+		}
+	}
 	if service.IsGeminiChannel(channel) {
 		switch path {
 		case "/chat/completions":
