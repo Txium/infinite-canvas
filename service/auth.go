@@ -473,6 +473,11 @@ func ListCreditLogs(q model.Query) (model.CreditLogList, error) {
 	return model.CreditLogList{Items: logs, Total: int(total)}, nil
 }
 
+func ListUserCreditLogs(userID string) (model.CreditLogList, error) {
+	logs, err := repository.ListUserCreditLogs(userID)
+	return model.CreditLogList{Items: logs, Total: len(logs)}, err
+}
+
 func SaveCreditLog(log model.CreditLog) (model.CreditLog, error) {
 	if log.ID == "" {
 		log.ID = newID("credit")

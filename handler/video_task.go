@@ -85,7 +85,8 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	credits := 0
 	if userChannelID == "" {
 		var marketCost bool
-		credits, marketCost, err = service.MarketModelCost(requestedModel)
+		var billingUnit string
+		credits, billingUnit, marketCost, err = service.MarketModelPricing(requestedModel)
 		if err == nil && !marketCost {
 			credits, err = service.ModelCost(requestedModel)
 		}
@@ -94,7 +95,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 			Fail(w, err.Error())
 			return
 		}
-		credits *= readAIRequestCount(body, contentType)
+		credits *= readAIRequestBillingUnits(body, contentType, billingUnit)
 	}
 	if credits > 0 {
 		if err := service.FreezeUserCredits(user.ID, requestedModel, credits, "/videos", billingID); err != nil {

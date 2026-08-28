@@ -15,7 +15,7 @@ const billingLabels: Record<string,string> = { frozen:"已冻结", settled:"已�
 
 export default function AdminGenerationTasksPage() {
     const token = useUserStore((state) => state.token);
-    const actionRef = useRef<ActionType>();
+    const actionRef = useRef<ActionType>(null);
     const columns: ProColumns<AdminGenerationTask>[] = [
         {title:"搜索",dataIndex:"keyword",hideInTable:true},
         {title:"用户",dataIndex:"userDisplayName",width:160,search:false,render:(_,item)=><Space direction="vertical" size={0}><Typography.Text>{item.userDisplayName||item.userId}</Typography.Text><Typography.Text type="secondary" copyable>{item.userId}</Typography.Text></Space>},

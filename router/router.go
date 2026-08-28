@@ -98,6 +98,7 @@ func New() *gin.Engine {
 	v1.POST("/user-config/storage", gin.WrapF(handler.SaveUserStorageProvider))
 	v1.GET("/wallet/recharge-orders", gin.WrapF(handler.UserRechargeOrders))
 	v1.POST("/wallet/recharge-orders", gin.WrapF(handler.CreateRechargeOrder))
+	v1.GET("/wallet/credit-logs", gin.WrapF(handler.UserCreditLogs))
 	v1.GET("/canvas/projects", gin.WrapF(handler.UserCanvasProjects))
 	v1.POST("/canvas/projects", gin.WrapF(handler.SaveUserCanvasProject))
 	v1.POST("/canvas/projects/sync", gin.WrapF(handler.SyncUserCanvasProjects))

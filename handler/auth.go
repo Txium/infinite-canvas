@@ -144,6 +144,13 @@ func AdminCreditLogs(w http.ResponseWriter, r *http.Request) {
 	OK(w, logs)
 }
 
+func UserCreditLogs(w http.ResponseWriter, r *http.Request) {
+	user, _ := service.UserFromContext(r.Context())
+	logs, err := service.ListUserCreditLogs(user.ID)
+	if err != nil { FailError(w, err); return }
+	OK(w, logs)
+}
+
 func AdminSaveCreditLog(w http.ResponseWriter, r *http.Request) {
 	var log model.CreditLog
 	_ = json.NewDecoder(r.Body).Decode(&log)

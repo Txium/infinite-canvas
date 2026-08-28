@@ -364,10 +364,15 @@ func sameOptionalInt64(left, right *int64) bool {
 }
 
 func MarketModelCost(variantID string) (int, bool, error) {
+	cost, _, routed, err := MarketModelPricing(variantID)
+	return cost, routed, err
+}
+
+func MarketModelPricing(variantID string) (int, string, bool, error) {
 	variant, err := repository.MarketVariantByID(strings.TrimSpace(variantID))
-	if errors.Is(err, gorm.ErrRecordNotFound) { return 0, false, nil }
-	if err != nil { return 0, false, err }
-	if !variant.Enabled || variant.PricingMode == "disabled" { return 0, false, errors.New("当前模型档位未上架") }
-	if variant.PriceCents == nil || variant.PricingMode != "fixed" { return 0, false, errors.New("动态价格尚未接入真实成本结算，当前不能生成") }
-	return int(*variant.PriceCents), true, nil
+	if errors.Is(err, gorm.ErrRecordNotFound) { return 0, "", false, nil }
+	if err != nil { return 0, "", false, err }
+	if !variant.Enabled || variant.PricingMode == "disabled" { return 0, "", false, errors.New("当前模型档位未上架") }
+	if variant.PriceCents == nil || variant.PricingMode != "fixed" { return 0, "", false, errors.New("动态价格尚未接入真实成本结算，当前不能生成") }
+	return int(*variant.PriceCents), strings.TrimSpace(variant.BillingUnit), true, nil
 }

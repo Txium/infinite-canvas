@@ -34,7 +34,9 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, videoFram
     const mode = node.metadata?.generationMode || "image";
     const config = buildNodeConfig(globalConfig, node, mode);
     const count = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
-    const credits = requestCreditCost({ channelMode: config.channelMode, modelCosts, model: config.model, count: mode === "image" ? count : 1 });
+    const marketPricing = config.channelMode === "remote" ? config.marketModels.find((item) => item.id === config.model) : undefined;
+    const marketUnits = marketPricing?.billingUnit?.includes("秒") ? Math.max(1, Number(config.videoSeconds) > 0 ? Number(config.videoSeconds) : 15) : mode === "image" ? count : 1;
+    const credits = typeof marketPricing?.priceCents === "number" ? marketPricing.priceCents * marketUnits : requestCreditCost({ channelMode: config.channelMode, modelCosts, model: config.model, count: mode === "image" ? count : 1 });
     const chipStyle = { background: theme.node.fill, borderColor: theme.node.stroke, color: theme.node.text };
     const hasAnyInput = Boolean(inputSummary.textCount || inputSummary.imageCount || inputSummary.videoCount || inputSummary.audioCount);
     const hasComposerContent = Boolean((node.metadata?.composerContent ?? node.metadata?.prompt ?? "").trim());
@@ -145,6 +147,8 @@ function InputChip({ label, value, style }: { label: string; value: string; styl
 
 function buildNodeConfig(globalConfig: AiConfig, node: CanvasNodeData, mode: CanvasGenerationMode): AiConfig {
     const defaultModel = mode === "image" ? globalConfig.imageModel : mode === "video" ? globalConfig.videoModel : mode === "audio" ? globalConfig.audioModel : globalConfig.textModel;
+    const availableModels = mode === "image" ? globalConfig.imageModels : mode === "video" ? globalConfig.videoModels : mode === "audio" ? globalConfig.audioModels : globalConfig.textModels;
+    const savedModel = node.metadata?.model || "";
     const channelId = node.metadata?.channelId || "";
     const imageChannelId = mode === "image" ? channelId || globalConfig.imageChannelId : globalConfig.imageChannelId;
     const videoChannelId = mode === "video" ? channelId || globalConfig.videoChannelId : globalConfig.videoChannelId;
@@ -153,7 +157,7 @@ function buildNodeConfig(globalConfig: AiConfig, node: CanvasNodeData, mode: Can
     const activeChannelId = mode === "image" ? imageChannelId : mode === "video" ? videoChannelId : mode === "text" ? textChannelId : mode === "audio" ? audioChannelId || globalConfig.activeChannelId : globalConfig.activeChannelId;
     return {
         ...globalConfig,
-        model: node.metadata?.model || defaultModel || (mode === "audio" ? defaultConfig.audioModel : globalConfig.model || defaultConfig.model),
+        model: (availableModels.includes(savedModel) ? savedModel : "") || defaultModel || availableModels[0] || (mode === "audio" ? defaultConfig.audioModel : globalConfig.model || defaultConfig.model),
         activeChannelId,
         imageChannelId,
         videoChannelId,

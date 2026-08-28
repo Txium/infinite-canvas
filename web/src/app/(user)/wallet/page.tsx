@@ -1,15 +1,16 @@
 "use client";
 
-import { Alert, App, Button, Card, Form, InputNumber, Segmented, Statistic, Table, Tag, Typography } from "antd";
+import { Alert, App, Button, Card, Form, InputNumber, Segmented, Space, Statistic, Table, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { createRechargeOrder, fetchRechargeOrders, type RechargeOrder } from "@/services/api/wallet";
+import { createRechargeOrder, fetchRechargeOrders, fetchWalletCreditLogs, type CreditLog, type RechargeOrder } from "@/services/api/wallet";
 import { formatCNY } from "@/constant/credits";
 import { useUserStore } from "@/stores/use-user-store";
 import { useConfigStore } from "@/stores/use-config-store";
 
 const statusText = { pending: "待支付", approved: "已到账", rejected: "已关闭" } as const;
+const logText: Record<string, string> = { recharge: "充值到账", ai_freeze: "生成冻结", ai_settle: "生成消费", ai_release: "失败退回", admin_adjust: "余额调整", ai_consume: "生成消费", ai_refund: "生成退款" };
 
 export default function WalletPage() {
     const { message } = App.useApp();
@@ -18,12 +19,31 @@ export default function WalletPage() {
     const user = useUserStore((state) => state.user);
     const isReady = useUserStore((state) => state.isReady);
     const [items, setItems] = useState<RechargeOrder[]>([]);
+    const [logs, setLogs] = useState<CreditLog[]>([]);
     const [loading, setLoading] = useState(false);
     const [form] = Form.useForm();
 	const payment = useConfigStore((state) => state.publicSettings?.payment);
-    const load = async () => token && setItems((await fetchRechargeOrders(token)).items);
+    const hydrateUser = useUserStore((state) => state.hydrateUser);
+    const load = async () => {
+        if (!token) return;
+        const [orders, creditLogs] = await Promise.all([fetchRechargeOrders(token), fetchWalletCreditLogs(token)]);
+        setItems(orders.items);
+        setLogs(creditLogs.items);
+    };
 
-    useEffect(() => { if (!isReady) return; if (!token) router.replace("/login?redirect=/wallet"); else void load(); }, [isReady, token]);
+    useEffect(() => {
+        if (!isReady) return;
+        if (!token) { router.replace("/login?redirect=/wallet"); return; }
+        const returned = new URLSearchParams(window.location.search).get("payment") === "return";
+        void Promise.all([load(), hydrateUser()]).then(() => {
+            if (returned) message.success("支付结果已刷新；若刚完成付款，到账可能需要几秒");
+        }).catch((error) => message.error(error instanceof Error ? error.message : "钱包加载失败"));
+        if (!returned) return;
+        const timer = window.setInterval(() => { void Promise.all([load(), hydrateUser()]); }, 3000);
+        const stop = window.setTimeout(() => window.clearInterval(timer), 15000);
+        window.history.replaceState(null, "", "/wallet");
+        return () => { window.clearInterval(timer); window.clearTimeout(stop); };
+    }, [isReady, token]);
 
     const submit = async () => {
         const values = await form.validateFields();
@@ -32,6 +52,8 @@ export default function WalletPage() {
             const payment = await createRechargeOrder(token!, { amountCents: Math.round(values.amount * 100), paymentMethod: values.paymentMethod, paymentNote: "" });
             message.success("正在打开支付页面，付款成功后自动到账");
             window.location.href = payment.payUrl;
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "创建支付订单失败");
         } finally { setLoading(false); }
     };
 
@@ -43,6 +65,7 @@ export default function WalletPage() {
             <Card title="在线充值">
 				{payment && !payment.ready ? <Alert type="warning" showIcon message="在线充值暂未开放" description={payment.message} className="mb-4" /> : null}
                 <Form form={form} layout="vertical" initialValues={{ amount: 10, paymentMethod: "wxpay" }}>
+                    <Space wrap className="mb-3">{[10, 20, 50, 100].map((amount) => <Button key={amount} onClick={() => form.setFieldValue("amount", amount)}>¥{amount}</Button>)}</Space>
                     <Form.Item name="amount" label="充值金额（元）" rules={[{ required: true }]}><InputNumber min={1} max={100000} className="!w-full" /></Form.Item>
                     <Form.Item name="paymentMethod" label="付款方式"><Segmented options={[{ label: "微信", value: "wxpay" }, { label: "支付宝", value: "alipay" }]} /></Form.Item>
                     <Button type="primary" disabled={payment?.ready !== true} loading={loading} onClick={() => void submit()}>立即支付</Button>
@@ -57,6 +80,16 @@ export default function WalletPage() {
                 { title: "状态", dataIndex: "status", render: (value: RechargeOrder["status"]) => <Tag color={value === "approved" ? "success" : value === "rejected" ? "error" : "processing"}>{statusText[value]}</Tag> },
                 { title: "备注", dataIndex: "paymentNote" },
                 { title: "管理员备注", dataIndex: "adminRemark" },
+            ]} />
+        </Card>
+        <Card title="钱包流水" className="mt-5">
+            <Table rowKey="id" dataSource={logs} pagination={{ pageSize: 10 }} columns={[
+                { title: "时间", dataIndex: "createdAt" },
+                { title: "类型", dataIndex: "type", render: (value: string) => logText[value] || value },
+                { title: "可用余额变化", dataIndex: "amount", render: (value: number) => <Typography.Text type={value < 0 ? "danger" : value > 0 ? "success" : undefined}>{value > 0 ? "+" : ""}{formatCNY(value)}</Typography.Text> },
+                { title: "冻结变化", dataIndex: "frozenAmount", render: (value: number) => `${value > 0 ? "+" : ""}${formatCNY(value)}` },
+                { title: "可用余额", dataIndex: "balance", render: (value: number) => formatCNY(value) },
+                { title: "说明", dataIndex: "remark" },
             ]} />
         </Card>
     </div></main>;

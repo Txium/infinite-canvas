@@ -202,6 +202,14 @@ func ListCreditLogs(q model.Query) ([]model.CreditLog, int64, error) {
 	return logs, total, err
 }
 
+func ListUserCreditLogs(userID string) ([]model.CreditLog, error) {
+	db, err := DB()
+	if err != nil { return nil, err }
+	var logs []model.CreditLog
+	err = db.Where("user_id = ?", userID).Order("created_at desc").Limit(100).Find(&logs).Error
+	return logs, err
+}
+
 func DeleteCreditLog(id string) error {
 	db, err := DB()
 	if err != nil {

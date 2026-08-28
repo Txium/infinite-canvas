@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/tigerowo/infinite-canvas/config"
@@ -41,9 +42,28 @@ func CompleteEpayRecharge(values url.Values) error {
 	if values.Get("trade_status") != "TRADE_SUCCESS" { return safeMessageError{message: "支付尚未成功"} }
 	order, err := repository.GetRechargeOrderByID(values.Get("out_trade_no"))
 	if err != nil { return err }
-	if values.Get("money") != fmt.Sprintf("%.2f", float64(order.AmountCents)/100) { return safeMessageError{message: "支付金额不一致"} }
+	paidCents, err := parseMoneyCents(values.Get("money"))
+	if err != nil || paidCents != order.AmountCents { return safeMessageError{message: "支付金额不一致"} }
 	_, err = repository.CompleteRechargeOrder(order.ID, values.Get("trade_no"), now())
 	return err
+}
+
+func parseMoneyCents(value string) (int, error) {
+	value = strings.TrimSpace(value)
+	parts := strings.Split(value, ".")
+	if len(parts) > 2 || parts[0] == "" { return 0, fmt.Errorf("invalid money") }
+	yuan, err := strconv.Atoi(parts[0])
+	if err != nil || yuan < 0 { return 0, fmt.Errorf("invalid money") }
+	fraction := ""
+	if len(parts) == 2 { fraction = parts[1] }
+	if len(fraction) > 2 { return 0, fmt.Errorf("invalid money") }
+	for len(fraction) < 2 { fraction += "0" }
+	cents := 0
+	if fraction != "" {
+		cents, err = strconv.Atoi(fraction)
+		if err != nil { return 0, fmt.Errorf("invalid money") }
+	}
+	return yuan*100 + cents, nil
 }
 
 func signPayment(params map[string]string, key string) string {

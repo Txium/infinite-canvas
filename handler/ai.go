@@ -154,14 +154,15 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 	credits := 0
 	if userChannelID == "" {
 		var marketCost bool
-		credits, marketCost, err = service.MarketModelCost(requestedModel)
+		var billingUnit string
+		credits, billingUnit, marketCost, err = service.MarketModelPricing(requestedModel)
 		if err == nil && !marketCost { credits, err = service.ModelCost(requestedModel) }
 		if err != nil {
 			log.Printf("AI proxy read model cost failed: model=%s err=%v", modelName, err)
 			Fail(w, err.Error())
 			return
 		}
-		credits *= readAIRequestCount(body, contentType)
+		credits *= readAIRequestBillingUnits(body, contentType, billingUnit)
 	}
 	upstreamPath := resolveAIProxyPath(channel, modelName, path)
 	if service.IsGeminiChannel(channel) {
@@ -704,6 +705,31 @@ func isArkSeedanceVideo(baseURL string, modelName string) bool {
 	// /contents/generations/tasks shape, so the model name alone must never
 	// select the Ark adapter.
 	return strings.Contains(base, "/api/plan/v3") || strings.Contains(base, "ark.cn-beijing.volces.com")
+}
+
+func readAIRequestBillingUnits(body []byte, contentType string, billingUnit string) int {
+	if !strings.Contains(strings.ToLower(billingUnit), "秒") { return readAIRequestCount(body, contentType) }
+	seconds := 0
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		_, params, err := mime.ParseMediaType(contentType)
+		if err == nil {
+			form, formErr := multipart.NewReader(bytes.NewReader(body), params["boundary"]).ReadForm(32 << 20)
+			if formErr == nil {
+				defer form.RemoveAll()
+				for _, name := range []string{"seconds", "duration"} { if values := form.Value[name]; len(values) > 0 { _, _ = fmt.Sscan(values[0], &seconds); break } }
+			}
+		}
+	} else {
+		var payload map[string]any
+		if json.Unmarshal(body, &payload) == nil {
+			for _, name := range []string{"seconds", "duration"} {
+				switch value := payload[name].(type) { case float64: seconds = int(value); case string: _, _ = fmt.Sscan(value, &seconds) }
+				if seconds != 0 { break }
+			}
+		}
+	}
+	if seconds < 1 { return 15 }
+	return seconds
 }
 
 func isAgnesVideoModel(modelName string) bool {

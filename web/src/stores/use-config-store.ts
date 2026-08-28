@@ -26,6 +26,8 @@ export type MarketModelOption = {
     group: string;
     capability: ModelCapability;
     priceText: string;
+    priceCents?: number;
+    billingUnit?: string;
 };
 
 export type AiConfig = {
@@ -208,11 +210,11 @@ function resolveEffectiveConfig(config: AiConfig, modelChannel: AdminPublicSetti
     const imageModels = routedModels.length ? marketModels.filter((item) => item.capability === "image").map((item) => item.id) : filterChannelModelsByCapability(modelChannel.channels, "image", models);
     const videoModels = routedModels.length ? marketModels.filter((item) => item.capability === "video").map((item) => item.id) : filterChannelModelsByCapability(modelChannel.channels, "video", models);
     const audioModels = routedModels.length ? marketModels.filter((item) => item.capability === "audio").map((item) => item.id) : filterChannelModelsByCapability(modelChannel.channels, "audio", models);
-    const fallbackTextModel = validDefault(modelChannel.defaultTextModel, textModels);
-    const fallbackModel = validDefault(modelChannel.defaultModel, textModels);
-    const fallbackImageModel = validDefault(modelChannel.defaultImageModel, imageModels);
-    const fallbackVideoModel = validDefault(modelChannel.defaultVideoModel, videoModels);
-    const fallbackAudioModel = "";
+    const fallbackTextModel = validDefault(modelChannel.defaultTextModel, textModels) || textModels[0] || "";
+    const fallbackModel = validDefault(modelChannel.defaultModel, textModels) || fallbackTextModel;
+    const fallbackImageModel = validDefault(modelChannel.defaultImageModel, imageModels) || imageModels[0] || "";
+    const fallbackVideoModel = validDefault(modelChannel.defaultVideoModel, videoModels) || videoModels[0] || "";
+    const fallbackAudioModel = audioModels[0] || "";
     const marketChannels = Array.from(new Set(marketModels.map((item) => item.group))).map((group) => ({
         id: `market:${group}`,
         protocol: "openai" as const,
@@ -410,6 +412,8 @@ export const useConfigStore = create<ConfigStore>()(
                             group: marketGroup(item.category),
                             capability: marketCapability(item.category),
                             priceText: typeof variant.priceCents === "number" ? `¥${(variant.priceCents / 100).toFixed(2)} ${variant.billingUnit || "/次"}` : "",
+                            priceCents: variant.priceCents,
+                            billingUnit: variant.billingUnit,
                         }));
                     });
                     set({ publicSettings, marketModels });

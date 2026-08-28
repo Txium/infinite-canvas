@@ -410,14 +410,14 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 
 ### recharge_orders
 
-用户站内充值订单。当前支持用户提交付款信息、管理员审核到账；后续接入微信或支付宝商户接口时使用 `provider_trade_id` 保存第三方交易号。
+用户站内充值订单。服务器创建易支付兼容网关订单；微信或支付宝付款成功后，异步回调通过签名、商户号、订单金额校验，再以数据库事务原子更新订单、用户余额和充值流水。`provider_trade_id` 保存第三方交易号，重复回调不会重复到账。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | string | 订单 ID |
 | `user_id` | string | 用户 ID |
 | `amount_cents` | number | 金额，单位为分 |
-| `credits` | number | 审核通过后增加的算力点 |
+| `credits` | number | 支付成功后增加的人民币余额，单位为分 |
 | `status` | string | `pending`、`approved`、`rejected` |
 | `payment_method` | string | 微信、支付宝或其他 |
 | `payment_note` | string | 用户提交的付款备注或交易号 |
