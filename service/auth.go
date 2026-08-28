@@ -426,6 +426,18 @@ func ReleaseUserCredits(userID string, modelName string, credits int, path strin
 	return changeFrozenCredits(userID, modelName, credits, path, billingID, "release")
 }
 
+func ReleaseTaskFrozenCredits(userID string, modelName string, path string, billingID string) error {
+	logs, err := repository.ListTaskCreditLogs([]string{strings.TrimSpace(billingID)})
+	if err != nil { return err }
+	credits := 0
+	for _, item := range logs {
+		if item.Type == model.CreditLogTypeAISettle || item.Type == model.CreditLogTypeAIRelease { return nil }
+		if item.Type == model.CreditLogTypeAIFreeze && -item.Amount > credits { credits = -item.Amount }
+	}
+	if credits <= 0 { return nil }
+	return ReleaseUserCredits(userID, modelName, credits, path, billingID)
+}
+
 func changeFrozenCredits(userID string, modelName string, credits int, path string, billingID string, phase string) error {
 	if credits <= 0 { return nil }
 	billingID = strings.TrimSpace(billingID)

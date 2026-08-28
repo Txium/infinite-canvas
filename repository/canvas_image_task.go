@@ -7,6 +7,15 @@ import (
 	"gorm.io/gorm"
 )
 
+func ListStaleCanvasImageTasks(before string, limit int) ([]model.CanvasImageTask, error) {
+	db, err := DB()
+	if err != nil { return nil, err }
+	var tasks []model.CanvasImageTask
+	err = db.Where("status IN ? AND created_at < ?", []string{"queued", "processing", "running", "in_progress"}, before).
+		Order("created_at ASC").Limit(normalizeTaskLimit(limit)).Find(&tasks).Error
+	return tasks, err
+}
+
 func SaveCanvasImageTask(task model.CanvasImageTask) (model.CanvasImageTask, error) {
 	db, err := DB()
 	if err != nil {

@@ -8,12 +8,24 @@ import (
 	"github.com/tigerowo/infinite-canvas/repository"
 )
 
-func AdminGenerationTasks(limit int) ([]model.AdminGenerationTask, error) {
-	videos, err := repository.ListRecentVideoTasks(limit)
+type AdminGenerationTaskQuery struct {
+	Keyword       string
+	Kind          string
+	Status        string
+	BillingStatus string
+	StartedAt     string
+	EndedAt       string
+	Limit         int
+}
+
+func AdminGenerationTasks(query AdminGenerationTaskQuery) ([]model.AdminGenerationTask, error) {
+	limit := query.Limit
+	if limit <= 0 || limit > 500 { limit = 200 }
+	videos, err := repository.ListRecentVideoTasks(500)
 	if err != nil { return nil, err }
-	images, err := repository.ListRecentCanvasImageTasks(limit)
+	images, err := repository.ListRecentCanvasImageTasks(500)
 	if err != nil { return nil, err }
-	audios, err := repository.ListRecentCanvasAudioTasks(limit)
+	audios, err := repository.ListRecentCanvasAudioTasks(500)
 	if err != nil { return nil, err }
 	items := make([]model.AdminGenerationTask, 0, len(videos)+len(images)+len(audios))
 	ids := make([]string, 0, cap(items))
@@ -41,9 +53,28 @@ func AdminGenerationTasks(limit int) ([]model.AdminGenerationTask, error) {
 		}
 		items[i].BillingStatus = strings.TrimSpace(items[i].BillingStatus)
 	}
+	items = filterAdminGenerationTasks(items, query)
 	sort.Slice(items, func(i, j int) bool { return items[i].CreatedAt > items[j].CreatedAt })
 	if limit > 0 && len(items) > limit { items = items[:limit] }
 	return items, nil
+}
+
+func filterAdminGenerationTasks(items []model.AdminGenerationTask, query AdminGenerationTaskQuery) []model.AdminGenerationTask {
+	keyword := strings.ToLower(strings.TrimSpace(query.Keyword))
+	result := make([]model.AdminGenerationTask, 0, len(items))
+	for _, item := range items {
+		searchText := strings.ToLower(strings.Join([]string{item.ID, item.UserID, item.UserDisplayName, item.Model, item.Source, item.Error}, " "))
+		if keyword != "" && !strings.Contains(searchText, keyword) { continue }
+		if query.Kind != "" && item.Kind != query.Kind { continue }
+		if query.Status != "" && NormalizeVideoTaskStatus(item.Status) != NormalizeVideoTaskStatus(query.Status) { continue }
+		if query.BillingStatus != "" && item.BillingStatus != query.BillingStatus { continue }
+		createdDate := item.CreatedAt
+		if len(createdDate) >= 10 { createdDate = createdDate[:10] }
+		if query.StartedAt != "" && createdDate < query.StartedAt { continue }
+		if query.EndedAt != "" && createdDate > query.EndedAt { continue }
+		result = append(result, item)
+	}
+	return result
 }
 
 func publicTaskResultURL(value string) string {

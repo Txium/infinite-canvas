@@ -1,10 +1,10 @@
 "use client";
 
 import { ReloadOutlined } from "@ant-design/icons";
-import { ProTable, type ProColumns } from "@ant-design/pro-components";
+import { ProTable, type ActionType, type ProColumns } from "@ant-design/pro-components";
 import { Button, Card, Space, Tag, Typography } from "antd";
 import dayjs from "dayjs";
-import { useEffect, useState } from "react";
+import { useRef } from "react";
 
 import { formatCNY } from "@/constant/credits";
 import { fetchAdminGenerationTasks, type AdminGenerationTask } from "@/services/api/admin";
@@ -15,20 +15,19 @@ const billingLabels: Record<string,string> = { frozen:"已冻结", settled:"已�
 
 export default function AdminGenerationTasksPage() {
     const token = useUserStore((state) => state.token);
-    const [items,setItems] = useState<AdminGenerationTask[]>([]);
-    const [loading,setLoading] = useState(false);
-    const load = async () => { if (!token) return; setLoading(true); try { setItems(await fetchAdminGenerationTasks(token)); } finally { setLoading(false); } };
-    useEffect(() => { void load(); }, [token]);
+    const actionRef = useRef<ActionType>();
     const columns: ProColumns<AdminGenerationTask>[] = [
-        {title:"用户",dataIndex:"userDisplayName",width:160,render:(_,item)=><Space direction="vertical" size={0}><Typography.Text>{item.userDisplayName||item.userId}</Typography.Text><Typography.Text type="secondary" copyable>{item.userId}</Typography.Text></Space>},
-        {title:"类型",dataIndex:"kind",width:80,render:(_,item)=><Tag>{kindLabels[item.kind]}</Tag>},
-        {title:"模型档位",dataIndex:"model",width:220,ellipsis:true},
-        {title:"任务状态",dataIndex:"status",width:110,render:(_,item)=><Tag color={item.status==="completed"?"success":item.status==="failed"?"error":"processing"}>{item.status}</Tag>},
-        {title:"资金状态",dataIndex:"billingStatus",width:110,render:(_,item)=><Tag color={item.billingStatus==="settled"?"success":item.billingStatus==="released"?"default":"warning"}>{billingLabels[item.billingStatus]||"未计费"}</Tag>},
+        {title:"搜索",dataIndex:"keyword",hideInTable:true},
+        {title:"用户",dataIndex:"userDisplayName",width:160,search:false,render:(_,item)=><Space direction="vertical" size={0}><Typography.Text>{item.userDisplayName||item.userId}</Typography.Text><Typography.Text type="secondary" copyable>{item.userId}</Typography.Text></Space>},
+        {title:"类型",dataIndex:"kind",width:80,valueType:"select",valueEnum:{image:{text:"图片"},video:{text:"视频"},audio:{text:"音频"}},render:(_,item)=><Tag>{kindLabels[item.kind]}</Tag>},
+        {title:"模型档位",dataIndex:"model",width:220,ellipsis:true,search:false},
+        {title:"任务状态",dataIndex:"status",width:110,valueType:"select",valueEnum:{queued:{text:"排队"},processing:{text:"处理中"},completed:{text:"成功"},failed:{text:"失败"}},render:(_,item)=><Tag color={item.status==="completed"?"success":item.status==="failed"?"error":"processing"}>{item.status}</Tag>},
+        {title:"资金状态",dataIndex:"billingStatus",width:110,valueType:"select",valueEnum:{frozen:{text:"已冻结"},settled:{text:"已结算"},released:{text:"已解冻"}},render:(_,item)=><Tag color={item.billingStatus==="settled"?"success":item.billingStatus==="released"?"default":"warning"}>{billingLabels[item.billingStatus]||"未计费"}</Tag>},
         {title:"售价",dataIndex:"priceCents",width:100,render:(_,item)=>formatCNY(item.priceCents)},
         {title:"结果",dataIndex:"resultUrl",width:90,render:(_,item)=>item.resultUrl?<Typography.Link href={item.resultUrl} target="_blank" rel="noreferrer">查看</Typography.Link>:"-"},
         {title:"错误",dataIndex:"error",ellipsis:true,render:(_,item)=><Typography.Text type={item.error?"danger":"secondary"}>{item.error||"-"}</Typography.Text>},
-        {title:"创建时间",dataIndex:"createdAt",width:180,render:(_,item)=>item.createdAt?dayjs(item.createdAt).format("YYYY-MM-DD HH:mm:ss"):"-"},
+        {title:"创建时间",dataIndex:"createdAt",width:180,search:false,render:(_,item)=>item.createdAt?dayjs(item.createdAt).format("YYYY-MM-DD HH:mm:ss"):"-"},
+        {title:"创建日期",dataIndex:"createdRange",valueType:"dateRange",hideInTable:true},
     ];
-    return <main style={{padding:24}}><Card variant="borderless"><ProTable rowKey="id" columns={columns} dataSource={items} loading={loading} search={false} pagination={{pageSize:20}} headerTitle={<Space><Typography.Text strong>生成任务</Typography.Text><Tag>{items.length} 条</Tag></Space>} toolBarRender={()=>[<Button key="refresh" icon={<ReloadOutlined/>} onClick={()=>void load()}>刷新</Button>]} /></Card></main>;
+    return <main style={{padding:24}}><Card variant="borderless"><ProTable actionRef={actionRef} rowKey="id" columns={columns} request={async(params)=>{ if(!token)return{data:[],success:true,total:0}; const range=params.createdRange as string[]|undefined; const data=await fetchAdminGenerationTasks(token,{keyword:params.keyword as string,kind:params.kind as string,status:params.status as string,billingStatus:params.billingStatus as string,startedAt:range?.[0],endedAt:range?.[1],limit:500}); return{data,success:true,total:data.length}; }} pagination={{pageSize:20}} headerTitle={<Typography.Text strong>生成任务</Typography.Text>} toolBarRender={()=>[<Button key="refresh" icon={<ReloadOutlined/>} onClick={()=>actionRef.current?.reload()}>刷新</Button>]} /></Card></main>;
 }

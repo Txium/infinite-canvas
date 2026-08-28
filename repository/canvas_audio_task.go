@@ -2,6 +2,15 @@ package repository
 
 import "github.com/tigerowo/infinite-canvas/model"
 
+func ListStaleCanvasAudioTasks(before string, limit int) ([]model.CanvasAudioTask, error) {
+	db, err := DB()
+	if err != nil { return nil, err }
+	var tasks []model.CanvasAudioTask
+	err = db.Where("status IN ? AND created_at < ?", []string{"queued", "processing", "running", "in_progress"}, before).
+		Order("created_at ASC").Limit(normalizeTaskLimit(limit)).Find(&tasks).Error
+	return tasks, err
+}
+
 func SaveCanvasAudioTask(task model.CanvasAudioTask) (model.CanvasAudioTask, error) {
 	db, err := DB()
 	if err != nil {

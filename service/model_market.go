@@ -124,20 +124,41 @@ func SaveMarketModel(item model.MarketModel) (model.MarketModel, error) { now :=
 func SaveModelVariant(item model.ModelVariant) (model.ModelVariant, error) { now := time.Now().Format(time.RFC3339); if item.ID == "" { item.ID = newID("variant"); item.CreatedAt = now } else if saved, err := repository.SavedModelVariantByID(item.ID); err == nil { item.ProviderCode=saved.ProviderCode; item.UpstreamModelID=saved.UpstreamModelID; item.CostCents=saved.CostCents; item.CostText=saved.CostText; item.PriceText=saved.PriceText; item.MarginText=saved.MarginText; item.PersonNote=saved.PersonNote; item.RefundPolicy=saved.RefundPolicy; item.SourceURL=saved.SourceURL; item.Remark=saved.Remark; item.Sort=saved.Sort; item.CreatedAt=saved.CreatedAt }; item.UpdatedAt = now; return item, repository.SaveModelVariant(item) }
 func SaveModelRoute(item model.ModelRoute) (model.ModelRoute, error) { now := time.Now().Format(time.RFC3339); if item.ID == "" { item.ID = newID("route"); item.CreatedAt = now }; item.UpdatedAt = now; return item, repository.SaveModelRoute(item) }
 
-func ResolveMarketRoute(variantID string) (model.ModelChannel, string, bool, error) {
+type MarketRouteCandidate struct {
+	RouteID       string
+	Channel       model.ModelChannel
+	UpstreamModel string
+}
+
+func ResolveMarketRoutes(variantID string) ([]MarketRouteCandidate, bool, error) {
 	variant, variantErr := repository.MarketVariantByID(strings.TrimSpace(variantID))
-	if errors.Is(variantErr, gorm.ErrRecordNotFound) { return model.ModelChannel{}, "", false, nil }
-	if variantErr != nil { return model.ModelChannel{}, "", false, variantErr }
-	if !variant.Enabled { return model.ModelChannel{}, "", false, errors.New("当前模型档位未上架") }
+	if errors.Is(variantErr, gorm.ErrRecordNotFound) { return nil, false, nil }
+	if variantErr != nil { return nil, false, variantErr }
+	if !variant.Enabled { return nil, true, errors.New("当前模型档位未上架") }
 	routes, err := repository.EnabledRoutesForVariant(strings.TrimSpace(variantID))
-	if err != nil { return model.ModelChannel{}, "", false, err }
+	if err != nil { return nil, true, err }
+	result := make([]MarketRouteCandidate, 0, len(routes))
 	for _, route := range routes {
 		provider, providerErr := repository.ModelProviderByID(route.ProviderID)
 		provider = withProviderSecret(provider)
 		if providerErr != nil || !modelProviderReady(provider) { continue }
-		return model.ModelChannel{ID:provider.ID, Protocol:route.Protocol, Name:provider.Name, BaseURL:provider.BaseURL, APIKey:provider.APIKey, Models:[]string{route.UpstreamModelID}, Weight:1, Timeout:provider.Timeout, Enabled:true}, route.UpstreamModelID, true, nil
+		result = append(result, MarketRouteCandidate{RouteID:route.ID, Channel:model.ModelChannel{ID:provider.ID, Protocol:route.Protocol, Name:provider.Name, BaseURL:provider.BaseURL, APIKey:provider.APIKey, Models:[]string{route.UpstreamModelID}, Weight:1, Timeout:provider.Timeout, Enabled:true}, UpstreamModel:route.UpstreamModelID})
 	}
-	return model.ModelChannel{}, "", false, errors.New("指定模型渠道不可用")
+	if len(result) == 0 { return nil, true, errors.New("指定模型渠道不可用") }
+	return result, true, nil
+}
+
+func ResolveMarketRouteForRoute(variantID string, routeID string) (model.ModelChannel, string, bool, error) {
+	candidates, routed, err := ResolveMarketRoutes(variantID)
+	if err != nil || !routed { return model.ModelChannel{}, "", routed, err }
+	if routeID != "" {
+		for _, candidate := range candidates { if candidate.RouteID == routeID { return candidate.Channel, candidate.UpstreamModel, true, nil } }
+	}
+	return candidates[0].Channel, candidates[0].UpstreamModel, true, nil
+}
+
+func ResolveMarketRoute(variantID string) (model.ModelChannel, string, bool, error) {
+	return ResolveMarketRouteForRoute(variantID, "")
 }
 
 func modelProviderReady(item model.ModelProvider) bool { return item.Enabled && strings.TrimSpace(item.BaseURL) != "" && strings.TrimSpace(item.APIKey) != "" }

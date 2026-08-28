@@ -12,6 +12,7 @@ import (
 )
 
 const videoTaskPollInterval = 5 * time.Second
+const videoTaskMaxAge = 30 * time.Minute
 const videoTaskFinishedRetention = 30 * 24 * time.Hour
 const videoTaskCleanupInterval = 10 * time.Minute
 
@@ -241,6 +242,12 @@ func runVideoTaskPoller() {
 				lastCleanupAt = current
 			}
 			for _, task := range tasks {
+				if videoTaskExpired(task, current) {
+					if err := UpdateVideoTaskFromPoll(task, VideoTaskPollUpdate{Status: "failed", Error: "任务处理超时，已自动解冻", ErrorDetail: "任务超过 30 分钟仍未完成"}); err != nil {
+						log.Printf("expire video task failed id=%s err=%v", task.ID, err)
+					}
+					continue
+				}
 				if _, loaded := inFlight.LoadOrStore(task.ID, true); loaded {
 					continue
 				}
@@ -316,6 +323,11 @@ func UpdateVideoTaskFromPoll(task model.VideoTask, update VideoTaskPollUpdate) e
 	if err := finalizeVideoTaskBilling(&task); err != nil { return err }
 	_, err := repository.SaveVideoTask(task)
 	return err
+}
+
+func videoTaskExpired(task model.VideoTask, current time.Time) bool {
+	createdAt, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(task.CreatedAt))
+	return err == nil && current.Sub(createdAt) >= videoTaskMaxAge
 }
 
 func finalizeVideoTaskBilling(task *model.VideoTask) error {

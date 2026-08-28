@@ -332,7 +332,8 @@ export async function deleteAdminAICallLogs(token: string, olderThanDays = 7) {
 }
 
 export type AdminGenerationTask = { id: string; userId: string; userDisplayName: string; kind: "image" | "video" | "audio"; model: string; status: string; billingStatus: string; priceCents: number; source: string; resultUrl: string; error: string; createdAt: string; completedAt: string };
-export async function fetchAdminGenerationTasks(token: string) { return apiGet<AdminGenerationTask[]>("/api/admin/generation-tasks", undefined, token); }
+export type AdminGenerationTaskQuery = { keyword?: string; kind?: string; status?: string; billingStatus?: string; startedAt?: string; endedAt?: string; limit?: number };
+export async function fetchAdminGenerationTasks(token: string, query: AdminGenerationTaskQuery = {}) { return apiGet<AdminGenerationTask[]>("/api/admin/generation-tasks", compactApiParams(query), token); }
 
 export type AdminSettings = {
     public: AdminPublicSettings;

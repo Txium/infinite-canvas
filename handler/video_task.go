@@ -70,13 +70,12 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	requestedModel := modelName
 	clientTaskID := readClientVideoTaskID(r)
 	billingID := firstNonEmpty(clientTaskID, "video_"+uuid.NewString())
-	channel, upstreamModel, routed, err := service.ResolveMarketRoute(requestedModel)
+	candidates, routed, err := service.ResolveMarketRoutes(requestedModel)
 	userChannelID := ""
-	if err == nil && routed {
-		body, err = replaceAIRequestModel(body, contentType, upstreamModel)
-		modelName = upstreamModel
-	} else if err == nil {
-		channel, userChannelID, err = selectAIRequestChannel(user, modelName, r.Header.Get("X-Model-Channel-ID"), r.Header.Get(userModelChannelHeader))
+	if err == nil && !routed {
+		channel, selectedUserChannelID, selectErr := selectAIRequestChannel(user, modelName, r.Header.Get("X-Model-Channel-ID"), r.Header.Get(userModelChannelHeader))
+		userChannelID, err = selectedUserChannelID, selectErr
+		if err == nil { candidates = []service.MarketRouteCandidate{{Channel:channel, UpstreamModel:modelName}} }
 	}
 	if err != nil {
 		log.Printf("AI video select channel failed: model=%s err=%v", requestedModel, err)
@@ -97,41 +96,38 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		}
 		credits *= readAIRequestCount(body, contentType)
 	}
-	upstreamPath := resolveAIProxyPath(channel, modelName, "/videos")
-	body, contentType, err = normalizeVideoCreateBody(body, contentType, modelName, channel, upstreamPath)
-	if err != nil {
-		log.Printf("AI video normalize request failed: model=%s err=%v", modelName, err)
-		Fail(w, "AI 接口请求失败")
-		return
-	}
-	request, err := http.NewRequest(http.MethodPost, service.BuildModelChannelURL(channel, upstreamPath), bytes.NewReader(body))
-	if err != nil {
-		log.Printf("AI video build request failed: url=%s err=%v", service.BuildModelChannelURL(channel, upstreamPath), err)
-		Fail(w, "AI 接口请求失败")
-		return
-	}
-	service.SetModelChannelAuthHeader(request, channel)
-	if contentType != "" {
-		request.Header.Set("Content-Type", contentType)
-	}
-	logContext := aiLogContext{
-		StartedAt:       startedAt,
-		Endpoint:        "/videos",
-		Method:          http.MethodPost,
-		Model:           requestedModel,
-		Channel:         channel,
-		UserID:          user.ID,
-		UserDisplayName: firstNonEmpty(user.DisplayName, user.Username),
-		Credits:         credits,
-		RequestBody:     summarizeAIRequest(body, contentType),
-	}
 	if credits > 0 {
-		if err := service.FreezeUserCredits(user.ID, requestedModel, credits, upstreamPath, billingID); err != nil {
+		if err := service.FreezeUserCredits(user.ID, requestedModel, credits, "/videos", billingID); err != nil {
 			FailError(w, err)
 			return
 		}
 	}
-	payload, status, err := doAIRequest(request, channel)
+	var channel model.ModelChannel
+	var request *http.Request
+	var payload []byte
+	var status int
+	var upstreamPath string
+	var logContext aiLogContext
+	for index, candidate := range candidates {
+		channel, modelName = candidate.Channel, candidate.UpstreamModel
+		attemptBody, attemptContentType := append([]byte(nil), body...), contentType
+		if routed { attemptBody, err = replaceAIRequestModel(attemptBody, attemptContentType, modelName) }
+		upstreamPath = resolveAIProxyPath(channel, modelName, "/videos")
+		if err == nil { attemptBody, attemptContentType, err = normalizeVideoCreateBody(attemptBody, attemptContentType, modelName, channel, upstreamPath) }
+		if err == nil { request, err = http.NewRequest(http.MethodPost, service.BuildModelChannelURL(channel, upstreamPath), bytes.NewReader(attemptBody)) }
+		logContext = aiLogContext{StartedAt:startedAt,Endpoint:"/videos",Method:http.MethodPost,Model:requestedModel,Channel:channel,UserID:user.ID,UserDisplayName:firstNonEmpty(user.DisplayName,user.Username),Credits:credits,RequestBody:summarizeAIRequest(attemptBody,attemptContentType)}
+		if err == nil {
+			service.SetModelChannelAuthHeader(request, channel)
+			if attemptContentType != "" { request.Header.Set("Content-Type", attemptContentType) }
+			payload, status, err = doAIRequest(request, channel)
+		}
+		if index+1 < len(candidates) && retryableMarketRouteFailure(status, err) {
+			saveAIProxyLog(logContext, status, string(payload), firstNonEmpty(errorString(err), strings.TrimSpace(string(payload))))
+			err, payload, status = nil, nil, 0
+			continue
+		}
+		break
+	}
 	if err != nil {
 		if credits > 0 {
 			releaseVideoCredits(user.ID, requestedModel, credits, upstreamPath, billingID)
@@ -665,3 +661,5 @@ func releaseVideoCredits(userID string, modelName string, credits int, endpoint 
 		log.Printf("AI video release credits failed: user=%s model=%s credits=%d err=%v", userID, modelName, credits, err)
 	}
 }
+
+func errorString(err error) string { if err == nil { return "" }; return err.Error() }

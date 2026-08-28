@@ -63,7 +63,12 @@ func AdminAICallLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func AdminGenerationTasks(w http.ResponseWriter, r *http.Request) {
-	items, err := service.AdminGenerationTasks(200)
+	limit := 200
+	if parsed, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && parsed > 0 { limit = parsed }
+	items, err := service.AdminGenerationTasks(service.AdminGenerationTaskQuery{
+		Keyword:r.URL.Query().Get("keyword"), Kind:r.URL.Query().Get("kind"), Status:r.URL.Query().Get("status"),
+		BillingStatus:r.URL.Query().Get("billingStatus"), StartedAt:r.URL.Query().Get("startedAt"), EndedAt:r.URL.Query().Get("endedAt"), Limit:limit,
+	})
 	if err != nil { FailError(w, err); return }
 	OK(w, items)
 }

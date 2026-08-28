@@ -19,6 +19,7 @@ import (
 	"net/http/httptest"
 	"net/textproto"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,11 +45,12 @@ func CreateCanvasImageTask(w http.ResponseWriter, r *http.Request) {
 	}
 	channelID = firstNonEmpty(channelID, r.Header.Get("X-Model-Channel-ID"))
 	userChannelID := r.Header.Get(userModelChannelHeader)
-	if strings.TrimSpace(channelID) == "" && strings.TrimSpace(userChannelID) == "" {
-		Fail(w, "缺少模型渠道")
-		return
+	channel, _, routed, err := service.ResolveMarketRoute(modelName)
+	resolvedUserChannelID := ""
+	if err == nil && !routed {
+		if strings.TrimSpace(channelID) == "" && strings.TrimSpace(userChannelID) == "" { Fail(w, "缺少模型渠道"); return }
+		channel, resolvedUserChannelID, err = selectAIRequestChannel(user, modelName, channelID, userChannelID)
 	}
-	channel, resolvedUserChannelID, err := selectAIRequestChannel(user, modelName, channelID, userChannelID)
 	if err != nil {
 		log.Printf("canvas image task select channel failed: model=%s err=%v", modelName, err)
 		failAIChannelSelect(w, err, "AI 接口请求失败")
@@ -197,11 +199,12 @@ func CreateCanvasAudioTask(w http.ResponseWriter, r *http.Request) {
 	}
 	channelID = firstNonEmpty(channelID, r.Header.Get("X-Model-Channel-ID"))
 	userChannelID := r.Header.Get(userModelChannelHeader)
-	if strings.TrimSpace(channelID) == "" && strings.TrimSpace(userChannelID) == "" {
-		Fail(w, "缺少模型渠道")
-		return
+	channel, _, routed, err := service.ResolveMarketRoute(modelName)
+	resolvedUserChannelID := ""
+	if err == nil && !routed {
+		if strings.TrimSpace(channelID) == "" && strings.TrimSpace(userChannelID) == "" { Fail(w, "缺少模型渠道"); return }
+		channel, resolvedUserChannelID, err = selectAIRequestChannel(user, modelName, channelID, userChannelID)
 	}
-	channel, resolvedUserChannelID, err := selectAIRequestChannel(user, modelName, channelID, userChannelID)
 	if err != nil {
 		log.Printf("canvas audio task select channel failed: model=%s err=%v", modelName, err)
 		failAIChannelSelect(w, err, "AI 接口请求失败")
@@ -257,7 +260,7 @@ func runCanvasImageTask(task model.CanvasImageTask, user model.AuthUser, body []
 	task.StartedAt = current
 	task, _ = service.SaveCanvasImageTask(task)
 
-	payload, status, responseContentType, err := executeCanvasAIRequest(user, task.Endpoint, body, contentType, channelID, userChannelID, task.ID)
+	payload, status, responseContentType, err := executeCanvasAIRequestWithFallback(user, task.Model, task.Endpoint, body, contentType, channelID, userChannelID, task.ID)
 	if err != nil {
 		saveFailedCanvasImageTask(task, err.Error(), err.Error())
 		return
@@ -302,7 +305,7 @@ func runCanvasAudioTask(task model.CanvasAudioTask, user model.AuthUser, body []
 	task.StartedAt = current
 	task, _ = service.SaveCanvasAudioTask(task)
 
-	payload, status, responseContentType, err := executeCanvasAIRequest(user, task.Endpoint, body, contentType, channelID, userChannelID, task.ID)
+	payload, status, responseContentType, err := executeCanvasAIRequestWithFallback(user, task.Model, task.Endpoint, body, contentType, channelID, userChannelID, task.ID)
 	if err != nil {
 		saveFailedCanvasAudioTask(task, err.Error(), err.Error())
 		return
@@ -340,13 +343,32 @@ func runCanvasAudioTask(task model.CanvasAudioTask, user model.AuthUser, body []
 	_, _ = service.SaveCanvasAudioTask(task)
 }
 
-func executeCanvasAIRequest(user model.AuthUser, endpoint string, body []byte, contentType string, channelID string, userChannelID string, billingID string) ([]byte, int, string, error) {
+func executeCanvasAIRequestWithFallback(user model.AuthUser, modelName string, endpoint string, body []byte, contentType string, channelID string, userChannelID string, billingID string) ([]byte, int, string, error) {
+	type attempt struct { channelID string; routeID string }
+	attempts := []attempt{{channelID:channelID}}
+	if strings.TrimSpace(userChannelID) == "" {
+		if routes, routed, err := service.ResolveMarketRoutes(modelName); err == nil && routed {
+			attempts = make([]attempt, 0, len(routes))
+			for _, route := range routes { attempts = append(attempts, attempt{channelID:route.Channel.ID, routeID:route.RouteID}) }
+		}
+	}
+	var payload []byte; var status int; var responseContentType string; var err error
+	for index, item := range attempts {
+		payload, status, responseContentType, err = executeCanvasAIRequest(user, endpoint, body, contentType, item.channelID, userChannelID, billingID, item.routeID)
+		if index+1 >= len(attempts) || !retryableMarketRouteFailure(status, err) { break }
+	}
+	return payload, status, responseContentType, err
+}
+
+func executeCanvasAIRequest(user model.AuthUser, endpoint string, body []byte, contentType string, channelID string, userChannelID string, billingID string, routeID string) ([]byte, int, string, error) {
 	request := httptest.NewRequest(http.MethodPost, "http://canvas.local/api/v1"+endpoint, bytes.NewReader(body))
 	request = request.WithContext(service.WithUser(context.Background(), user))
 	if contentType != "" {
 		request.Header.Set("Content-Type", contentType)
 	}
 	request.Header.Set("X-Billing-Task-ID", billingID)
+	request.Header.Set(deferredBillingReleaseHeader, "1")
+	if strings.TrimSpace(routeID) != "" { request.Header.Set(marketModelRouteHeader, routeID) }
 	if strings.TrimSpace(userChannelID) != "" {
 		request.Header.Set(userModelChannelHeader, userChannelID)
 	} else if strings.TrimSpace(channelID) != "" {
@@ -357,10 +379,16 @@ func executeCanvasAIRequest(user model.AuthUser, endpoint string, body []byte, c
 	response := recorder.Result()
 	defer response.Body.Close()
 	payload, _ := io.ReadAll(io.LimitReader(response.Body, 32*1024*1024))
-	return payload, response.StatusCode, response.Header.Get("Content-Type"), nil
+	status := response.StatusCode
+	if upstreamStatus, parseErr := strconv.Atoi(response.Header.Get("X-Upstream-Status")); parseErr == nil && upstreamStatus > 0 { status = upstreamStatus }
+	if response.Header.Get("X-Upstream-Transport-Error") == "1" { return payload, status, response.Header.Get("Content-Type"), errors.New(firstNonEmpty(strings.TrimSpace(string(payload)), "上游连接失败")) }
+	return payload, status, response.Header.Get("Content-Type"), nil
 }
 
+func retryableMarketRouteFailure(status int, err error) bool { return err == nil && (status == http.StatusRequestTimeout || status == http.StatusTooEarly || status == http.StatusTooManyRequests || status >= http.StatusInternalServerError) }
+
 func saveFailedCanvasImageTask(task model.CanvasImageTask, message string, detail string) {
+	if err := service.ReleaseTaskFrozenCredits(task.UserID, task.Model, task.Endpoint, task.ID); err != nil { log.Printf("release failed canvas image billing id=%s err=%v", task.ID, err) }
 	task.Status = "failed"
 	task.CompletedAt = taskTime()
 	task.Error = firstNonEmpty(message, "图片生成失败")
@@ -369,6 +397,7 @@ func saveFailedCanvasImageTask(task model.CanvasImageTask, message string, detai
 }
 
 func saveFailedCanvasAudioTask(task model.CanvasAudioTask, message string, detail string) {
+	if err := service.ReleaseTaskFrozenCredits(task.UserID, task.Model, task.Endpoint, task.ID); err != nil { log.Printf("release failed canvas audio billing id=%s err=%v", task.ID, err) }
 	task.Status = "failed"
 	task.CompletedAt = taskTime()
 	task.Error = firstNonEmpty(message, "音频生成失败")

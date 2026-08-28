@@ -19,6 +19,8 @@ import (
 )
 
 const userModelChannelHeader = "X-User-Model-Channel-ID"
+const marketModelRouteHeader = "X-Market-Route-ID"
+const deferredBillingReleaseHeader = "X-Billing-Defer-Release"
 
 func selectAIRequestChannel(user model.AuthUser, modelName string, channelID string, userChannelID string) (model.ModelChannel, string, error) {
 	userChannelID = strings.TrimSpace(userChannelID)
@@ -136,7 +138,7 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		return
 	}
 	requestedModel := modelName
-	channel, upstreamModel, routed, err := service.ResolveMarketRoute(requestedModel)
+	channel, upstreamModel, routed, err := service.ResolveMarketRouteForRoute(requestedModel, strings.TrimSpace(r.Header.Get(marketModelRouteHeader)))
 	userChannelID := ""
 	if err == nil && routed {
 		body, err = replaceAIRequestModel(body, contentType, upstreamModel)
@@ -219,6 +221,7 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 			return
 		}
 	}
+	deferFailureRelease := strings.TrimSpace(r.Header.Get(deferredBillingReleaseHeader)) == "1"
 	copyAIResponse(w, request, channel, aiLogContext{
 		StartedAt:       startedAt,
 		Endpoint:        path,
@@ -236,7 +239,7 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 			}
 		}
 	}, func() {
-		if credits > 0 {
+		if credits > 0 && !deferFailureRelease {
 			if err := service.ReleaseUserCredits(user.ID, requestedModel, credits, upstreamPath, billingID); err != nil {
 				log.Printf("AI proxy release credits failed: user=%s model=%s credits=%d err=%v", user.ID, requestedModel, credits, err)
 			}
@@ -276,6 +279,8 @@ func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.
 	fail := func() { failed = true; if onFailure != nil { onFailure() } }
 	response, err := service.HTTPClientForChannel(channel).Do(request)
 	if err != nil {
+		w.Header().Set("X-Upstream-Status", "503")
+		w.Header().Set("X-Upstream-Transport-Error", "1")
 		log.Printf("AI proxy request failed: url=%s err=%v", request.URL.String(), err)
 		fail()
 		saveAIProxyLog(logContext, 0, "", err.Error())
@@ -285,6 +290,7 @@ func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.
 	defer response.Body.Close()
 
 	if response.StatusCode >= http.StatusBadRequest {
+		w.Header().Set("X-Upstream-Status", fmt.Sprint(response.StatusCode))
 		payload, _ := io.ReadAll(io.LimitReader(response.Body, 256*1024))
 		log.Printf("AI upstream error: url=%s status=%d body=%s", request.URL.String(), response.StatusCode, strings.TrimSpace(string(payload)))
 		fail()
