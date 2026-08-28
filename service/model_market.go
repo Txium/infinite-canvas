@@ -286,6 +286,12 @@ type MarketRouteCandidate struct {
 }
 
 func ResolveMarketRoutes(variantID string) ([]MarketRouteCandidate, bool, error) {
+	// Render's free filesystem is ephemeral. A generation request may be the
+	// first request after a deployment, before the model-market page has seeded
+	// the bundled catalog. Route resolution must therefore initialize it too.
+	if err := ensureDefaultModelCatalog(); err != nil {
+		return nil, false, err
+	}
 	variant, variantErr := repository.MarketVariantByID(strings.TrimSpace(variantID))
 	if errors.Is(variantErr, gorm.ErrRecordNotFound) { return nil, false, nil }
 	if variantErr != nil { return nil, false, variantErr }
