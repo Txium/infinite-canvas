@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 7,
   "sourceFile": "模型广场V1最终模型数据库_最终接入定价版.xlsx",
   "sourceSheet": "最终接入定价",
   "providerWhitelist": [
@@ -1772,7 +1772,7 @@
       "upstreamModelId": "lec-ac-seedance-900-720p",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": true
     },
     {
       "id": "route_seedance_2__02",

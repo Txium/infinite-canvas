@@ -21,6 +21,13 @@ export type LocalModelChannel = {
 export type VideoMultiPromptItem = { prompt: string; duration: string };
 export type VideoElementReference = { id: string; kind: "image" | "video" | "audio"; name: string; type: string; dataUrl?: string; url?: string; storageKey?: string; bytes?: number; width?: number; height?: number; durationMs?: number };
 export type VideoElementItem = { name: string; description: string; references: VideoElementReference[] };
+export type MarketModelOption = {
+    id: string;
+    label: string;
+    group: string;
+    capability: ModelCapability;
+    priceText: string;
+};
 
 export type AiConfig = {
     channelMode: "remote" | "local";
@@ -83,6 +90,7 @@ export type AiConfig = {
     };
     localChannels: LocalModelChannel[];
     publicChannels: Array<{ id?: string; protocol?: LocalModelChannel["protocol"]; name?: string; baseUrl?: string; models?: string[]; weight?: number; timeout?: number; enabled?: boolean; remark?: string }>;
+    marketModels: MarketModelOption[];
     syncStorageConfig: boolean;
     syncWebDAVStorageConfig: boolean;
     activeChannelId: string;
@@ -158,6 +166,7 @@ export const defaultConfig: AiConfig = {
     },
     localChannels: [],
     publicChannels: [],
+    marketModels: [],
     syncStorageConfig: false,
     syncWebDAVStorageConfig: false,
     activeChannelId: "",
@@ -170,6 +179,7 @@ export const defaultConfig: AiConfig = {
 type ConfigStore = {
     config: AiConfig;
     publicSettings: AdminPublicSettings | null;
+    marketModels: MarketModelOption[];
     isPublicSettingsLoading: boolean;
     isConfigOpen: boolean;
     shouldPromptContinue: boolean;
@@ -181,7 +191,7 @@ type ConfigStore = {
     clearPromptContinue: () => void;
 };
 
-function resolveEffectiveConfig(config: AiConfig, modelChannel: AdminPublicSettings["modelChannel"] | null, canUseRemoteChannel: boolean) {
+function resolveEffectiveConfig(config: AiConfig, modelChannel: AdminPublicSettings["modelChannel"] | null, canUseRemoteChannel: boolean, marketModels: MarketModelOption[]) {
     const channelMode = canUseRemoteChannel ? (modelChannel?.allowCustomChannel ? config.channelMode : "remote") : "local";
     if (channelMode === "local" || !modelChannel) {
         const localChannels = normalizeLocalChannels(config);
@@ -193,16 +203,28 @@ function resolveEffectiveConfig(config: AiConfig, modelChannel: AdminPublicSetti
             publicChannels: modelChannel?.channels || [],
         };
     }
-    const models = modelChannel.availableModels;
-    const textModels = filterChannelModelsByCapability(modelChannel.channels, "text", models);
-    const imageModels = filterChannelModelsByCapability(modelChannel.channels, "image", models);
-    const videoModels = filterChannelModelsByCapability(modelChannel.channels, "video", models);
-    const audioModels = filterChannelModelsByCapability(modelChannel.channels, "audio", models);
+    const routedModels = marketModels.map((item) => item.id);
+    const models = routedModels.length ? routedModels : modelChannel.availableModels;
+    const textModels = routedModels.length ? marketModels.filter((item) => item.capability === "text").map((item) => item.id) : filterChannelModelsByCapability(modelChannel.channels, "text", models);
+    const imageModels = routedModels.length ? marketModels.filter((item) => item.capability === "image").map((item) => item.id) : filterChannelModelsByCapability(modelChannel.channels, "image", models);
+    const videoModels = routedModels.length ? marketModels.filter((item) => item.capability === "video").map((item) => item.id) : filterChannelModelsByCapability(modelChannel.channels, "video", models);
+    const audioModels = routedModels.length ? marketModels.filter((item) => item.capability === "audio").map((item) => item.id) : filterChannelModelsByCapability(modelChannel.channels, "audio", models);
     const fallbackTextModel = validDefault(modelChannel.defaultTextModel, textModels);
     const fallbackModel = validDefault(modelChannel.defaultModel, textModels);
     const fallbackImageModel = validDefault(modelChannel.defaultImageModel, imageModels);
     const fallbackVideoModel = validDefault(modelChannel.defaultVideoModel, videoModels);
     const fallbackAudioModel = "";
+    const marketChannels = Array.from(new Set(marketModels.map((item) => item.group))).map((group) => ({
+        id: `market:${group}`,
+        protocol: "openai" as const,
+        name: group,
+        baseUrl: "",
+        models: marketModels.filter((item) => item.group === group).map((item) => item.id),
+        weight: 1,
+        timeout: 600,
+        enabled: true,
+        remark: "平台模型路由",
+    }));
     return {
         ...config,
         channelMode,
@@ -217,7 +239,8 @@ function resolveEffectiveConfig(config: AiConfig, modelChannel: AdminPublicSetti
         textModel: textModels.includes(config.textModel) ? config.textModel : fallbackTextModel || fallbackModel,
         audioModel: audioModels.includes(config.audioModel) ? config.audioModel : fallbackAudioModel,
         systemPrompt: modelChannel.systemPrompt,
-        publicChannels: modelChannel.channels || [],
+        publicChannels: marketChannels.length ? marketChannels : modelChannel.channels || [],
+        marketModels,
     };
 }
 
@@ -361,6 +384,7 @@ export const useConfigStore = create<ConfigStore>()(
         (set, get) => ({
             config: defaultConfig,
             publicSettings: null,
+            marketModels: [],
             isPublicSettingsLoading: false,
             isConfigOpen: false,
             shouldPromptContinue: false,
@@ -375,7 +399,21 @@ export const useConfigStore = create<ConfigStore>()(
                 if (get().isPublicSettingsLoading) return;
                 set({ isPublicSettingsLoading: true });
                 try {
-                    set({ publicSettings: await apiGet<AdminPublicSettings>("/api/settings") });
+                    const [publicSettings, market] = await Promise.all([
+                        apiGet<AdminPublicSettings>("/api/settings"),
+                        apiGet<Array<{ name: string; category: string; availableVariantIds?: string[]; variants?: Array<{ id: string; name: string; priceCents?: number; billingUnit?: string }> }>>("/api/model-market").catch(() => []),
+                    ]);
+                    const marketModels = market.flatMap((item) => {
+                        const available = new Set(item.availableVariantIds || []);
+                        return (item.variants || []).filter((variant) => available.has(variant.id)).map((variant) => ({
+                            id: variant.id,
+                            label: variant.name && variant.name !== item.name ? `${item.name} · ${variant.name}` : item.name,
+                            group: marketGroup(item.category),
+                            capability: marketCapability(item.category),
+                            priceText: typeof variant.priceCents === "number" ? `¥${(variant.priceCents / 100).toFixed(2)} ${variant.billingUnit || "/次"}` : "",
+                        }));
+                    });
+                    set({ publicSettings, marketModels });
                 } finally {
                     set({ isPublicSettingsLoading: false });
                 }
@@ -457,10 +495,22 @@ function normalizeModelList(models: string[]) {
 export function useEffectiveConfig() {
     const config = useConfigStore((state) => state.config);
     const modelChannel = useConfigStore((state) => state.publicSettings?.modelChannel || null);
+    const marketModels = useConfigStore((state) => state.marketModels);
     const token = useUserStore((state) => state.token);
     const user = useUserStore((state) => state.user);
     const canUseRemoteChannel = Boolean(token && user && (user.role === "admin" || modelChannel?.allowUserRemoteChannel === true));
-    return useMemo(() => resolveEffectiveConfig(config, modelChannel, canUseRemoteChannel), [canUseRemoteChannel, config, modelChannel]);
+    return useMemo(() => resolveEffectiveConfig(config, modelChannel, canUseRemoteChannel, marketModels), [canUseRemoteChannel, config, marketModels, modelChannel]);
+}
+
+function marketCapability(category: string): ModelCapability {
+    if (category === "llm") return "text";
+    if (category === "video" || category === "person") return "video";
+    if (category === "music" || category === "voice") return "audio";
+    return "image";
+}
+
+function marketGroup(category: string) {
+    return ({ llm: "大语言模型", image: "图片", video: "视频", person: "人物 / 数字人", music: "音乐", voice: "语音", "3d": "3D", tool: "AI 工具" } as Record<string, string>)[category] || "模型广场";
 }
 
 export function buildApiUrl(baseUrl: string, path: string) {

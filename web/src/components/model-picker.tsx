@@ -23,6 +23,11 @@ export function ModelPicker({ config, value, channelId, capability, onChange, cl
     const pickerId = useId();
     const [open, setOpen] = useState(false);
     const channelOptions = useMemo(() => {
+        if (config.channelMode === "remote" && config.marketModels.length) {
+            return config.marketModels
+                .filter((item) => !capability || item.capability === capability)
+                .map((item) => ({ key: `market::${item.id}`, channelId: `market:${item.group}`, channelName: item.group, protocol: "openai" as const, model: item.id, label: item.label, priceText: item.priceText }));
+        }
         const channels =
             config.channelMode === "remote"
                 ? config.publicChannels.map((channel) => ({ id: channel.id, protocol: channel.protocol, purpose: "general" as const, name: channel.name || "云端渠道", baseUrl: channel.baseUrl, models: channel.models }))
@@ -30,7 +35,7 @@ export function ModelPicker({ config, value, channelId, capability, onChange, cl
         const matchingChannels = capability === "image" || capability === "video"
             ? channels.filter((channel) => channel.purpose === "general" || channel.purpose === capability)
             : channels;
-        const models = matchingChannels.flatMap((channel) => (channel.models ?? []).map((model) => ({ key: `${channel.id}::${model}`, channelId: channel.id, channelName: channel.name, protocol: channel.protocol, model })));
+        const models = matchingChannels.flatMap((channel) => (channel.models ?? []).map((model) => ({ key: `${channel.id}::${model}`, channelId: channel.id, channelName: channel.name, protocol: channel.protocol, model, label: model, priceText: "" })));
         if (!capability) return models;
         return models.filter((item) => filterModelsByCapability([item.model], capability, item.protocol || "").length > 0);
     }, [capability, config]);
@@ -80,10 +85,10 @@ export function ModelPicker({ config, value, channelId, capability, onChange, cl
                 )}
                 onMouseDown={(event) => event.stopPropagation()}
                 onPointerDown={(event) => event.stopPropagation()}
-                title={current || placeholder}
+                title={currentOption?.label || current || placeholder}
             >
                 <ModelIcon model={current} />
-                <span className="canvas-model-picker-text min-w-0 flex-1 truncate text-left">{current || placeholder}</span>
+                <span className="canvas-model-picker-text min-w-0 flex-1 truncate text-left">{currentOption?.label || current || placeholder}</span>
             </SelectTrigger>
             <SelectContent
                 data-canvas-no-zoom
@@ -107,8 +112,8 @@ export function ModelPicker({ config, value, channelId, capability, onChange, cl
                                     <span>{channelModels.length} 个模型</span>
                                 </SelectLabel>
                                 {channelModels.map((option) => (
-                                    <SelectItem key={option.key} value={option.key} textValue={`${option.model} ${option.channelName}`}>
-                                        <ModelLabel model={option.model} />
+                                    <SelectItem key={option.key} value={option.key} textValue={`${option.label} ${option.channelName}`}>
+                                        <ModelLabel model={option.model} label={option.label} priceText={option.priceText} />
                                     </SelectItem>
                                 ))}
                             </SelectGroup>
@@ -124,11 +129,12 @@ export function ModelPicker({ config, value, channelId, capability, onChange, cl
     );
 }
 
-function ModelLabel({ model, channelName }: { model: string; channelName?: string }) {
+function ModelLabel({ model, label, priceText, channelName }: { model: string; label?: string; priceText?: string; channelName?: string }) {
     return (
         <span className="flex min-w-0 items-center gap-2">
             <ModelIcon model={model} />
-            <span className="truncate">{model}</span>
+            <span className="truncate">{label || model}</span>
+            {priceText ? <span className="ml-auto shrink-0 text-xs text-muted-foreground">{priceText}</span> : null}
             {channelName ? <span className="ml-auto max-w-24 shrink-0 truncate text-xs opacity-50">{channelName}</span> : null}
         </span>
     );

@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, Card, Col, Row, Space, Statistic, Typography } from "antd";
+import { Alert, Button, Card, Col, Row, Space, Statistic, Typography } from "antd";
 import { useEffect, useState } from "react";
 
 import { formatCNY } from "@/constant/credits";
@@ -17,6 +17,7 @@ export default function AdminFinancePage() {
     return <main className="p-6"><Space direction="vertical" size={16} className="w-full">
 		{readiness && !readiness.ready ? <Alert type="warning" showIcon message="平台尚未达到正式收款条件" description={<ul className="mb-0 pl-5">{readiness.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>} /> : null}
         <Alert type="info" showIcon message="当前只展示平台真实钱包流水" description="上游尚未回传实际成本，因此暂不展示利润；供应商余额也不会使用估算数字代替。" />
+        <Alert type="info" showIcon message="提现不在画布里执行" description="用户付款会进入你配置的微信或支付宝商户账户；可提现金额、手续费和结算时间以对应商户后台为准。画布后台负责记录充值、消费、退款和用户未消费余额，不能把累计消费直接当作可提现利润。" action={<Button href="/admin/model-routing">调整模型售价</Button>} />
         <Typography.Title level={4} className="!mb-0">今日</Typography.Title>
         <Row gutter={[16,16]}>
             <Col xs={24} md={12} xl={6}><Card><Statistic title="充值到账" value={formatCNY(today?.rechargeCents || 0)} /></Card></Col>
