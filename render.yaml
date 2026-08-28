@@ -32,3 +32,5 @@ services:
         value: https://infinite-canvas-9353.onrender.com
       - key: MANAGED_PLATFORM_MODE
         value: true
+      - key: GENERATION_REQUESTS_PER_MINUTE
+        value: 30

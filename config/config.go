@@ -28,6 +28,7 @@ type Config struct {
 	EpayMerchantID      string `env:"EPAY_MERCHANT_ID"`
 	EpayMerchantKey     string `env:"EPAY_MERCHANT_KEY"`
 	ManagedPlatformMode bool   `env:"MANAGED_PLATFORM_MODE" envDefault:"true"`
+	GenerationRPM      int    `env:"GENERATION_REQUESTS_PER_MINUTE" envDefault:"30"`
 }
 
 var Cfg Config
