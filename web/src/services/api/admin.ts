@@ -247,7 +247,18 @@ export type AdminPublicSettings = {
         mode: string;
         allowUserProvider: boolean;
     };
+    payment: {
+        ready: boolean;
+        methods: string[];
+        message: string;
+    };
+    runtime: {
+        managedPlatformMode: boolean;
+    };
 };
+
+export type AdminRuntimeReadiness = { ready: boolean; databaseDriver: string; databasePersistent: boolean; paymentConfigured: boolean; managedPlatform: boolean; issues: string[] };
+export async function fetchAdminRuntimeReadiness(token: string) { return apiGet<AdminRuntimeReadiness>("/api/admin/runtime-readiness", undefined, token); }
 
 export type AdminStorageProvider = {
     id: string;

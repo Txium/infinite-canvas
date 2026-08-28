@@ -32,6 +32,10 @@ func AdminSettings(w http.ResponseWriter, r *http.Request) {
 	OK(w, settings)
 }
 
+func AdminRuntimeReadiness(w http.ResponseWriter, r *http.Request) {
+	OK(w, service.RuntimeReadiness())
+}
+
 func AdminSaveSettings(w http.ResponseWriter, r *http.Request) {
 	var settings model.Settings
 	_ = json.NewDecoder(r.Body).Decode(&settings)

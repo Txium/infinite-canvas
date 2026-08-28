@@ -43,6 +43,8 @@ const emptySettings: AdminSettings = {
         },
         auth: { allowRegister: true, linuxDo: { enabled: false } },
         storage: { mode: "local_indexeddb", allowUserProvider: false },
+		payment: { ready: false, methods: ["wxpay", "alipay"], message: "在线支付尚未配置" },
+		runtime: { managedPlatformMode: true },
     },
     private: { channels: [], promptSync: { enabled: true, cron: "0 0 * * *" }, aiLog: { localDirectReportEnabled: false, cleanup: { enabled: false, retentionDays: 14, cron: "0 3 * * *" } }, auth: { linuxDo: { clientId: "", clientSecret: "" } }, storage: { mode: "local_indexeddb", allowUserProvider: false, allowUserGlobalProvider: true, providers: [], roundRobinCursor: 0, capacityCheck: { enabled: false, cron: "0 */6 * * *" }, capacityLimitBytes: 9 * 1024 * 1024 * 1024 } },
 };
@@ -1021,6 +1023,14 @@ function normalizePublicSetting(setting: Partial<AdminSettings["public"]> = {}):
             mode: setting.storage?.mode || "local_indexeddb",
             allowUserProvider: setting.storage?.allowUserProvider === true,
         },
+		payment: {
+			ready: setting.payment?.ready === true,
+			methods: setting.payment?.methods || ["wxpay", "alipay"],
+			message: setting.payment?.message || "在线支付尚未配置",
+		},
+		runtime: {
+			managedPlatformMode: setting.runtime?.managedPlatformMode !== false,
+		},
     };
 }
 

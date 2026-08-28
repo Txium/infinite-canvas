@@ -30,3 +30,5 @@ services:
         value: data/infinite-canvas.db
       - key: PUBLIC_BASE_URL
         value: https://infinite-canvas-9353.onrender.com
+      - key: MANAGED_PLATFORM_MODE
+        value: true

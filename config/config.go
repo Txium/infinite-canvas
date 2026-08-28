@@ -27,6 +27,7 @@ type Config struct {
 	EpayAPIURL          string `env:"EPAY_API_URL"`
 	EpayMerchantID      string `env:"EPAY_MERCHANT_ID"`
 	EpayMerchantKey     string `env:"EPAY_MERCHANT_KEY"`
+	ManagedPlatformMode bool   `env:"MANAGED_PLATFORM_MODE" envDefault:"true"`
 }
 
 var Cfg Config
@@ -114,4 +115,47 @@ func randomSecret() (string, error) {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+// PaymentConfigured reports whether the server has all credentials required to
+// create and verify an online payment order. It never exposes those credentials.
+func PaymentConfigured() bool {
+	return strings.TrimSpace(Cfg.EpayAPIURL) != "" &&
+		strings.TrimSpace(Cfg.EpayMerchantID) != "" &&
+		strings.TrimSpace(Cfg.EpayMerchantKey) != "" &&
+		strings.TrimSpace(Cfg.PublicBaseURL) != ""
+}
+
+// DatabasePersistent is deliberately conservative on Render: a SQLite file is
+// considered durable only when it is placed under a mounted persistent-disk
+// path. Managed databases are durable by definition.
+func DatabasePersistent() bool {
+	driver := strings.ToLower(strings.TrimSpace(Cfg.StorageDriver))
+	if driver != "" && driver != "sqlite" {
+		return true
+	}
+	if strings.TrimSpace(os.Getenv("RENDER_SERVICE_ID")) == "" {
+		return true
+	}
+	dsn := strings.TrimSpace(Cfg.DatabaseDSN)
+	if index := strings.Index(dsn, "?"); index >= 0 {
+		dsn = dsn[:index]
+	}
+	if !filepath.IsAbs(dsn) {
+		return false
+	}
+	root := strings.TrimSpace(os.Getenv("PERSISTENT_DISK_PATH"))
+	if root == "" {
+		root = "/var/data"
+	}
+	path, err := filepath.Abs(dsn)
+	if err != nil {
+		return false
+	}
+	rootPath, err := filepath.Abs(root)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(rootPath, path)
+	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tigerowo/infinite-canvas/config"
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/repository"
 )
@@ -27,7 +28,45 @@ func PublicSettings() (model.PublicSetting, error) {
 	if len(settings.Public.ModelChannel.AvailableModels) == 0 {
 		settings.Public.ModelChannel.AvailableModels = enabledChannelModels(settings.Private.Channels)
 	}
+	settings.Public.Payment = publicPaymentSetting()
+	settings.Public.Runtime.ManagedPlatformMode = config.Cfg.ManagedPlatformMode
 	return settings.Public, err
+}
+
+func RuntimeReadiness() model.RuntimeReadiness {
+	driver := strings.ToLower(strings.TrimSpace(config.Cfg.StorageDriver))
+	if driver == "" { driver = "sqlite" }
+	result := model.RuntimeReadiness{
+		DatabaseDriver: driver,
+		DatabasePersistent: config.DatabasePersistent(),
+		PaymentConfigured: config.PaymentConfigured(),
+		ManagedPlatform: config.Cfg.ManagedPlatformMode,
+		Issues: []string{},
+	}
+	if !result.DatabasePersistent {
+		result.Issues = append(result.Issues, "当前数据库位于临时文件系统，重启或部署可能丢失账号、余额和订单")
+	}
+	if !result.PaymentConfigured {
+		result.Issues = append(result.Issues, "微信/支付宝支付商户尚未配置")
+	}
+	if !result.ManagedPlatform {
+		result.Issues = append(result.Issues, "平台托管模型模式未开启")
+	}
+	result.Ready = len(result.Issues) == 0
+	return result
+}
+
+func publicPaymentSetting() model.PublicPaymentSetting {
+	result := model.PublicPaymentSetting{Ready: config.PaymentConfigured() && config.DatabasePersistent(), Methods: []string{"wxpay", "alipay"}}
+	switch {
+	case !config.DatabasePersistent():
+		result.Message = "平台正在升级持久化数据库，暂不能充值"
+	case !config.PaymentConfigured():
+		result.Message = "微信/支付宝商户尚未配置，暂不能充值"
+	default:
+		result.Message = "付款成功后余额自动到账"
+	}
+	return result
 }
 
 func UserCanUseRemoteModelChannel(user model.AuthUser) bool {
@@ -175,13 +214,19 @@ func normalizePublicSettingWithChannels(setting model.PublicSetting, channels []
 			setting.ModelChannel.ModelCosts[i].Credits = 0
 		}
 	}
-	if setting.ModelChannel.AllowCustomChannel == nil {
-		enabled := true
-		setting.ModelChannel.AllowCustomChannel = &enabled
-	}
-	if setting.ModelChannel.AllowUserRemoteChannel == nil {
-		enabled := false
+	if config.Cfg.ManagedPlatformMode {
+		disabled, enabled := false, true
+		setting.ModelChannel.AllowCustomChannel = &disabled
 		setting.ModelChannel.AllowUserRemoteChannel = &enabled
+	} else {
+		if setting.ModelChannel.AllowCustomChannel == nil {
+			enabled := true
+			setting.ModelChannel.AllowCustomChannel = &enabled
+		}
+		if setting.ModelChannel.AllowUserRemoteChannel == nil {
+			enabled := false
+			setting.ModelChannel.AllowUserRemoteChannel = &enabled
+		}
 	}
 	if setting.Auth.AllowRegister == nil {
 		enabled := true

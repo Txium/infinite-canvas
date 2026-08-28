@@ -143,6 +143,7 @@ func New() *gin.Engine {
 	admin.GET("/generation-tasks", gin.WrapF(handler.AdminGenerationTasks))
 	admin.DELETE("/ai-logs", gin.WrapF(handler.AdminDeleteAICallLogs))
 	admin.GET("/settings", gin.WrapF(handler.AdminSettings))
+	admin.GET("/runtime-readiness", gin.WrapF(handler.AdminRuntimeReadiness))
 	admin.POST("/settings", gin.WrapF(handler.AdminSaveSettings))
 	admin.POST("/settings/channel-models", gin.WrapF(handler.AdminChannelModels))
 	admin.POST("/settings/channel-test", gin.WrapF(handler.AdminTestChannelModel))

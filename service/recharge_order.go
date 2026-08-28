@@ -17,8 +17,11 @@ import (
 func CreateRechargeOrder(user model.AuthUser, amountCents int, paymentMethod, paymentNote string) (model.RechargePayment, error) {
 	if amountCents < 100 { return model.RechargePayment{}, safeMessageError{message: "充值金额不能低于 1 元"} }
 	if amountCents > 10000000 { return model.RechargePayment{}, safeMessageError{message: "充值金额超过限制"} }
-	if strings.TrimSpace(config.Cfg.EpayAPIURL) == "" || strings.TrimSpace(config.Cfg.EpayMerchantID) == "" || strings.TrimSpace(config.Cfg.EpayMerchantKey) == "" || strings.TrimSpace(config.Cfg.PublicBaseURL) == "" { return model.RechargePayment{}, safeMessageError{message: "在线支付尚未配置，请管理员先配置支付商户"} }
-	order := model.RechargeOrder{ID: newID("recharge"), UserID: user.ID, AmountCents: amountCents, Credits: amountCents, Status: model.RechargeOrderPending, PaymentMethod: strings.TrimSpace(paymentMethod), PaymentNote: strings.TrimSpace(paymentNote), CreatedAt: now(), UpdatedAt: now()}
+	paymentMethod = strings.TrimSpace(paymentMethod)
+	if paymentMethod != "wxpay" && paymentMethod != "alipay" { return model.RechargePayment{}, safeMessageError{message: "不支持的付款方式"} }
+	if !config.DatabasePersistent() { return model.RechargePayment{}, safeMessageError{message: "平台数据库尚未启用持久化，为保护资金安全暂不能充值"} }
+	if !config.PaymentConfigured() { return model.RechargePayment{}, safeMessageError{message: "在线支付尚未配置，请管理员先配置支付商户"} }
+	order := model.RechargeOrder{ID: newID("recharge"), UserID: user.ID, AmountCents: amountCents, Credits: amountCents, Status: model.RechargeOrderPending, PaymentMethod: paymentMethod, PaymentNote: strings.TrimSpace(paymentNote), CreatedAt: now(), UpdatedAt: now()}
 	saved, err := repository.SaveRechargeOrder(order)
 	if err != nil { return model.RechargePayment{}, err }
 	params := map[string]string{"pid": config.Cfg.EpayMerchantID, "type": paymentMethod, "out_trade_no": saved.ID, "notify_url": strings.TrimRight(config.Cfg.PublicBaseURL, "/") + "/api/payments/epay/notify", "return_url": strings.TrimRight(config.Cfg.PublicBaseURL, "/") + "/wallet?payment=return", "name": "灵感画布余额充值", "money": fmt.Sprintf("%.2f", float64(amountCents)/100), "sign_type": "MD5"}

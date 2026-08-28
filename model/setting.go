@@ -72,6 +72,27 @@ type PublicSetting struct {
 	ModelChannel PublicModelChannelSetting `json:"modelChannel"`
 	Auth         PublicAuthSetting         `json:"auth"`
 	Storage      PublicStorageSetting      `json:"storage"`
+	Payment      PublicPaymentSetting      `json:"payment"`
+	Runtime      PublicRuntimeSetting      `json:"runtime"`
+}
+
+type PublicPaymentSetting struct {
+	Ready   bool     `json:"ready"`
+	Methods []string `json:"methods"`
+	Message string   `json:"message"`
+}
+
+type PublicRuntimeSetting struct {
+	ManagedPlatformMode bool `json:"managedPlatformMode"`
+}
+
+type RuntimeReadiness struct {
+	Ready              bool     `json:"ready"`
+	DatabaseDriver     string   `json:"databaseDriver"`
+	DatabasePersistent bool     `json:"databasePersistent"`
+	PaymentConfigured  bool     `json:"paymentConfigured"`
+	ManagedPlatform    bool     `json:"managedPlatform"`
+	Issues             []string `json:"issues"`
 }
 
 type PublicStorageSetting struct {

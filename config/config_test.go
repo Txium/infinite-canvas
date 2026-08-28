@@ -31,3 +31,33 @@ func TestNormalizeDockerSQLiteDSNLeavesLocalPathWithoutMountedDataDir(t *testing
 		t.Fatalf("DatabaseDSN = %q, want relative local path", Cfg.DatabaseDSN)
 	}
 }
+
+func TestDatabasePersistentRejectsRenderEphemeralSQLite(t *testing.T) {
+	t.Setenv("RENDER_SERVICE_ID", "srv-test")
+	t.Setenv("PERSISTENT_DISK_PATH", filepath.Join(t.TempDir(), "persistent"))
+	Cfg = Config{StorageDriver: "sqlite", DatabaseDSN: "data/infinite-canvas.db"}
+	if DatabasePersistent() {
+		t.Fatal("relative Render SQLite path must be treated as ephemeral")
+	}
+}
+
+func TestDatabasePersistentAcceptsMountedRenderSQLite(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "persistent")
+	t.Setenv("RENDER_SERVICE_ID", "srv-test")
+	t.Setenv("PERSISTENT_DISK_PATH", root)
+	Cfg = Config{StorageDriver: "sqlite", DatabaseDSN: filepath.Join(root, "infinite-canvas.db")}
+	if !DatabasePersistent() {
+		t.Fatal("SQLite under the configured persistent disk must be treated as durable")
+	}
+}
+
+func TestPaymentConfiguredRequiresAllSecrets(t *testing.T) {
+	Cfg = Config{EpayAPIURL: "https://pay.example.com", EpayMerchantID: "merchant", EpayMerchantKey: "secret", PublicBaseURL: "https://canvas.example.com"}
+	if !PaymentConfigured() {
+		t.Fatal("complete payment configuration should be ready")
+	}
+	Cfg.EpayMerchantKey = ""
+	if PaymentConfigured() {
+		t.Fatal("payment without merchant key must not be ready")
+	}
+}
