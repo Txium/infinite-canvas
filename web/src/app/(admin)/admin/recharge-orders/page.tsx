@@ -15,14 +15,14 @@ export default function AdminRechargeOrdersPage() {
     useEffect(() => { void load(); }, [token]);
     const review = (item: RechargeOrder, status: "approved" | "rejected") => modal.confirm({
         title: status === "approved" ? "确认充值到账" : "拒绝充值申请",
-        content: status === "approved" ? `将为 ${item.username || item.userId} 增加 ${item.credits} 算力点，此操作不可重复。` : "订单将标记为已拒绝。",
+        content: status === "approved" ? `将为 ${item.username || item.userId} 增加 ¥${(item.credits / 100).toFixed(2)} 可用余额，此操作不可重复。` : "订单将标记为已拒绝。",
         onOk: async () => { await reviewAdminRechargeOrder(token!, item.id, status); message.success("审核完成"); await load(); },
     });
     return <div className="p-6"><Card title="充值订单" extra={<Space><Input.Search allowClear placeholder="用户/订单/状态" onSearch={(value) => { setKeyword(value); setTimeout(() => void load(), 0); }} /><Button onClick={() => void load()}>刷新</Button></Space>}>
         <Table rowKey="id" dataSource={items} columns={[
             { title: "用户", render: (_: unknown, item: RechargeOrder) => item.username || item.userId },
             { title: "金额", dataIndex: "amountCents", render: (value: number) => `¥${(value / 100).toFixed(2)}` },
-            { title: "算力点", dataIndex: "credits" },
+            { title: "到账余额", dataIndex: "credits", render: (value: number) => `¥${(value / 100).toFixed(2)}` },
             { title: "方式", dataIndex: "paymentMethod" },
             { title: "付款备注", dataIndex: "paymentNote" },
             { title: "状态", dataIndex: "status", render: (value: string) => <Tag color={value === "approved" ? "success" : value === "rejected" ? "error" : "processing"}>{value}</Tag> },

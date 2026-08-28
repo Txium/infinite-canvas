@@ -1,6 +1,6 @@
 "use client";
 
-import { ApiOutlined, AuditOutlined, FileTextOutlined, HomeOutlined, LogoutOutlined, PictureOutlined, SettingOutlined, ThunderboltOutlined, TransactionOutlined, UserOutlined } from "@ant-design/icons";
+import { ApiOutlined, AuditOutlined, DollarOutlined, FileTextOutlined, HomeOutlined, LogoutOutlined, PictureOutlined, SettingOutlined, ThunderboltOutlined, TransactionOutlined, UserOutlined } from "@ant-design/icons";
 import { Button, Flex, Layout, Menu, Typography, theme } from "antd";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -12,6 +12,7 @@ import { adminLayoutStyle } from "@/lib/app-theme";
 import { useUserStore } from "@/stores/use-user-store";
 
 const adminMenus = [
+    { key: "/admin/finance", icon: <DollarOutlined />, label: "财务中心" },
     { key: "/admin/users", icon: <UserOutlined />, label: "用户管理" },
     { key: "/admin/credit-logs", icon: <TransactionOutlined />, label: "钱包流水" },
     { key: "/admin/recharge-orders", icon: <TransactionOutlined />, label: "充值订单" },
@@ -31,7 +32,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     const user = useUserStore((state) => state.user);
     const isReady = useUserStore((state) => state.isReady);
     const logout = useUserStore((state) => state.clearSession);
-    const activeKey = pathname.startsWith("/admin/settings")
+    const activeKey = pathname.startsWith("/admin/finance")
+        ? "/admin/finance"
+        : pathname.startsWith("/admin/settings")
         ? "/admin/settings"
         : pathname.startsWith("/admin/model-routing")
           ? "/admin/model-routing"
@@ -50,7 +53,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               : pathname.startsWith("/admin/users")
                 ? "/admin/users"
                 : "";
-    const pageTitle = pathname.startsWith("/admin/model-routing") ? "模型与路由" : pathname.startsWith("/admin/settings") ? "系统设置" : pathname.startsWith("/admin/assets") ? "素材库管理" : pathname.startsWith("/admin/prompts") ? "提示词管理" : pathname.startsWith("/admin/ai-logs") ? "AI 日志" : pathname.startsWith("/admin/generation-tasks") ? "生成任务" : pathname.startsWith("/admin/recharge-orders") ? "充值订单" : pathname.startsWith("/admin/credit-logs") ? "钱包流水" : "用户管理";
+    const pageTitle = pathname.startsWith("/admin/finance") ? "财务中心" : pathname.startsWith("/admin/model-routing") ? "模型与路由" : pathname.startsWith("/admin/settings") ? "系统设置" : pathname.startsWith("/admin/assets") ? "素材库管理" : pathname.startsWith("/admin/prompts") ? "提示词管理" : pathname.startsWith("/admin/ai-logs") ? "AI 日志" : pathname.startsWith("/admin/generation-tasks") ? "生成任务" : pathname.startsWith("/admin/recharge-orders") ? "充值订单" : pathname.startsWith("/admin/credit-logs") ? "钱包流水" : "用户管理";
 
     useEffect(() => {
         if (!isReady) return;

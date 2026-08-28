@@ -90,6 +90,10 @@ export async function fetchAdminCreditLogs(token: string, query: AdminUserQuery 
     return apiGet<AdminCreditLogListResponse>("/api/admin/credit-logs", compactApiParams(query), token);
 }
 
+export type FinancePeriodSummary = { rechargeCents: number; revenueCents: number; releasedCents: number; settledTasks: number; releasedTasks: number };
+export type AdminFinanceSummary = { userCount: number; availableBalanceCents: number; frozenBalanceCents: number; allTime: FinancePeriodSummary; today: FinancePeriodSummary; upstreamCostReady: boolean };
+export async function fetchAdminFinanceSummary(token: string) { return apiGet<AdminFinanceSummary>("/api/admin/finance-summary", undefined, token); }
+
 export async function saveAdminCreditLog(token: string, log: Partial<AdminCreditLog>) {
     return apiPost<AdminCreditLog>("/api/admin/credit-logs", log, token);
 }

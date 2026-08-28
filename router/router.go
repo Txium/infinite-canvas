@@ -134,6 +134,7 @@ func New() *gin.Engine {
 		handler.AdminDeleteUser(c.Writer, c.Request, c.Param("id"))
 	})
 	admin.GET("/credit-logs", gin.WrapF(handler.AdminCreditLogs))
+	admin.GET("/finance-summary", gin.WrapF(handler.AdminFinanceSummary))
 	admin.GET("/recharge-orders", gin.WrapF(handler.AdminRechargeOrders))
 	admin.POST("/recharge-orders/:id/review", func(c *gin.Context) {
 		handler.AdminReviewRechargeOrder(c.Writer, c.Request, c.Param("id"))
