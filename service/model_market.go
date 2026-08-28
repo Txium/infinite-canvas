@@ -5,7 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -99,6 +104,70 @@ func AdminModelProviders() ([]model.ModelProvider, error) {
 func AdminModelRoutes() ([]model.ModelRoute, error) { if err := ensureDefaultModelCatalog(); err != nil { return nil, err }; return repository.ListModelRoutes() }
 func AdminModelVariants() ([]model.ModelVariant, error) { if err := ensureDefaultModelCatalog(); err != nil { return nil, err }; models, err := repository.ListAllMarketModels(); if err != nil { return nil, err }; ids := make([]string, 0, len(models)); for _, item := range models { ids = append(ids, item.ID) }; return repository.ListModelVariants(ids, false) }
 func AdminMarketModels() ([]model.MarketModel, error) { if err := ensureDefaultModelCatalog(); err != nil { return nil, err }; return repository.ListAllMarketModels() }
+
+type ModelProviderConnectionTest struct {
+	OK          bool     `json:"ok"`
+	ProviderID  string   `json:"providerId"`
+	Message     string   `json:"message"`
+	BalanceText string   `json:"balanceText,omitempty"`
+	Models      []string `json:"models,omitempty"`
+}
+
+// TestModelProviderConnection performs an authenticated, non-generation
+// request.  It verifies that the server-side secret reaches the intended
+// upstream without spending inference balance.
+func TestModelProviderConnection(id string) (ModelProviderConnectionTest, error) {
+	provider, err := repository.SavedModelProviderByID(strings.TrimSpace(id))
+	if err != nil { return ModelProviderConnectionTest{}, errors.New("中转站不存在") }
+	provider = withProviderSecret(provider)
+	if !modelProviderReady(provider) { return ModelProviderConnectionTest{}, errors.New("请先启用中转站并配置 Base URL 与服务器 Secret") }
+	channel := model.ModelChannel{ID:provider.ID, Protocol:"openai", Name:provider.Name, BaseURL:provider.BaseURL, APIKey:provider.APIKey, Timeout:60, Enabled:true}
+	result := ModelProviderConnectionTest{OK:true, ProviderID:provider.ID, Message:"服务器 Key 与 Base URL 连接正常"}
+	var requestURL string
+	switch provider.Code {
+	case "wavespeed":
+		requestURL = BuildModelChannelURL(channel, "/balance")
+	case "seedance_nz":
+		requestURL, err = providerOriginURL(provider.BaseURL, "/api/usage/wallet/")
+	default:
+		requestURL = BuildModelChannelURL(channel, "/models")
+	}
+	if err != nil { return ModelProviderConnectionTest{}, err }
+	request, err := http.NewRequest(http.MethodGet, requestURL, nil)
+	if err != nil { return ModelProviderConnectionTest{}, err }
+	SetModelChannelAuthHeader(request, channel)
+	response, err := HTTPClientForChannel(channel).Do(request)
+	if err != nil { return ModelProviderConnectionTest{}, safeMessageError{message:"连接失败：上游接口无响应或网络不可达"} }
+	defer response.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(response.Body, 512*1024))
+	if response.StatusCode >= http.StatusBadRequest { return ModelProviderConnectionTest{}, readAdminChannelError(body, response.StatusCode, "连接测试失败") }
+	if provider.Code == "wavespeed" {
+		var payload struct { Code int `json:"code"`; Data struct { Balance float64 `json:"balance"` } `json:"data"` }
+		if json.Unmarshal(body, &payload) != nil || payload.Code != 200 { return ModelProviderConnectionTest{}, errors.New("WaveSpeed 余额响应无法解析") }
+		result.BalanceText = "$" + strconv.FormatFloat(payload.Data.Balance, 'f', 2, 64) + " USD"
+		result.Message = "连接正常；已读取美元余额（不会写入人民币余额）"
+		return result, nil
+	}
+	if provider.Code == "302" || provider.Code == "lec" {
+		var payload struct { Data []struct { ID string `json:"id"` } `json:"data"` }
+		if json.Unmarshal(body, &payload) != nil { return ModelProviderConnectionTest{}, errors.New("模型列表响应无法解析") }
+		for _, item := range payload.Data { if name := strings.TrimSpace(item.ID); name != "" { result.Models = append(result.Models, name) } }
+		sort.Strings(result.Models)
+		result.Message = fmt.Sprintf("连接正常；上游返回 %d 个模型", len(result.Models))
+		return result, nil
+	}
+	// seedance.nz wallet schemas may evolve. A successful authenticated HTTP
+	// response is sufficient for connectivity; never guess its currency/value.
+	result.Message = "连接正常；钱包接口鉴权通过（余额币种未自动换算）"
+	return result, nil
+}
+
+func providerOriginURL(baseURL string, path string) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(baseURL))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" { return "", errors.New("Base URL 无效") }
+	parsed.Path, parsed.RawPath, parsed.RawQuery, parsed.Fragment = path, "", "", ""
+	return parsed.String(), nil
+}
 
 func SaveModelProvider(item model.ModelProvider) (model.ModelProvider, error) {
 	allowed := map[string]bool{"302":true,"wavespeed":true,"lec":true,"seedance_nz":true}

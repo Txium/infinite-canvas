@@ -10,6 +10,7 @@ import (
 
 func ModelMarket(w http.ResponseWriter, r *http.Request) { items, err := service.ListMarketModels(r.URL.Query().Get("category"), r.URL.Query().Get("featured") == "true"); if err != nil { FailError(w, err); return }; OK(w, items) }
 func AdminModelProviders(w http.ResponseWriter, r *http.Request) { items, err := service.AdminModelProviders(); if err != nil { FailError(w, err); return }; OK(w, items) }
+func AdminTestModelProvider(w http.ResponseWriter, r *http.Request, id string) { item, err := service.TestModelProviderConnection(id); if err != nil { FailError(w, err); return }; OK(w, item) }
 func AdminModelRoutes(w http.ResponseWriter, r *http.Request) { items, err := service.AdminModelRoutes(); if err != nil { FailError(w, err); return }; OK(w, items) }
 func AdminModelVariants(w http.ResponseWriter, r *http.Request) { items, err := service.AdminModelVariants(); if err != nil { FailError(w, err); return }; OK(w, items) }
 func AdminMarketModels(w http.ResponseWriter, r *http.Request) { items, err := service.AdminMarketModels(); if err != nil { FailError(w, err); return }; OK(w, items) }

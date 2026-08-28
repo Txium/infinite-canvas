@@ -148,6 +148,9 @@ func New() *gin.Engine {
 	admin.POST("/settings/channel-test", gin.WrapF(handler.AdminTestChannelModel))
 	admin.GET("/model-providers", gin.WrapF(handler.AdminModelProviders))
 	admin.POST("/model-providers", gin.WrapF(handler.AdminSaveModelProvider))
+	admin.POST("/model-providers/:id/test", func(c *gin.Context) {
+		handler.AdminTestModelProvider(c.Writer, c.Request, c.Param("id"))
+	})
 	admin.GET("/model-routes", gin.WrapF(handler.AdminModelRoutes))
 	admin.GET("/model-readiness", gin.WrapF(handler.AdminModelReadiness))
 	admin.POST("/model-routes", gin.WrapF(handler.AdminSaveModelRoute))

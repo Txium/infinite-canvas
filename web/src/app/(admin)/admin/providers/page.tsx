@@ -4,7 +4,7 @@ import { App, Button, Card, Form, Input, InputNumber, Modal, Space, Switch, Tabl
 import dayjs from "dayjs";
 import { useEffect, useState } from "react";
 
-import { fetchAdminModelProviders, saveAdminModelProvider, type AdminModelProvider } from "@/services/api/admin";
+import { fetchAdminModelProviders, saveAdminModelProvider, testAdminModelProvider, type AdminModelProvider } from "@/services/api/admin";
 import { useUserStore } from "@/stores/use-user-store";
 
 type ProviderForm = Omit<AdminModelProvider, "balanceCents" | "warningBalanceCents" | "criticalBalanceCents" | "lowBalanceCents"> & {
@@ -31,6 +31,7 @@ export default function AdminProvidersPage() {
     const token = useUserStore((state) => state.token);
     const [items, setItems] = useState<AdminModelProvider[]>([]);
     const [editing, setEditing] = useState<AdminModelProvider | null>(null);
+    const [testingID, setTestingID] = useState("");
     const [form] = Form.useForm<ProviderForm>();
     const load = async () => { if (token) setItems(await fetchAdminModelProviders(token)); };
     useEffect(() => { void load(); }, [token]);
@@ -60,6 +61,16 @@ export default function AdminProvidersPage() {
         setEditing(null);
         await load();
     };
+    const testConnection = async (item: AdminModelProvider) => {
+        if (!token) return;
+        setTestingID(item.id);
+        try {
+            const result = await testAdminModelProvider(token, item.id);
+            message.success([result.message, result.balanceText].filter(Boolean).join("；"));
+        } finally {
+            setTestingID("");
+        }
+    };
     return <div className="p-6">
         <Card title="四家上游中转站" extra={<Button onClick={() => void load()}>刷新</Button>}>
             <Typography.Paragraph type="secondary">API Key 只保存在 Render Secret。余额为管理员从上游核实后的手工记录；未记录时明确提示登录上游查看，不使用估算值。</Typography.Paragraph>
@@ -70,7 +81,7 @@ export default function AdminProvidersPage() {
                 { title: "记录余额", render: (_: unknown, item: AdminModelProvider) => <Space direction="vertical" size={0}><Typography.Text strong>{yuan(item.balanceCents)}</Typography.Text><Typography.Text type="secondary">{item.balanceCheckedAt ? dayjs(item.balanceCheckedAt).format("YYYY-MM-DD HH:mm") : "需要登录上游查看"}</Typography.Text></Space> },
                 { title: "预警", render: (_: unknown, item: AdminModelProvider) => { const meta = statusMeta[item.balanceStatus] || statusMeta.unknown; return <Space direction="vertical" size={0}><Tag color={meta.color}>{meta.label}</Tag><Typography.Text type="secondary">{item.balanceMessage || "需要登录上游查看"}</Typography.Text></Space>; } },
                 { title: "状态", render: (_: unknown, item: AdminModelProvider) => <Tag color={item.ready ? "success" : "default"}>{item.ready ? "可路由" : "不可路由"}</Tag> },
-                { title: "操作", render: (_: unknown, item: AdminModelProvider) => <Button size="small" onClick={() => open(item)}>配置 / 更新余额</Button> },
+                { title: "操作", render: (_: unknown, item: AdminModelProvider) => <Space><Button size="small" loading={testingID === item.id} disabled={!item.ready} onClick={() => void testConnection(item)}>测试连接</Button><Button size="small" onClick={() => open(item)}>配置 / 更新余额</Button></Space> },
             ]} />
         </Card>
         <Modal title={editing ? `配置 ${editing.name}` : "配置中转站"} open={!!editing} onCancel={() => setEditing(null)} onOk={() => void save()} width={620}>

@@ -676,8 +676,11 @@ func isCogVideoX3Model(modelName string) bool {
 
 func isArkSeedanceVideo(baseURL string, modelName string) bool {
 	base := strings.ToLower(baseURL)
-	model := strings.ToLower(modelName)
-	return strings.Contains(model, "seedance") || strings.Contains(model, "doubao-seedance") || strings.Contains(base, "/api/plan/v3")
+	// Seedance is exposed by several OpenAI-compatible relays (for example
+	// seedance.nz and LEC) through /v1/videos.  Only Volcengine Ark uses the
+	// /contents/generations/tasks shape, so the model name alone must never
+	// select the Ark adapter.
+	return strings.Contains(base, "/api/plan/v3") || strings.Contains(base, "ark.cn-beijing.volces.com")
 }
 
 func isAgnesVideoModel(modelName string) bool {

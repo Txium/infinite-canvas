@@ -7,6 +7,8 @@ export type AdminModelVariant = { id: string; modelId: string; name: string; pro
 export type AdminMarketModel = { id: string; name: string; category: "llm" | "image" | "video" | "person" | "music" | "voice" | "3d" | "tool"; icon: string; description: string; modes: string[]; resolutions: string[]; durations: string[]; ratios: string[]; maxReferenceImages: number; supportsPerson: boolean; supportsFirstLastFrame: boolean; supportsAudioReference: boolean; speed: string; featured: boolean; status: "normal" | "busy" | "maintenance"; enabled: boolean; sort: number };
 export async function fetchAdminModelProviders(token: string) { return apiGet<AdminModelProvider[]>("/api/admin/model-providers", undefined, token); }
 export async function saveAdminModelProvider(token: string, item: Partial<AdminModelProvider>) { return apiPost<AdminModelProvider>("/api/admin/model-providers", item, token); }
+export type AdminModelProviderTest = { ok: boolean; providerId: string; message: string; balanceText?: string; models?: string[] };
+export async function testAdminModelProvider(token: string, id: string) { return apiPost<AdminModelProviderTest>(`/api/admin/model-providers/${encodeURIComponent(id)}/test`, {}, token); }
 export async function fetchAdminModelRoutes(token: string) { return apiGet<AdminModelRoute[]>("/api/admin/model-routes", undefined, token); }
 export async function saveAdminModelRoute(token: string, item: Partial<AdminModelRoute>) { return apiPost<AdminModelRoute>("/api/admin/model-routes", item, token); }
 export async function fetchAdminModelVariants(token: string) { return apiGet<AdminModelVariant[]>("/api/admin/model-variants", undefined, token); }
