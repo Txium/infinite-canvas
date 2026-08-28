@@ -4,12 +4,15 @@ import type { Prompt, PromptListResponse } from "@/services/api/prompts";
 export type AdminModelProvider = { id: string; name: string; code: string; baseUrl: string; hasApiKey: boolean; enabled: boolean; priority: number; timeout: number; balanceCents: number | null; balanceCheckedAt: string; warningBalanceCents: number; criticalBalanceCents: number; lowBalanceCents: number; ready: boolean; routeCount: number; enabledRouteCount: number; balanceStatus: "disabled" | "not_ready" | "unknown" | "very_low" | "critical" | "warning" | "normal"; balanceMessage: string; remark: string };
 export type AdminModelRoute = { id: string; modelId: string; variantId: string; providerId: string; upstreamModelId: string; protocol: string; priority: number; enabled: boolean };
 export type AdminModelVariant = { id: string; modelId: string; name: string; providerCode: string; upstreamModelId: string; costCents?: number; costText: string; priceCents?: number; priceText: string; billingUnit: string; pricingMode: "fixed" | "dynamic" | "disabled"; priceFormula: string; marginText: string; personNote: string; refundPolicy: string; sourceUrl: string; remark: string; enabled: boolean; sort: number };
+export type AdminMarketModel = { id: string; name: string; category: "llm" | "image" | "video" | "person" | "music" | "voice" | "3d" | "tool"; icon: string; description: string; modes: string[]; resolutions: string[]; durations: string[]; ratios: string[]; maxReferenceImages: number; supportsPerson: boolean; supportsFirstLastFrame: boolean; supportsAudioReference: boolean; speed: string; featured: boolean; status: "normal" | "busy" | "maintenance"; enabled: boolean; sort: number };
 export async function fetchAdminModelProviders(token: string) { return apiGet<AdminModelProvider[]>("/api/admin/model-providers", undefined, token); }
 export async function saveAdminModelProvider(token: string, item: Partial<AdminModelProvider>) { return apiPost<AdminModelProvider>("/api/admin/model-providers", item, token); }
 export async function fetchAdminModelRoutes(token: string) { return apiGet<AdminModelRoute[]>("/api/admin/model-routes", undefined, token); }
 export async function saveAdminModelRoute(token: string, item: Partial<AdminModelRoute>) { return apiPost<AdminModelRoute>("/api/admin/model-routes", item, token); }
 export async function fetchAdminModelVariants(token: string) { return apiGet<AdminModelVariant[]>("/api/admin/model-variants", undefined, token); }
 export async function saveAdminModelVariant(token: string, item: Partial<AdminModelVariant>) { return apiPost<AdminModelVariant>("/api/admin/model-variants", item, token); }
+export async function fetchAdminMarketModels(token: string) { return apiGet<AdminMarketModel[]>("/api/admin/market-models", undefined, token); }
+export async function saveAdminMarketModel(token: string, item: Partial<AdminMarketModel>) { return apiPost<AdminMarketModel>("/api/admin/market-models", item, token); }
 
 export type AdminPromptCategory = {
     category: string;

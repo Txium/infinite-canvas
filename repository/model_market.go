@@ -16,6 +16,13 @@ func ListMarketModels(category string, featured bool) ([]model.MarketModel, erro
 	return items, err
 }
 
+func ListAllMarketModels() ([]model.MarketModel, error) {
+	db, err := DB(); if err != nil { return nil, err }
+	var items []model.MarketModel
+	err = db.Order("sort asc, name asc").Find(&items).Error
+	return items, err
+}
+
 func ListModelVariants(modelIDs []string, enabledOnly bool) ([]model.ModelVariant, error) {
 	if len(modelIDs) == 0 { return []model.ModelVariant{}, nil }
 	db, err := DB(); if err != nil { return nil, err }
@@ -94,6 +101,13 @@ func SavedModelProviderByID(id string) (model.ModelProvider, error) {
 func SavedModelVariantByID(id string) (model.ModelVariant, error) {
 	db, err := DB(); if err != nil { return model.ModelVariant{}, err }
 	var item model.ModelVariant
+	err = db.Where("id = ?", id).First(&item).Error
+	return item, err
+}
+
+func SavedMarketModelByID(id string) (model.MarketModel, error) {
+	db, err := DB(); if err != nil { return model.MarketModel{}, err }
+	var item model.MarketModel
 	err = db.Where("id = ?", id).First(&item).Error
 	return item, err
 }
