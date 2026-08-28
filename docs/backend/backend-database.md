@@ -442,6 +442,11 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | `enabled` | boolean | 是否启用 |
 | `priority` | number | 后台排序优先级 |
 | `timeout` | number | 请求超时秒数 |
+| `balance_cents` | number/null | 管理员从上游核实后手工记录的余额，单位为人民币分；空值表示需要登录上游查看 |
+| `balance_checked_at` | string | 手工余额最近更新时间 |
+| `warning_balance_cents` | number | 黄色余额提醒阈值，默认 ¥100 |
+| `critical_balance_cents` | number | 红色余额提醒阈值，默认 ¥30 |
+| `low_balance_cents` | number | 极低余额提醒阈值，默认 ¥10 |
 | `remark` | string | 管理备注 |
 
 ### market_models

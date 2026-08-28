@@ -75,11 +75,50 @@ func ListMarketModels(category string, featured bool) ([]model.MarketModelCard, 
 	return result, nil
 }
 
-func AdminModelProviders() ([]model.ModelProvider, error) { if err := ensureDefaultModelCatalog(); err != nil { return nil, err }; items, err := repository.ListModelProviders(); for i := range items { items[i].HasAPIKey = providerSecret(items[i].Code) != ""; items[i].APIKey = "" }; return items, err }
+func AdminModelProviders() ([]model.ModelProvider, error) {
+	if err := ensureDefaultModelCatalog(); err != nil { return nil, err }
+	items, err := repository.ListModelProviders()
+	if err != nil { return nil, err }
+	routes, err := repository.ListModelRoutes()
+	if err != nil { return nil, err }
+	for i := range items {
+		items[i].HasAPIKey = providerSecret(items[i].Code) != ""
+		items[i].APIKey = ""
+		applyProviderBalanceDefaults(&items[i])
+		for _, route := range routes {
+			if route.ProviderID != items[i].ID { continue }
+			items[i].RouteCount++
+			if route.Enabled { items[i].EnabledRouteCount++ }
+		}
+		items[i].Ready = items[i].Enabled && strings.TrimSpace(items[i].BaseURL) != "" && items[i].HasAPIKey
+		items[i].BalanceStatus, items[i].BalanceMessage = providerBalanceStatus(items[i])
+	}
+	return items, nil
+}
 func AdminModelRoutes() ([]model.ModelRoute, error) { if err := ensureDefaultModelCatalog(); err != nil { return nil, err }; return repository.ListModelRoutes() }
 func AdminModelVariants() ([]model.ModelVariant, error) { if err := ensureDefaultModelCatalog(); err != nil { return nil, err }; models, err := repository.ListMarketModels("", false); if err != nil { return nil, err }; ids := make([]string, 0, len(models)); for _, item := range models { ids = append(ids, item.ID) }; return repository.ListModelVariants(ids, false) }
 
-func SaveModelProvider(item model.ModelProvider) (model.ModelProvider, error) { allowed := map[string]bool{"302":true,"wavespeed":true,"lec":true,"seedance_nz":true}; item.Code = strings.TrimSpace(item.Code); if !allowed[item.Code] { return model.ModelProvider{}, errors.New("第一版只允许配置 302.AI、WaveSpeed、LEC 和 seedance.nz") }; now := time.Now().Format(time.RFC3339); if item.ID == "" { item.ID = newID("provider"); item.CreatedAt = now } else if saved, err := repository.SavedModelProviderByID(item.ID); err == nil { if item.CreatedAt == "" { item.CreatedAt = saved.CreatedAt } }; item.BaseURL = strings.TrimSpace(item.BaseURL); item.APIKey = ""; runtimeProvider := withProviderSecret(item); if item.Enabled && !modelProviderReady(runtimeProvider) { return model.ModelProvider{}, errors.New("启用供应商前必须在服务器 Secret 中配置 API Key，并填写 Base URL") }; item.UpdatedAt = now; if item.Timeout <= 0 { item.Timeout = 300 }; item.HasAPIKey = providerSecret(item.Code) != ""; return item, repository.SaveModelProvider(item) }
+func SaveModelProvider(item model.ModelProvider) (model.ModelProvider, error) {
+	allowed := map[string]bool{"302":true,"wavespeed":true,"lec":true,"seedance_nz":true}
+	item.Code = strings.TrimSpace(item.Code)
+	if !allowed[item.Code] { return model.ModelProvider{}, errors.New("第一版只允许配置 302.AI、WaveSpeed、LEC 和 seedance.nz") }
+	now := time.Now().Format(time.RFC3339)
+	if item.ID == "" {
+		item.ID, item.CreatedAt = newID("provider"), now
+		if item.BalanceCents != nil { item.BalanceCheckedAt = now }
+	} else if saved, err := repository.SavedModelProviderByID(item.ID); err == nil {
+		if item.CreatedAt == "" { item.CreatedAt = saved.CreatedAt }
+		if sameOptionalInt64(item.BalanceCents, saved.BalanceCents) { item.BalanceCheckedAt = saved.BalanceCheckedAt } else { item.BalanceCheckedAt = now }
+	}
+	item.BaseURL, item.APIKey = strings.TrimSpace(item.BaseURL), ""
+	applyProviderBalanceDefaults(&item)
+	runtimeProvider := withProviderSecret(item)
+	if item.Enabled && !modelProviderReady(runtimeProvider) { return model.ModelProvider{}, errors.New("启用供应商前必须在服务器 Secret 中配置 API Key，并填写 Base URL") }
+	item.UpdatedAt = now
+	if item.Timeout <= 0 { item.Timeout = 300 }
+	item.HasAPIKey = providerSecret(item.Code) != ""
+	return item, repository.SaveModelProvider(item)
+}
 func SaveMarketModel(item model.MarketModel) (model.MarketModel, error) { now := time.Now().Format(time.RFC3339); if item.ID == "" { item.ID = newID("model"); item.CreatedAt = now }; if item.Status == "" { item.Status = "normal" }; item.UpdatedAt = now; return item, repository.SaveMarketModel(item) }
 func SaveModelVariant(item model.ModelVariant) (model.ModelVariant, error) { now := time.Now().Format(time.RFC3339); if item.ID == "" { item.ID = newID("variant"); item.CreatedAt = now } else if saved, err := repository.SavedModelVariantByID(item.ID); err == nil { item.ProviderCode=saved.ProviderCode; item.UpstreamModelID=saved.UpstreamModelID; item.CostCents=saved.CostCents; item.CostText=saved.CostText; item.MarginText=saved.MarginText; item.PersonNote=saved.PersonNote; item.RefundPolicy=saved.RefundPolicy; item.SourceURL=saved.SourceURL; item.Remark=saved.Remark; item.Sort=saved.Sort; item.CreatedAt=saved.CreatedAt }; item.UpdatedAt = now; return item, repository.SaveModelVariant(item) }
 func SaveModelRoute(item model.ModelRoute) (model.ModelRoute, error) { now := time.Now().Format(time.RFC3339); if item.ID == "" { item.ID = newID("route"); item.CreatedAt = now }; item.UpdatedAt = now; return item, repository.SaveModelRoute(item) }
@@ -107,6 +146,29 @@ func withProviderSecret(item model.ModelProvider) model.ModelProvider { item.API
 func providerSecret(code string) string {
 	environmentNames := map[string]string{"302":"MODEL_PROVIDER_302_API_KEY","wavespeed":"MODEL_PROVIDER_WAVESPEED_API_KEY","lec":"MODEL_PROVIDER_LEC_API_KEY","seedance_nz":"MODEL_PROVIDER_SEEDANCE_NZ_API_KEY"}
 	return strings.TrimSpace(os.Getenv(environmentNames[strings.TrimSpace(code)]))
+}
+
+func applyProviderBalanceDefaults(item *model.ModelProvider) {
+	if item.WarningBalanceCents <= 0 { item.WarningBalanceCents = 10000 }
+	if item.CriticalBalanceCents <= 0 { item.CriticalBalanceCents = 3000 }
+	if item.LowBalanceCents <= 0 { item.LowBalanceCents = 1000 }
+	if item.CriticalBalanceCents > item.WarningBalanceCents { item.CriticalBalanceCents = item.WarningBalanceCents }
+	if item.LowBalanceCents > item.CriticalBalanceCents { item.LowBalanceCents = item.CriticalBalanceCents }
+}
+
+func providerBalanceStatus(item model.ModelProvider) (string, string) {
+	if !item.Enabled { return "disabled", "供应商当前停用" }
+	if strings.TrimSpace(item.BaseURL) == "" || !item.HasAPIKey { return "not_ready", "Base URL 或服务器 Secret 未配置" }
+	if item.BalanceCents == nil { return "unknown", "需要登录上游查看并手工记录" }
+	if *item.BalanceCents < item.LowBalanceCents { return "very_low", "余额极低，请尽快充值" }
+	if *item.BalanceCents < item.CriticalBalanceCents { return "critical", "余额不足" }
+	if *item.BalanceCents < item.WarningBalanceCents { return "warning", "余额偏低" }
+	return "normal", "余额正常（手工记录）"
+}
+
+func sameOptionalInt64(left, right *int64) bool {
+	if left == nil || right == nil { return left == nil && right == nil }
+	return *left == *right
 }
 
 func MarketModelCost(variantID string) (int, bool, error) {

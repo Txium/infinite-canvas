@@ -1,18 +1,28 @@
 package model
 
 type ModelProvider struct {
-	ID        string `json:"id" gorm:"primaryKey"`
-	Name      string `json:"name"`
-	Code      string `json:"code" gorm:"uniqueIndex"`
-	BaseURL   string `json:"baseUrl"`
-	APIKey    string `json:"apiKey,omitempty"`
-	HasAPIKey bool   `json:"hasApiKey" gorm:"-"`
-	Enabled   bool   `json:"enabled"`
-	Priority  int    `json:"priority"`
-	Timeout   int    `json:"timeout"`
-	Remark    string `json:"remark"`
-	CreatedAt string `json:"createdAt"`
-	UpdatedAt string `json:"updatedAt"`
+	ID                       string `json:"id" gorm:"primaryKey"`
+	Name                     string `json:"name"`
+	Code                     string `json:"code" gorm:"uniqueIndex"`
+	BaseURL                  string `json:"baseUrl"`
+	APIKey                   string `json:"apiKey,omitempty"`
+	HasAPIKey                bool   `json:"hasApiKey" gorm:"-"`
+	Enabled                  bool   `json:"enabled"`
+	Priority                 int    `json:"priority"`
+	Timeout                  int    `json:"timeout"`
+	BalanceCents             *int64 `json:"balanceCents"`
+	BalanceCheckedAt         string `json:"balanceCheckedAt"`
+	WarningBalanceCents      int64  `json:"warningBalanceCents"`
+	CriticalBalanceCents     int64  `json:"criticalBalanceCents"`
+	LowBalanceCents          int64  `json:"lowBalanceCents"`
+	Ready                    bool   `json:"ready" gorm:"-"`
+	RouteCount               int    `json:"routeCount" gorm:"-"`
+	EnabledRouteCount        int    `json:"enabledRouteCount" gorm:"-"`
+	BalanceStatus            string `json:"balanceStatus" gorm:"-"`
+	BalanceMessage           string `json:"balanceMessage" gorm:"-"`
+	Remark                   string `json:"remark"`
+	CreatedAt                string `json:"createdAt"`
+	UpdatedAt                string `json:"updatedAt"`
 }
 
 type MarketModel struct {

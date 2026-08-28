@@ -1,7 +1,7 @@
 import { apiDelete, apiGet, apiPost, compactApiParams } from "@/services/api/request";
 import type { Prompt, PromptListResponse } from "@/services/api/prompts";
 
-export type AdminModelProvider = { id: string; name: string; code: string; baseUrl: string; hasApiKey: boolean; enabled: boolean; priority: number; timeout: number; remark: string };
+export type AdminModelProvider = { id: string; name: string; code: string; baseUrl: string; hasApiKey: boolean; enabled: boolean; priority: number; timeout: number; balanceCents: number | null; balanceCheckedAt: string; warningBalanceCents: number; criticalBalanceCents: number; lowBalanceCents: number; ready: boolean; routeCount: number; enabledRouteCount: number; balanceStatus: "disabled" | "not_ready" | "unknown" | "very_low" | "critical" | "warning" | "normal"; balanceMessage: string; remark: string };
 export type AdminModelRoute = { id: string; modelId: string; variantId: string; providerId: string; upstreamModelId: string; protocol: string; priority: number; enabled: boolean };
 export type AdminModelVariant = { id: string; modelId: string; name: string; providerCode: string; upstreamModelId: string; costCents?: number; costText: string; priceCents?: number; priceText: string; billingUnit: string; pricingMode: "fixed" | "dynamic" | "disabled"; priceFormula: string; marginText: string; personNote: string; refundPolicy: string; sourceUrl: string; remark: string; enabled: boolean; sort: number };
 export async function fetchAdminModelProviders(token: string) { return apiGet<AdminModelProvider[]>("/api/admin/model-providers", undefined, token); }
