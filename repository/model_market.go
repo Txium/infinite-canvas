@@ -70,7 +70,25 @@ func SyncDefaultModelCatalog(version int, models []model.MarketModel, variants [
 		if err := tx.Model(&model.MarketModel{}).Where("id NOT IN ?", modelIDs).Update("enabled", false).Error; err != nil { return err }
 		for _, item := range models { if err := tx.Save(&item).Error; err != nil { return err } }
 		for _, item := range variants { if err := tx.Save(&item).Error; err != nil { return err } }
-		for _, item := range providers { if err := tx.Where("id = ?", item.ID).FirstOrCreate(&item).Error; err != nil { return err } }
+		for _, item := range providers {
+			var saved model.ModelProvider
+			findErr := tx.Where("id = ?", item.ID).First(&saved).Error
+			if findErr == nil {
+				// Catalog v5 backfills the four verified provider endpoints after
+				// an ephemeral Render database is recreated.  Preserve any endpoint
+				// the administrator has already configured manually.
+				if saved.BaseURL == "" {
+					saved.BaseURL = item.BaseURL
+					saved.Enabled = item.Enabled
+					saved.Remark = item.Remark
+					saved.Timeout = item.Timeout
+					if err := tx.Save(&saved).Error; err != nil { return err }
+				}
+				continue
+			}
+			if findErr != gorm.ErrRecordNotFound { return findErr }
+			if err := tx.Create(&item).Error; err != nil { return err }
+		}
 		if err := tx.Model(&model.ModelProvider{}).Where("code IN ?", []string{"302", "wavespeed", "lec", "seedance_nz"}).Update("api_key", "").Error; err != nil { return err }
 		for _, item := range routes { if err := tx.Where("id = ?", item.ID).FirstOrCreate(&item).Error; err != nil { return err } }
 		return tx.Save(&model.ModelCatalogVersion{Key:"default",Version:version,UpdatedAt:updatedAt}).Error

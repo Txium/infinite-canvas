@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "sourceFile": "模型广场V1最终模型数据库_最终接入定价版.xlsx",
   "sourceSheet": "最终接入定价",
   "providerWhitelist": [
@@ -13,41 +13,41 @@
       "id": "provider_302",
       "name": "302.AI",
       "code": "302",
-      "baseUrl": "",
-      "enabled": false,
+      "baseUrl": "https://api.302.ai",
+      "enabled": true,
       "priority": 10,
       "timeout": 300,
-      "remark": "按最终接入定价表建立；填写 Base URL 和 API Key 后再启用"
+      "remark": "服务器 Secret 已配置时可直接进行非计费连接测试"
     },
     {
       "id": "provider_wavespeed",
       "name": "WaveSpeed",
       "code": "wavespeed",
-      "baseUrl": "",
-      "enabled": false,
+      "baseUrl": "https://api.wavespeed.ai/api/v3",
+      "enabled": true,
       "priority": 20,
       "timeout": 300,
-      "remark": "按最终接入定价表建立；填写 Base URL 和 API Key 后再启用"
+      "remark": "服务器 Secret 已配置时可直接进行非计费连接测试"
     },
     {
       "id": "provider_lec",
       "name": "LEC",
       "code": "lec",
-      "baseUrl": "",
-      "enabled": false,
+      "baseUrl": "https://api.paipu.net",
+      "enabled": true,
       "priority": 30,
       "timeout": 300,
-      "remark": "按最终接入定价表建立；填写 Base URL 和 API Key 后再启用"
+      "remark": "服务器 Secret 已配置时可直接进行非计费连接测试"
     },
     {
       "id": "provider_seedance_nz",
       "name": "seedance.nz",
       "code": "seedance_nz",
-      "baseUrl": "",
-      "enabled": false,
+      "baseUrl": "https://api.seedance.nz",
+      "enabled": true,
       "priority": 40,
       "timeout": 300,
-      "remark": "按最终接入定价表建立；填写 Base URL 和 API Key 后再启用"
+      "remark": "服务器 Secret 已配置时可直接进行非计费连接测试"
     }
   ],
   "models": [
