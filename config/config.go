@@ -31,6 +31,7 @@ type Config struct {
 	AlipayAppPrivateKey  string `env:"ALIPAY_APP_PRIVATE_KEY"`
 	AlipayPublicKey      string `env:"ALIPAY_PUBLIC_KEY"`
 	AlipayGatewayURL     string `env:"ALIPAY_GATEWAY_URL" envDefault:"https://openapi.alipay.com/gateway.do"`
+	AlipayPaymentEnabled bool   `env:"ALIPAY_PAYMENT_ENABLED" envDefault:"false"`
 	ManagedPlatformMode bool   `env:"MANAGED_PLATFORM_MODE" envDefault:"true"`
 	GenerationRPM      int    `env:"GENERATION_REQUESTS_PER_MINUTE" envDefault:"30"`
 }
@@ -136,6 +137,10 @@ func PaymentConfigured() bool {
 
 // AlipayConfigured reports whether official Alipay RSA2 payment can be used.
 func AlipayConfigured() bool {
+	return Cfg.AlipayPaymentEnabled && AlipayCredentialsConfigured()
+}
+
+func AlipayCredentialsConfigured() bool {
 	return strings.TrimSpace(Cfg.AlipayAppID) != "" &&
 		strings.TrimSpace(Cfg.AlipayAppPrivateKey) != "" &&
 		strings.TrimSpace(Cfg.AlipayPublicKey) != "" &&

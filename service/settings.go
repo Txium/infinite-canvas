@@ -68,7 +68,11 @@ func publicPaymentSetting() model.PublicPaymentSetting {
 	case !config.DatabasePersistent():
 		result.Message = "平台正在升级持久化数据库，暂不能充值"
 	case !config.PaymentConfigured():
-		result.Message = "支付宝商户尚未配置，暂不能充值"
+		if config.AlipayCredentialsConfigured() {
+			result.Message = "支付宝密钥已配置，网站支付产品尚未开通或审核上线"
+		} else {
+			result.Message = "支付宝商户尚未配置，暂不能充值"
+		}
 	default:
 		result.Message = "付款成功后余额自动到账"
 	}
