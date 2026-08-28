@@ -105,6 +105,13 @@ func SavedModelVariantByID(id string) (model.ModelVariant, error) {
 	return item, err
 }
 
+func SavedModelRouteByID(id string) (model.ModelRoute, error) {
+	db, err := DB(); if err != nil { return model.ModelRoute{}, err }
+	var item model.ModelRoute
+	err = db.Where("id = ?", id).First(&item).Error
+	return item, err
+}
+
 func SavedMarketModelByID(id string) (model.MarketModel, error) {
 	db, err := DB(); if err != nil { return model.MarketModel{}, err }
 	var item model.MarketModel

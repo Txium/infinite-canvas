@@ -112,3 +112,20 @@ type ModelCatalogVersion struct {
 	Version   int    `json:"version"`
 	UpdatedAt string `json:"updatedAt"`
 }
+
+type ModelReadinessIssue struct {
+	Level   string `json:"level"`
+	Scope   string `json:"scope"`
+	ID      string `json:"id"`
+	Message string `json:"message"`
+}
+
+type ModelReadiness struct {
+	Ready                 bool                  `json:"ready"`
+	ProviderCount         int                   `json:"providerCount"`
+	ReadyProviderCount    int                   `json:"readyProviderCount"`
+	EnabledVariantCount   int                   `json:"enabledVariantCount"`
+	AvailableVariantCount int                   `json:"availableVariantCount"`
+	EnabledRouteCount     int                   `json:"enabledRouteCount"`
+	Issues                []ModelReadinessIssue `json:"issues"`
+}

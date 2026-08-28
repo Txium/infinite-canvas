@@ -13,6 +13,8 @@ export async function fetchAdminModelVariants(token: string) { return apiGet<Adm
 export async function saveAdminModelVariant(token: string, item: Partial<AdminModelVariant>) { return apiPost<AdminModelVariant>("/api/admin/model-variants", item, token); }
 export async function fetchAdminMarketModels(token: string) { return apiGet<AdminMarketModel[]>("/api/admin/market-models", undefined, token); }
 export async function saveAdminMarketModel(token: string, item: Partial<AdminMarketModel>) { return apiPost<AdminMarketModel>("/api/admin/market-models", item, token); }
+export type AdminModelReadiness = { ready: boolean; providerCount: number; readyProviderCount: number; enabledVariantCount: number; availableVariantCount: number; enabledRouteCount: number; issues: { level: "error" | "warning"; scope: string; id: string; message: string }[] };
+export async function fetchAdminModelReadiness(token: string) { return apiGet<AdminModelReadiness>("/api/admin/model-readiness", undefined, token); }
 
 export type AdminPromptCategory = {
     category: string;

@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -122,7 +123,65 @@ func SaveModelProvider(item model.ModelProvider) (model.ModelProvider, error) {
 }
 func SaveMarketModel(item model.MarketModel) (model.MarketModel, error) { now := time.Now().Format(time.RFC3339); if item.ID == "" { item.ID = newID("model"); item.CreatedAt = now } else if saved, err := repository.SavedMarketModelByID(item.ID); err == nil { item.CreatedAt = saved.CreatedAt }; if item.Status == "" { item.Status = "normal" }; item.Name = strings.TrimSpace(item.Name); if item.Name == "" { return model.MarketModel{}, errors.New("模型名称不能为空") }; if !map[string]bool{"llm":true,"image":true,"video":true,"person":true,"music":true,"voice":true,"3d":true,"tool":true}[item.Category] { return model.MarketModel{}, errors.New("模型分类无效") }; if !map[string]bool{"normal":true,"busy":true,"maintenance":true}[item.Status] { return model.MarketModel{}, errors.New("模型运行状态无效") }; item.UpdatedAt = now; return item, repository.SaveMarketModel(item) }
 func SaveModelVariant(item model.ModelVariant) (model.ModelVariant, error) { now := time.Now().Format(time.RFC3339); if item.ID == "" { item.ID = newID("variant"); item.CreatedAt = now } else if saved, err := repository.SavedModelVariantByID(item.ID); err == nil { item.ProviderCode=saved.ProviderCode; item.UpstreamModelID=saved.UpstreamModelID; item.CostCents=saved.CostCents; item.CostText=saved.CostText; item.PriceText=saved.PriceText; item.MarginText=saved.MarginText; item.PersonNote=saved.PersonNote; item.RefundPolicy=saved.RefundPolicy; item.SourceURL=saved.SourceURL; item.Remark=saved.Remark; item.Sort=saved.Sort; item.CreatedAt=saved.CreatedAt }; item.UpdatedAt = now; return item, repository.SaveModelVariant(item) }
-func SaveModelRoute(item model.ModelRoute) (model.ModelRoute, error) { now := time.Now().Format(time.RFC3339); if item.ID == "" { item.ID = newID("route"); item.CreatedAt = now }; item.UpdatedAt = now; return item, repository.SaveModelRoute(item) }
+func SaveModelRoute(item model.ModelRoute) (model.ModelRoute, error) {
+	variant, err := repository.SavedModelVariantByID(strings.TrimSpace(item.VariantID))
+	if err != nil { return model.ModelRoute{}, errors.New("模型档位不存在") }
+	provider, err := repository.SavedModelProviderByID(strings.TrimSpace(item.ProviderID))
+	if err != nil { return model.ModelRoute{}, errors.New("供应商不存在") }
+	item.ModelID = variant.ModelID
+	item.UpstreamModelID, item.Protocol = strings.TrimSpace(item.UpstreamModelID), strings.TrimSpace(item.Protocol)
+	if item.UpstreamModelID == "" { return model.ModelRoute{}, errors.New("实际上游模型 ID 不能为空") }
+	if item.Protocol == "" { return model.ModelRoute{}, errors.New("线路协议不能为空") }
+	if item.Priority <= 0 { item.Priority = 1 }
+	if item.Enabled {
+		marketModel, modelErr := repository.SavedMarketModelByID(variant.ModelID)
+		if modelErr != nil || !marketModel.Enabled || marketModel.Status == "maintenance" { return model.ModelRoute{}, errors.New("模型未上架或正在维护，不能启用线路") }
+		if !variant.Enabled || variant.PricingMode != "fixed" || variant.PriceCents == nil || *variant.PriceCents <= 0 { return model.ModelRoute{}, errors.New("启用线路前必须为档位设置大于 0 的固定人民币售价并上架") }
+		if !modelProviderReady(withProviderSecret(provider)) { return model.ModelRoute{}, errors.New("启用线路前必须启用供应商并配置 Base URL 与服务器 Secret") }
+	}
+	now := time.Now().Format(time.RFC3339)
+	if item.ID == "" { item.ID = newID("route"); item.CreatedAt = now } else if saved, savedErr := repository.SavedModelRouteByID(item.ID); savedErr == nil { item.CreatedAt = saved.CreatedAt }
+	item.UpdatedAt = now
+	return item, repository.SaveModelRoute(item)
+}
+
+func AdminModelReadiness() (model.ModelReadiness, error) {
+	if err := ensureDefaultModelCatalog(); err != nil { return model.ModelReadiness{}, err }
+	providers, err := repository.ListModelProviders(); if err != nil { return model.ModelReadiness{}, err }
+	marketModels, err := repository.ListAllMarketModels(); if err != nil { return model.ModelReadiness{}, err }
+	modelIDs := make([]string, 0, len(marketModels)); enabledModels := map[string]bool{}
+	for _, item := range marketModels { modelIDs = append(modelIDs, item.ID); enabledModels[item.ID] = item.Enabled && item.Status != "maintenance" }
+	variants, err := repository.ListModelVariants(modelIDs, false); if err != nil { return model.ModelReadiness{}, err }
+	routes, err := repository.ListModelRoutes(); if err != nil { return model.ModelReadiness{}, err }
+	result := model.ModelReadiness{ProviderCount:len(providers), Issues:[]model.ModelReadinessIssue{}}
+	providerReady := map[string]bool{}
+	for _, item := range providers {
+		ready := modelProviderReady(withProviderSecret(item)); providerReady[item.ID] = ready
+		if ready { result.ReadyProviderCount++; continue }
+		missing := []string{}
+		if !item.Enabled { missing = append(missing, "未启用") }
+		if strings.TrimSpace(item.BaseURL) == "" { missing = append(missing, "缺 Base URL") }
+		if providerSecret(item.Code) == "" { missing = append(missing, "缺服务器 Secret") }
+		result.Issues = append(result.Issues, model.ModelReadinessIssue{Level:"warning",Scope:"provider",ID:item.ID,Message:item.Name+"："+strings.Join(missing, "、")})
+	}
+	enabledRoutesByVariant := map[string]int{}
+	for _, route := range routes {
+		if !route.Enabled { continue }
+		result.EnabledRouteCount++
+		if providerReady[route.ProviderID] && strings.TrimSpace(route.UpstreamModelID) != "" { enabledRoutesByVariant[route.VariantID]++ }
+	}
+	missingRouteCount, dynamicCount := 0, 0
+	for _, variant := range variants {
+		if !variant.Enabled || !enabledModels[variant.ModelID] { continue }
+		result.EnabledVariantCount++
+		if variant.PricingMode != "fixed" || variant.PriceCents == nil || *variant.PriceCents <= 0 { dynamicCount++; continue }
+		if enabledRoutesByVariant[variant.ID] > 0 { result.AvailableVariantCount++ } else { missingRouteCount++ }
+	}
+	if missingRouteCount > 0 { result.Issues = append(result.Issues, model.ModelReadinessIssue{Level:"error",Scope:"route",Message:fmt.Sprintf("%d 个已上架固定价档位没有可用线路", missingRouteCount)}) }
+	if dynamicCount > 0 { result.Issues = append(result.Issues, model.ModelReadinessIssue{Level:"warning",Scope:"pricing",Message:fmt.Sprintf("%d 个动态价或未定价档位暂不允许生成", dynamicCount)}) }
+	result.Ready = result.ReadyProviderCount > 0 && result.AvailableVariantCount > 0
+	return result, nil
+}
 
 type MarketRouteCandidate struct {
 	RouteID       string

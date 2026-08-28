@@ -149,6 +149,7 @@ func New() *gin.Engine {
 	admin.GET("/model-providers", gin.WrapF(handler.AdminModelProviders))
 	admin.POST("/model-providers", gin.WrapF(handler.AdminSaveModelProvider))
 	admin.GET("/model-routes", gin.WrapF(handler.AdminModelRoutes))
+	admin.GET("/model-readiness", gin.WrapF(handler.AdminModelReadiness))
 	admin.POST("/model-routes", gin.WrapF(handler.AdminSaveModelRoute))
 	admin.GET("/model-variants", gin.WrapF(handler.AdminModelVariants))
 	admin.POST("/model-variants", gin.WrapF(handler.AdminSaveModelVariant))
