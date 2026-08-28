@@ -176,7 +176,7 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		}
 	}
 	if isWaveSpeedChannel(channel) && (path == "/images/generations" || path == "/images/edits") {
-		body, contentType, err = normalizeWaveSpeedImageBody(body, contentType)
+		body, contentType, err = normalizeWaveSpeedImageBody(body, contentType, requestedModel)
 		if err != nil {
 			log.Printf("AI proxy normalize WaveSpeed image request failed: model=%s err=%v", modelName, err)
 			Fail(w, "AI 接口请求失败")

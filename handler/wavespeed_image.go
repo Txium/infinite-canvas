@@ -17,7 +17,7 @@ func isWaveSpeedChannel(channel model.ModelChannel) bool {
 		strings.Contains(strings.ToLower(strings.TrimSpace(channel.BaseURL)), "api.wavespeed.ai")
 }
 
-func normalizeWaveSpeedImageBody(body []byte, contentType string) ([]byte, string, error) {
+func normalizeWaveSpeedImageBody(body []byte, contentType string, variantID string) ([]byte, string, error) {
 	if !strings.Contains(strings.ToLower(contentType), "application/json") {
 		return body, contentType, nil
 	}
@@ -27,8 +27,59 @@ func normalizeWaveSpeedImageBody(body []byte, contentType string) ([]byte, strin
 	}
 	delete(payload, "model")
 	delete(payload, "n")
+	aspectRatio, _ := payload["aspect_ratio"].(string)
+	if size, ok := payload["size"].(string); ok {
+		if converted := waveSpeedAspectRatio(size); converted != "" {
+			aspectRatio = converted
+			payload["aspect_ratio"] = converted
+		}
+	}
+	delete(payload, "size")
+	if quality, resolution, ok := waveSpeedGPTImageTier(variantID); ok {
+		// GPT Image 2 currently accepts only these documented inputs. Strip
+		// OpenAI-only response and streaming options so a valid request is not
+		// rejected after the upstream has accepted a paid task.
+		cleaned := map[string]any{
+			"prompt":     payload["prompt"],
+			"quality":    quality,
+			"resolution": resolution,
+		}
+		if strings.TrimSpace(aspectRatio) != "" {
+			cleaned["aspect_ratio"] = aspectRatio
+		}
+		payload = cleaned
+	}
 	encoded, err := json.Marshal(payload)
 	return encoded, "application/json", err
+}
+
+func waveSpeedAspectRatio(size string) string {
+	switch strings.ToLower(strings.TrimSpace(size)) {
+	case "1024x1024", "1:1":
+		return "1:1"
+	case "1536x1024", "3:2":
+		return "3:2"
+	case "1024x1536", "2:3":
+		return "2:3"
+	default:
+		return ""
+	}
+}
+
+func waveSpeedGPTImageTier(variantID string) (string, string, bool) {
+	tiers := map[string][2]string{
+		"gpt_image_2__01": {"low", "1k"},
+		"gpt_image_2__02": {"low", "2k"},
+		"gpt_image_2__03": {"low", "4k"},
+		"gpt_image_2__04": {"medium", "1k"},
+		"gpt_image_2__05": {"medium", "2k"},
+		"gpt_image_2__06": {"medium", "4k"},
+		"gpt_image_2__07": {"high", "1k"},
+		"gpt_image_2__08": {"high", "2k"},
+		"gpt_image_2__09": {"high", "4k"},
+	}
+	tier, ok := tiers[strings.ToLower(strings.TrimSpace(variantID))]
+	return tier[0], tier[1], ok
 }
 
 func copyWaveSpeedImageResponse(w http.ResponseWriter, response *http.Response, request *http.Request, channel model.ModelChannel, logContext aiLogContext, onFailure func()) bool {

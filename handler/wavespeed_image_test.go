@@ -10,12 +10,19 @@ func TestReadWaveSpeedTask(t *testing.T) {
 }
 
 func TestNormalizeWaveSpeedImageBody(t *testing.T) {
-	body, _, err := normalizeWaveSpeedImageBody([]byte(`{"model":"openai/gpt-image-2/text-to-image","prompt":"hi","n":1}`), "application/json")
+	body, _, err := normalizeWaveSpeedImageBody([]byte(`{"model":"gpt_image_2__01","prompt":"hi","n":1,"size":"1024x1024","quality":"high"}`), "application/json", "gpt_image_2__01")
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := string(body)
-	if text != `{"prompt":"hi"}` {
+	if text != `{"aspect_ratio":"1:1","prompt":"hi","quality":"low","resolution":"1k"}` {
 		t.Fatalf("normalized body = %s", text)
+	}
+}
+
+func TestWaveSpeedGPTImageTier(t *testing.T) {
+	quality, resolution, ok := waveSpeedGPTImageTier("gpt_image_2__09")
+	if !ok || quality != "high" || resolution != "4k" {
+		t.Fatalf("unexpected tier: %q %q %v", quality, resolution, ok)
 	}
 }
