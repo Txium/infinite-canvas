@@ -94,6 +94,16 @@ func SyncDefaultModelCatalog(version int, models []model.MarketModel, variants [
 			var saved model.ModelRoute
 			findErr := tx.Where("id = ?", item.ID).First(&saved).Error
 			if findErr == nil {
+				// Catalog v10 activates the 302 routes after the provider's
+				// authenticated model-list check was made Render-compatible. These
+				// routes already have fixed RMB prices and verified documentation;
+				// activating them makes the corresponding variants visible in the
+				// canvas instead of leaving the provider at "0 enabled" forever.
+				if version >= 10 && saved.ProviderID == "provider_302" && !saved.Enabled {
+					saved.Enabled = true
+					if err := tx.Save(&saved).Error; err != nil { return err }
+					continue
+				}
 				// Promote a catalog route only when it is still the original disabled
 				// placeholder.  Administrator edits remain authoritative afterwards.
 				if !saved.Enabled && saved.Protocol == "custom" && item.Enabled && item.Protocol != "custom" {
