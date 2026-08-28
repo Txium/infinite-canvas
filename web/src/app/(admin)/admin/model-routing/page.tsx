@@ -30,15 +30,10 @@ export default function AdminModelRoutingPage() {
     const [variantForm] = Form.useForm<VariantForm>();
     const load = async () => {
         if (!token) return;
-        const results = await Promise.allSettled([fetchAdminModelProviders(token), fetchAdminMarketModels(token), fetchAdminModelRoutes(token), fetchAdminModelVariants(token)]);
-        const labels = ["中转站", "模型", "线路", "档位"];
-        results.forEach((result, index) => {
-            if (result.status === "rejected") message.error(`${labels[index]}资料加载失败，请稍后重试`);
-        });
-        if (results[0].status === "fulfilled") setProviders(results[0].value);
-        if (results[1].status === "fulfilled") setModels(results[1].value);
-        if (results[2].status === "fulfilled") setRoutes(results[2].value);
-        if (results[3].status === "fulfilled") setVariants(results[3].value);
+        try { setProviders(await fetchAdminModelProviders(token)); } catch { message.error("中转站资料加载失败，请稍后重试"); }
+        try { setModels(await fetchAdminMarketModels(token)); } catch { message.error("模型资料加载失败，请稍后重试"); }
+        try { setRoutes(await fetchAdminModelRoutes(token)); } catch { message.error("线路资料加载失败，请稍后重试"); }
+        try { setVariants(await fetchAdminModelVariants(token)); } catch { message.error("档位资料加载失败，请稍后重试"); }
     };
     useEffect(() => { void load(); }, [token]);
     const saveModel = async () => {
