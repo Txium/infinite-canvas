@@ -35,9 +35,10 @@ export default function AdminFinancePage() {
         </Row>
 		<Typography.Title level={4} className="!mb-0">上线检查</Typography.Title>
 		<Row gutter={[16,16]}>
-			<Col xs={24} md={8}><Card><Statistic title="数据库" value={readiness?.databasePersistent ? "持久化" : "临时"} valueStyle={{ color: readiness?.databasePersistent ? "#3f8600" : "#cf1322" }} /><Typography.Text type="secondary">驱动：{readiness?.databaseDriver || "检查中"}</Typography.Text></Card></Col>
-			<Col xs={24} md={8}><Card><Statistic title="微信 / 支付宝" value={readiness?.paymentConfigured ? "已配置" : "未配置"} valueStyle={{ color: readiness?.paymentConfigured ? "#3f8600" : "#cf1322" }} /></Card></Col>
-			<Col xs={24} md={8}><Card><Statistic title="平台托管模型" value={readiness?.managedPlatform ? "已开启" : "未开启"} valueStyle={{ color: readiness?.managedPlatform ? "#3f8600" : "#cf1322" }} /></Card></Col>
+			<Col xs={24} md={12} xl={6}><Card><Statistic title="数据库" value={readiness?.databasePersistent ? "持久化" : "临时"} valueStyle={{ color: readiness?.databasePersistent ? "#3f8600" : "#cf1322" }} /><Typography.Text type="secondary">驱动：{readiness?.databaseDriver || "检查中"}</Typography.Text></Card></Col>
+			<Col xs={24} md={12} xl={6}><Card><Statistic title="微信 / 支付宝" value={readiness?.paymentConfigured ? "已配置" : "未配置"} valueStyle={{ color: readiness?.paymentConfigured ? "#3f8600" : "#cf1322" }} /></Card></Col>
+			<Col xs={24} md={12} xl={6}><Card><Statistic title="作品对象存储" value={readiness?.storageConfigured ? "已配置" : "未配置"} valueStyle={{ color: readiness?.storageConfigured ? "#3f8600" : "#cf1322" }} /></Card></Col>
+			<Col xs={24} md={12} xl={6}><Card><Statistic title="平台托管模型" value={readiness?.managedPlatform ? "已开启" : "未开启"} valueStyle={{ color: readiness?.managedPlatform ? "#3f8600" : "#cf1322" }} /></Card></Col>
 		</Row>
     </Space></main>;
 }

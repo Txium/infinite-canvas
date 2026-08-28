@@ -37,11 +37,14 @@ func RuntimeReadiness() model.RuntimeReadiness {
 	driver := strings.ToLower(strings.TrimSpace(config.Cfg.StorageDriver))
 	if driver == "" { driver = "sqlite" }
 	result := model.RuntimeReadiness{
-		DatabaseDriver: driver,
+		DatabaseDriver:     driver,
 		DatabasePersistent: config.DatabasePersistent(),
-		PaymentConfigured: config.PaymentConfigured(),
-		ManagedPlatform: config.Cfg.ManagedPlatformMode,
-		Issues: []string{},
+		PaymentConfigured:  config.PaymentConfigured(),
+		ManagedPlatform:    config.Cfg.ManagedPlatformMode,
+		Issues:             []string{},
+	}
+	if settings, err := repository.GetSettings(); err == nil {
+		result.StorageConfigured = HasAdminStorageProvider(normalizePrivateStorageSetting(settings.Private.Storage))
 	}
 	if !result.DatabasePersistent {
 		result.Issues = append(result.Issues, "当前数据库位于临时文件系统，重启或部署可能丢失账号、余额和订单")
@@ -51,6 +54,9 @@ func RuntimeReadiness() model.RuntimeReadiness {
 	}
 	if !result.ManagedPlatform {
 		result.Issues = append(result.Issues, "平台托管模型模式未开启")
+	}
+	if !result.StorageConfigured {
+		result.Issues = append(result.Issues, "平台对象存储尚未配置，生成结果仍可能依赖上游临时链接")
 	}
 	result.Ready = len(result.Issues) == 0
 	return result

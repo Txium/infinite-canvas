@@ -91,6 +91,7 @@ type RuntimeReadiness struct {
 	DatabaseDriver     string   `json:"databaseDriver"`
 	DatabasePersistent bool     `json:"databasePersistent"`
 	PaymentConfigured  bool     `json:"paymentConfigured"`
+	StorageConfigured  bool     `json:"storageConfigured"`
 	ManagedPlatform    bool     `json:"managedPlatform"`
 	Issues             []string `json:"issues"`
 }
