@@ -79,7 +79,10 @@ func UserCanUseRemoteModelChannel(user model.AuthUser) bool {
 
 func AdminSettings() (model.Settings, error) {
 	settings, err := repository.GetSettings()
-	return hidePrivateAPIKeys(normalizeSettings(settings)), err
+	settings = hidePrivateAPIKeys(normalizeSettings(settings))
+	settings.Public.Payment = publicPaymentSetting()
+	settings.Public.Runtime.ManagedPlatformMode = config.Cfg.ManagedPlatformMode
+	return settings, err
 }
 
 func SaveSettings(settings model.Settings) (model.Settings, error) {
