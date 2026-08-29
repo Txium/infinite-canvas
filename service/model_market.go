@@ -130,12 +130,10 @@ func TestModelProviderConnection(id string) (ModelProviderConnectionTest, error)
 	case "seedance_nz":
 		requestURL, err = providerOriginURL(provider.BaseURL, "/api/usage/wallet/")
 	case "302":
-		// 302's canonical API host is api.302.ai. Keep the provider Base URL at
-		// the origin because media endpoints are not all nested under /v1.
-		// The models endpoint accepts these query flags and is a free,
-		// authenticated way to verify the key without running inference.
-		requestURL, err = providerOriginURL(provider.BaseURL, "/v1/models")
-		if err == nil { requestURL += "?llm=1&include_custom_models=1" }
+		// 302 exposes a free, authenticated balance endpoint. The returned
+		// amount is in PTC (not RMB), so it must be shown as-is and never be
+		// written into the CNY balance field.
+		requestURL, err = providerOriginURL(provider.BaseURL, "/dashboard/balance")
 	default:
 		requestURL = BuildModelChannelURL(channel, "/models")
 	}
@@ -157,7 +155,22 @@ func TestModelProviderConnection(id string) (ModelProviderConnectionTest, error)
 		result.Message = "连接正常；已读取美元余额（不会写入人民币余额）"
 		return result, nil
 	}
-	if provider.Code == "302" || provider.Code == "lec" {
+	if provider.Code == "302" {
+		var payload struct { Data struct { Balance json.RawMessage `json:"balance"` } `json:"data"` }
+		if json.Unmarshal(body, &payload) != nil || len(payload.Data.Balance) == 0 {
+			return ModelProviderConnectionTest{}, errors.New("302.AI 余额响应无法解析，请给 API Key 开通余额查询权限")
+		}
+		var balance string
+		if json.Unmarshal(payload.Data.Balance, &balance) != nil {
+			var number float64
+			if json.Unmarshal(payload.Data.Balance, &number) != nil { return ModelProviderConnectionTest{}, errors.New("302.AI 余额响应无法解析") }
+			balance = strconv.FormatFloat(number, 'f', 2, 64)
+		}
+		result.BalanceText = strings.TrimSpace(balance) + " PTC"
+		result.Message = "连接正常；已读取 302.AI 余额"
+		return result, nil
+	}
+	if provider.Code == "lec" {
 		var payload map[string]any
 		if json.Unmarshal(body, &payload) != nil {
 			return ModelProviderConnectionTest{}, safeMessageError{message:"上游返回非 JSON 页面，可能拦截 Render 服务器访问；暂勿启用该线路"}

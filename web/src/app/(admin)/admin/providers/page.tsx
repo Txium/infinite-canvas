@@ -32,6 +32,7 @@ export default function AdminProvidersPage() {
     const [items, setItems] = useState<AdminModelProvider[]>([]);
     const [editing, setEditing] = useState<AdminModelProvider | null>(null);
     const [testingID, setTestingID] = useState("");
+    const [liveBalances, setLiveBalances] = useState<Record<string, string>>({});
     const [testedModels, setTestedModels] = useState<{ provider: string; models: string[] } | null>(null);
     const [form] = Form.useForm<ProviderForm>();
     const load = async () => { if (token) setItems(await fetchAdminModelProviders(token)); };
@@ -68,6 +69,7 @@ export default function AdminProvidersPage() {
         try {
             const result = await testAdminModelProvider(token, item.id);
             message.success([result.message, result.balanceText].filter(Boolean).join("；"));
+            if (result.balanceText) setLiveBalances((current) => ({ ...current, [item.id]: result.balanceText! }));
             if (result.models?.length) setTestedModels({ provider: item.name, models: result.models });
         } finally {
             setTestingID("");
@@ -75,15 +77,15 @@ export default function AdminProvidersPage() {
     };
     return <div className="p-6">
         <Card title="四家上游中转站" extra={<Button onClick={() => void load()}>刷新</Button>}>
-            <Typography.Paragraph type="secondary">API Key 只保存在 Render Secret。余额为管理员从上游核实后的手工记录；未记录时明确提示登录上游查看，不使用估算值。</Typography.Paragraph>
+            <Typography.Paragraph type="secondary">API Key 只保存在 Render Secret。点击“查询余额”会调用上游免费余额接口；不同上游的币种/积分单位原样显示，不会擅自换算成人民币。</Typography.Paragraph>
             <Table rowKey="id" dataSource={items} pagination={false} columns={[
                 { title: "中转站", render: (_: unknown, item: AdminModelProvider) => <Space direction="vertical" size={0}><Typography.Text strong>{item.name}</Typography.Text><Typography.Text type="secondary">{item.code}</Typography.Text></Space> },
                 { title: "连接配置", render: (_: unknown, item: AdminModelProvider) => <Space direction="vertical" size={2}><Tag color={item.hasApiKey ? "success" : "error"}>{item.hasApiKey ? "服务器 Key 已配置" : "服务器 Key 未配置"}</Tag><Typography.Text type="secondary" ellipsis style={{ maxWidth: 260 }}>{item.baseUrl || "Base URL 未配置"}</Typography.Text></Space> },
                 { title: "线路", render: (_: unknown, item: AdminModelProvider) => `${item.enabledRouteCount} 启用 / ${item.routeCount} 总计` },
-                { title: "记录余额", render: (_: unknown, item: AdminModelProvider) => <Space direction="vertical" size={0}><Typography.Text strong>{yuan(item.balanceCents)}</Typography.Text><Typography.Text type="secondary">{item.balanceCheckedAt ? dayjs(item.balanceCheckedAt).format("YYYY-MM-DD HH:mm") : "需要登录上游查看"}</Typography.Text></Space> },
+                { title: "余额", render: (_: unknown, item: AdminModelProvider) => <Space direction="vertical" size={0}><Typography.Text strong>{liveBalances[item.id] || yuan(item.balanceCents)}</Typography.Text><Typography.Text type="secondary">{liveBalances[item.id] ? "刚刚从上游读取" : item.balanceCheckedAt ? dayjs(item.balanceCheckedAt).format("YYYY-MM-DD HH:mm") : "点击查询余额"}</Typography.Text></Space> },
                 { title: "预警", render: (_: unknown, item: AdminModelProvider) => { const meta = statusMeta[item.balanceStatus] || statusMeta.unknown; return <Space direction="vertical" size={0}><Tag color={meta.color}>{meta.label}</Tag><Typography.Text type="secondary">{item.balanceMessage || "需要登录上游查看"}</Typography.Text></Space>; } },
                 { title: "状态", render: (_: unknown, item: AdminModelProvider) => <Tag color={item.ready ? "success" : "default"}>{item.ready ? "可路由" : "不可路由"}</Tag> },
-                { title: "操作", render: (_: unknown, item: AdminModelProvider) => <Space><Button size="small" loading={testingID === item.id} disabled={!item.ready} onClick={() => void testConnection(item)}>测试连接</Button><Button size="small" onClick={() => open(item)}>配置 / 更新余额</Button></Space> },
+                { title: "操作", render: (_: unknown, item: AdminModelProvider) => <Space><Button size="small" loading={testingID === item.id} disabled={!item.ready} onClick={() => void testConnection(item)}>查询余额</Button><Button size="small" onClick={() => open(item)}>配置 / 更新余额</Button></Space> },
             ]} />
         </Card>
         <Modal title={editing ? `配置 ${editing.name}` : "配置中转站"} open={!!editing} onCancel={() => setEditing(null)} onOk={() => void save()} width={620}>
