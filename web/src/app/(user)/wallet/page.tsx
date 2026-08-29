@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createRechargeOrder, fetchRechargeOrders, fetchWalletCreditLogs, type CreditLog, type RechargeOrder } from "@/services/api/wallet";
+import { apiGet } from "@/services/api/request";
+import type { AdminPublicSettings } from "@/services/api/admin";
 import { formatCNY } from "@/constant/credits";
 import { useUserStore } from "@/stores/use-user-store";
 import { useConfigStore } from "@/stores/use-config-store";
@@ -20,15 +22,25 @@ export default function WalletPage() {
     const isReady = useUserStore((state) => state.isReady);
     const [items, setItems] = useState<RechargeOrder[]>([]);
     const [logs, setLogs] = useState<CreditLog[]>([]);
-    const [loading, setLoading] = useState(false);
+	const [loading, setLoading] = useState(false);
+	const [paymentState, setPaymentState] = useState<{ ready: boolean; message: string } | null>(null);
     const [form] = Form.useForm();
-	const payment = useConfigStore((state) => state.publicSettings?.payment);
+    const payment = useConfigStore((state) => state.publicSettings?.payment);
     const hydrateUser = useUserStore((state) => state.hydrateUser);
     const load = async () => {
         if (!token) return;
-        const [orders, creditLogs] = await Promise.all([fetchRechargeOrders(token), fetchWalletCreditLogs(token)]);
+        const [orders, creditLogs] = await Promise.all([
+            fetchRechargeOrders(token),
+            fetchWalletCreditLogs(token),
+        ]);
         setItems(orders.items);
         setLogs(creditLogs.items);
+        try {
+            const settings = await apiGet<AdminPublicSettings>("/api/settings");
+            setPaymentState(settings.payment);
+        } catch {
+            setPaymentState({ ready: false, message: "支付配置读取失败，请刷新后重试" });
+        }
     };
 
     useEffect(() => {
@@ -63,13 +75,13 @@ export default function WalletPage() {
             <Card><Statistic title="可用余额" prefix="¥" value={(user?.credits || 0) / 100} precision={2} /><Typography.Text type="secondary">充值多少到账多少，生成时按模型标注售价结算。</Typography.Text></Card>
             <Card><Statistic title="冻结余额" prefix="¥" value={(user?.frozenCredits || 0) / 100} precision={2} /><Typography.Text type="secondary">任务生成中暂时冻结；成功后结算，失败自动退回可用余额。</Typography.Text></Card>
             <Card title="在线充值">
-				{payment && !payment.ready ? <Alert type="warning" showIcon message="在线充值暂未开放" description={payment.message} className="mb-4" /> : null}
+				{(paymentState || payment) && !(paymentState || payment)?.ready ? <Alert type="warning" showIcon message="在线充值暂未开放" description={(paymentState || payment)?.message || "请稍后重试"} className="mb-4" /> : null}
                 <Form form={form} layout="vertical" initialValues={{ amount: 10, paymentMethod: "alipay" }}>
                     <Space wrap className="mb-3">{[10, 20, 50, 100].map((amount) => <Button key={amount} onClick={() => form.setFieldValue("amount", amount)}>¥{amount}</Button>)}</Space>
                     <Form.Item name="amount" label="充值金额（元）" rules={[{ required: true }]}><InputNumber min={1} max={100000} className="!w-full" /></Form.Item>
                     <Form.Item name="paymentMethod" hidden><input type="hidden" /></Form.Item>
                     <Typography.Paragraph>付款方式：支付宝</Typography.Paragraph>
-                    <Button type="primary" disabled={payment?.ready !== true} loading={loading} onClick={() => void submit()}>立即支付</Button>
+                    <Button type="primary" disabled={(paymentState || payment)?.ready !== true} loading={loading} onClick={() => void submit()}>立即支付</Button>
                 </Form>
             </Card>
         </div>
