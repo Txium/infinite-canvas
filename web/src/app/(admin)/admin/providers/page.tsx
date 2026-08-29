@@ -33,6 +33,7 @@ export default function AdminProvidersPage() {
     const [editing, setEditing] = useState<AdminModelProvider | null>(null);
     const [testingID, setTestingID] = useState("");
     const [liveBalances, setLiveBalances] = useState<Record<string, string>>({});
+    const [balanceErrors, setBalanceErrors] = useState<Record<string, string>>({});
     const [testedModels, setTestedModels] = useState<{ provider: string; models: string[] } | null>(null);
     const [form] = Form.useForm<ProviderForm>();
     const load = async () => { if (token) setItems(await fetchAdminModelProviders(token)); };
@@ -70,9 +71,12 @@ export default function AdminProvidersPage() {
             const result = await testAdminModelProvider(token, item.id);
             message.success([result.message, result.balanceText].filter(Boolean).join("；"));
             if (result.balanceText) setLiveBalances((current) => ({ ...current, [item.id]: result.balanceText! }));
+            setBalanceErrors((current) => { const next = { ...current }; delete next[item.id]; return next; });
             if (result.models?.length) setTestedModels({ provider: item.name, models: result.models });
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "余额查询失败，请检查上游 Key 权限");
+            const detail = error instanceof Error ? error.message : "余额查询失败，请检查上游 Key 权限";
+            setBalanceErrors((current) => ({ ...current, [item.id]: detail }));
+            message.error(detail);
         } finally {
             setTestingID("");
         }
@@ -84,7 +88,7 @@ export default function AdminProvidersPage() {
                 { title: "中转站", render: (_: unknown, item: AdminModelProvider) => <Space direction="vertical" size={0}><Typography.Text strong>{item.name}</Typography.Text><Typography.Text type="secondary">{item.code}</Typography.Text></Space> },
                 { title: "连接配置", render: (_: unknown, item: AdminModelProvider) => <Space direction="vertical" size={2}><Tag color={item.hasApiKey ? "success" : "error"}>{item.hasApiKey ? "服务器 Key 已配置" : "服务器 Key 未配置"}</Tag><Typography.Text type="secondary" ellipsis style={{ maxWidth: 260 }}>{item.baseUrl || "Base URL 未配置"}</Typography.Text></Space> },
                 { title: "线路", render: (_: unknown, item: AdminModelProvider) => `${item.enabledRouteCount} 启用 / ${item.routeCount} 总计` },
-                { title: "余额", render: (_: unknown, item: AdminModelProvider) => <Space direction="vertical" size={0}><Typography.Text strong>{liveBalances[item.id] || yuan(item.balanceCents)}</Typography.Text><Typography.Text type="secondary">{liveBalances[item.id] ? "刚刚从上游读取" : item.balanceCheckedAt ? dayjs(item.balanceCheckedAt).format("YYYY-MM-DD HH:mm") : "点击查询余额"}</Typography.Text></Space> },
+                { title: "余额", render: (_: unknown, item: AdminModelProvider) => <Space direction="vertical" size={0}><Typography.Text strong>{liveBalances[item.id] || yuan(item.balanceCents)}</Typography.Text><Typography.Text type={balanceErrors[item.id] ? "danger" : "secondary"}>{balanceErrors[item.id] || (liveBalances[item.id] ? "刚刚从上游读取" : item.balanceCheckedAt ? dayjs(item.balanceCheckedAt).format("YYYY-MM-DD HH:mm") : "点击查询余额")}</Typography.Text></Space> },
                 { title: "预警", render: (_: unknown, item: AdminModelProvider) => { const meta = statusMeta[item.balanceStatus] || statusMeta.unknown; return <Space direction="vertical" size={0}><Tag color={meta.color}>{meta.label}</Tag><Typography.Text type="secondary">{item.balanceMessage || "需要登录上游查看"}</Typography.Text></Space>; } },
                 { title: "状态", render: (_: unknown, item: AdminModelProvider) => <Tag color={item.ready ? "success" : "default"}>{item.ready ? "可路由" : "不可路由"}</Tag> },
                 { title: "操作", render: (_: unknown, item: AdminModelProvider) => <Space><Button size="small" loading={testingID === item.id} disabled={!item.ready} onClick={() => void testConnection(item)}>查询余额</Button><Button size="small" onClick={() => open(item)}>配置 / 更新余额</Button></Space> },

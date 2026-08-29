@@ -147,6 +147,9 @@ func TestModelProviderConnection(id string) (ModelProviderConnectionTest, error)
 	if err != nil { return ModelProviderConnectionTest{}, safeMessageError{message:"连接失败：上游接口无响应或网络不可达"} }
 	defer response.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(response.Body, 512*1024))
+	if response.StatusCode == http.StatusForbidden && provider.Code == "302" {
+		return ModelProviderConnectionTest{}, safeMessageError{message: "302.AI 返回 403：当前 API Key 未开通余额查询权限，请在 302.AI API Key 高级设置中开启余额权限后再查询"}
+	}
 	if response.StatusCode >= http.StatusBadRequest { return ModelProviderConnectionTest{}, readAdminChannelError(body, response.StatusCode, "连接测试失败") }
 	if provider.Code == "wavespeed" {
 		var payload struct { Code int `json:"code"`; Data struct { Balance float64 `json:"balance"` } `json:"data"` }
