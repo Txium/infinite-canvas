@@ -194,7 +194,24 @@ func TestModelProviderConnection(id string) (ModelProviderConnectionTest, error)
 		return result, nil
 	}
 	// seedance.nz wallet schemas may evolve. A successful authenticated HTTP
-	// response is sufficient for connectivity; never guess its currency/value.
+	// response is sufficient for connectivity. When the documented wallet
+	// fields are present, preserve the provider's display currency verbatim;
+	// never convert it into the platform's RMB cents field.
+	if provider.Code == "seedance_nz" {
+		var payload struct {
+			Data struct {
+				Amount      *float64 `json:"amount"`
+				DisplayType string   `json:"display_type"`
+			} `json:"data"`
+		}
+		if json.Unmarshal(body, &payload) == nil && payload.Data.Amount != nil {
+			unit := strings.TrimSpace(payload.Data.DisplayType)
+			if unit == "" { unit = "原币种" }
+			result.BalanceText = strconv.FormatFloat(*payload.Data.Amount, 'f', 2, 64) + " " + unit
+			result.Message = "连接正常；已读取 seedance.nz 钱包余额（原币种显示）"
+			return result, nil
+		}
+	}
 	result.Message = "连接正常；钱包接口鉴权通过（余额币种未自动换算）"
 	return result, nil
 }
