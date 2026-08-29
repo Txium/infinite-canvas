@@ -187,9 +187,11 @@ func TestModelProviderConnection(id string) (ModelProviderConnectionTest, error)
 		result.Models = append(result.Models, modelIDsFromPayload(payload["data"])...)
 		sort.Strings(result.Models)
 		if len(result.Models) == 0 {
-			result.Message = "连接正常；上游鉴权通过（模型列表结构未自动统计）"
+			result.BalanceText = "上游未提供余额接口"
+			result.Message = "连接正常；LEC 未提供可调用的余额接口"
 		} else {
-			result.Message = fmt.Sprintf("连接正常；上游返回 %d 个模型", len(result.Models))
+			result.BalanceText = "上游未提供余额接口"
+			result.Message = fmt.Sprintf("连接正常；上游返回 %d 个模型，LEC 未提供可调用的余额接口", len(result.Models))
 		}
 		return result, nil
 	}
