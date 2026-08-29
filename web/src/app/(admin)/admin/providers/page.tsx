@@ -71,6 +71,8 @@ export default function AdminProvidersPage() {
             message.success([result.message, result.balanceText].filter(Boolean).join("；"));
             if (result.balanceText) setLiveBalances((current) => ({ ...current, [item.id]: result.balanceText! }));
             if (result.models?.length) setTestedModels({ provider: item.name, models: result.models });
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "余额查询失败，请检查上游 Key 权限");
         } finally {
             setTestingID("");
         }
