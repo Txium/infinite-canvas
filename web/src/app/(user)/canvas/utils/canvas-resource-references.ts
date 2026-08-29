@@ -40,7 +40,7 @@ export function buildNodeMentionReferences(node: CanvasNodeData, nodes: CanvasNo
 export function getMentionResourceNodes(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[]) {
     const configInputs = getConnectedConfigResourceNodes(nodeId, nodes, connections);
     if (configInputs.length) return configInputs;
-    const ownInputs = getContextResourceNodes(nodeId, nodes, connections);
+    const ownInputs = getConfigGenerationResourceNodes(nodeId, nodes, connections);
     if (ownInputs.length) return ownInputs;
     const node = nodes.find((item) => item.id === nodeId);
     return node && isResourceNode(node) ? [node] : [];
@@ -49,9 +49,28 @@ export function getMentionResourceNodes(nodeId: string, nodes: CanvasNodeData[],
 export function getGenerationResourceNodes(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[]) {
     const configInputs = getConnectedConfigResourceNodes(nodeId, nodes, connections);
     if (configInputs.length) return configInputs;
-    const ownInputs = getContextResourceNodes(nodeId, nodes, connections);
+    const ownInputs = getConfigGenerationResourceNodes(nodeId, nodes, connections);
     if (ownInputs.length) return ownInputs;
     return [];
+}
+
+function getConfigGenerationResourceNodes(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[]) {
+    const inputs = getContextResourceNodes(nodeId, nodes, connections);
+    const node = nodes.find((item) => item.id === nodeId);
+    if (node?.type !== CanvasNodeType.Config || node.metadata?.generationMode !== "video") return inputs;
+    if (inputs.some((item) => isCanvasImageNodeType(item.type) && item.metadata?.content)) return inputs;
+
+    // A common canvas workflow is: generate an image from a config node, then
+    // switch that same config node to video. The generated image is an outgoing
+    // child of the config node, so treating only incoming edges as references
+    // silently drops the image and makes image-to-video providers reject the
+    // request. Reuse the config's direct image outputs when no explicit incoming
+    // image is connected. Explicit inputs always take precedence.
+    const generatedImages = connections
+        .filter((connection) => connection.fromNodeId === nodeId)
+        .map((connection) => nodes.find((item) => item.id === connection.toNodeId))
+        .filter((item): item is CanvasNodeData => Boolean(item && isCanvasImageNodeType(item.type) && item.metadata?.content));
+    return [...inputs, ...generatedImages.filter((item) => !inputs.some((input) => input.id === item.id))];
 }
 
 function getContextResourceNodes(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[]) {
