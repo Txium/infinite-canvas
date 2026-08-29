@@ -543,9 +543,14 @@ export function aiHeaders(config: AiConfig, contentType?: string) {
     const token = useUserStore.getState().token;
     if (config.channelMode === "remote" && !token) throw new Error("请先登录后再使用云端渠道");
     if (config.channelMode === "remote") {
+        const selectedChannelId = channelIdForActiveModel(config);
+        // Model-market entries use a virtual `market:*` channel only for UI
+        // grouping. The backend routes these requests by the selected model
+        // variant, so the virtual ID must never be sent as a real channel ID.
+        const remoteChannelId = selectedChannelId.startsWith("market:") ? "" : selectedChannelId;
         return {
             Authorization: `Bearer ${token}`,
-            ...(channelIdForActiveModel(config) ? { "X-Model-Channel-ID": channelIdForActiveModel(config) } : {}),
+            ...(remoteChannelId ? { "X-Model-Channel-ID": remoteChannelId } : {}),
             ...(contentType ? { "Content-Type": contentType } : {}),
         };
     }
