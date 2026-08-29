@@ -373,8 +373,18 @@ func modelProviderReady(item model.ModelProvider) bool { return item.Enabled && 
 func withProviderSecret(item model.ModelProvider) model.ModelProvider { item.APIKey = providerSecret(item.Code); item.HasAPIKey = item.APIKey != ""; return item }
 
 func providerSecret(code string) string {
-	environmentNames := map[string]string{"302":"MODEL_PROVIDER_302_API_KEY","wavespeed":"MODEL_PROVIDER_WAVESPEED_API_KEY","lec":"MODEL_PROVIDER_LEC_API_KEY","seedance_nz":"MODEL_PROVIDER_SEEDANCE_NZ_API_KEY"}
-	return strings.TrimSpace(os.Getenv(environmentNames[strings.TrimSpace(code)]))
+	environmentNames := map[string][]string{
+		"302":         {"MODEL_PROVIDER_302_API_KEY", "API_PROVIDER_302_KEY", "302_API_KEY"},
+		"wavespeed":   {"MODEL_PROVIDER_WAVESPEED_API_KEY", "API_PROVIDER_WAVESPEED_KEY", "WAVESPEED_API_KEY"},
+		"lec":         {"MODEL_PROVIDER_LEC_API_KEY", "API_PROVIDER_LEC_KEY", "LEC_API_KEY"},
+		"seedance_nz": {"MODEL_PROVIDER_SEEDANCE_NZ_API_KEY", "API_PROVIDER_SEEDANCE_NZ_KEY", "SEEDANCE_NZ_API_KEY"},
+	}
+	for _, name := range environmentNames[strings.TrimSpace(code)] {
+		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func applyProviderBalanceDefaults(item *model.ModelProvider) {
