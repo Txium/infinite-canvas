@@ -2,7 +2,7 @@
 
 import { App, Button, Card, Form, Input, InputNumber, Modal, Space, Switch, Table, Tag, Typography } from "antd";
 import dayjs from "dayjs";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { fetchAdminModelProviders, saveAdminModelProvider, testAdminModelProvider, type AdminModelProvider } from "@/services/api/admin";
 import { useUserStore } from "@/stores/use-user-store";
@@ -34,10 +34,26 @@ export default function AdminProvidersPage() {
     const [testingID, setTestingID] = useState("");
     const [liveBalances, setLiveBalances] = useState<Record<string, string>>({});
     const [balanceErrors, setBalanceErrors] = useState<Record<string, string>>({});
+    const autoBalanceKey = useRef("");
     const [testedModels, setTestedModels] = useState<{ provider: string; models: string[] } | null>(null);
     const [form] = Form.useForm<ProviderForm>();
     const load = async () => { if (token) setItems(await fetchAdminModelProviders(token)); };
     useEffect(() => { void load(); }, [token]);
+    useEffect(() => {
+        if (!token || items.length === 0) return;
+        const key = items.map((item) => item.id).join("|");
+        if (autoBalanceKey.current === key) return;
+        autoBalanceKey.current = key;
+        void Promise.all(items.filter((item) => item.ready).map(async (item) => {
+            try {
+                const result = await testAdminModelProvider(token, item.id);
+                if (result.balanceText) setLiveBalances((current) => ({ ...current, [item.id]: result.balanceText! }));
+            } catch (error) {
+                const detail = error instanceof Error ? error.message : "余额查询失败，请检查上游 Key 权限";
+                setBalanceErrors((current) => ({ ...current, [item.id]: detail }));
+            }
+        }));
+    }, [items, token]);
     const open = (item: AdminModelProvider) => {
         setEditing(item);
         form.setFieldsValue({
