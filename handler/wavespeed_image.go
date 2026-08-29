@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -35,6 +36,20 @@ func normalizeWaveSpeedImageBody(body []byte, contentType string, variantID stri
 		}
 	}
 	delete(payload, "size")
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(variantID)), "krea_v2__") {
+		// Krea V2 uses `image` for image-to-image.  The canvas accepts the
+		// common OpenAI `image_url`/`images` names, so normalize them here
+		// while retaining the prompt and aspect ratio fields.
+		if image := firstWaveSpeedImage(payload, "image", "image_url"); image != "" {
+			payload["image"] = image
+		} else if values, ok := payload["images"].([]any); ok && len(values) > 0 {
+			if image := strings.TrimSpace(fmt.Sprint(values[0])); image != "" && image != "<nil>" {
+				payload["image"] = image
+			}
+		}
+		delete(payload, "image_url")
+		delete(payload, "images")
+	}
 	if quality, resolution, ok := waveSpeedGPTImageTier(variantID); ok {
 		// GPT Image 2 currently accepts only these documented inputs. Strip
 		// OpenAI-only response and streaming options so a valid request is not
@@ -51,6 +66,17 @@ func normalizeWaveSpeedImageBody(body []byte, contentType string, variantID stri
 	}
 	encoded, err := json.Marshal(payload)
 	return encoded, "application/json", err
+}
+
+func firstWaveSpeedImage(payload map[string]any, names ...string) string {
+	for _, name := range names {
+		if value, ok := payload[name]; ok {
+			if text := strings.TrimSpace(fmt.Sprint(value)); text != "" && text != "<nil>" {
+				return text
+			}
+		}
+	}
+	return ""
 }
 
 func waveSpeedAspectRatio(size string) string {

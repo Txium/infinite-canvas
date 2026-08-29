@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -69,13 +70,18 @@ func ListMarketModels(category string, featured bool) ([]model.MarketModelCard, 
 	routes, err := repository.ListEnabledModelRoutes(ids); if err != nil { return nil, err }
 	byModel := map[string][]model.ModelVariant{}; for _, variant := range variants { byModel[variant.ModelID] = append(byModel[variant.ModelID], variant) }
 	variantByID := map[string]model.ModelVariant{}; for _, variant := range variants { variantByID[variant.ID] = variant }
-	availableVariants := map[string]bool{}; for _, route := range routes { variant := variantByID[route.VariantID]; if provider, providerErr := repository.ModelProviderByID(route.ProviderID); providerErr == nil && modelProviderReady(withProviderSecret(provider)) && variant.PricingMode == "fixed" && variant.PriceCents != nil { availableVariants[route.VariantID] = true } }
+	availableVariants := map[string]bool{}; for _, route := range routes { variant := variantByID[route.VariantID]; priced := variant.PricingMode == "fixed" && variant.PriceCents != nil || variant.PricingMode == "dynamic" && strings.TrimSpace(variant.PriceFormula) != ""; if provider, providerErr := repository.ModelProviderByID(route.ProviderID); providerErr == nil && modelProviderReady(withProviderSecret(provider)) && priced { availableVariants[route.VariantID] = true } }
 	result := make([]model.MarketModelCard, 0, len(items))
 	for _, item := range items {
 		modelVariants := byModel[item.ID]
 		if len(modelVariants) == 0 { continue }
 		availableIDs := make([]string, 0); for _, variant := range modelVariants { if availableVariants[variant.ID] { availableIDs = append(availableIDs, variant.ID) } }
-		publicVariants := make([]model.PublicModelVariant, 0, len(modelVariants)); for _, variant := range modelVariants { publicVariants = append(publicVariants, model.PublicModelVariant{ID:variant.ID,ModelID:variant.ModelID,Name:variant.Name,PriceCents:variant.PriceCents,PriceText:variant.PriceText,BillingUnit:variant.BillingUnit,PricingMode:variant.PricingMode,PriceFormula:variant.PriceFormula,PersonNote:variant.PersonNote,Remark:variant.Remark,Enabled:variant.Enabled,Sort:variant.Sort}) }
+		// The public market must never advertise an un-routable or unpriced
+		// variant as if it were usable. Admin pages still receive the complete
+		// catalog, but users only see variants that passed provider readiness,
+		// fixed-price, and enabled-route checks above.
+		publicVariants := make([]model.PublicModelVariant, 0, len(availableIDs)); for _, variant := range modelVariants { if !availableVariants[variant.ID] { continue }; publicVariants = append(publicVariants, model.PublicModelVariant{ID:variant.ID,ModelID:variant.ModelID,Name:variant.Name,PriceCents:variant.PriceCents,PriceText:variant.PriceText,BillingUnit:variant.BillingUnit,PricingMode:variant.PricingMode,PriceFormula:variant.PriceFormula,PersonNote:variant.PersonNote,Remark:variant.Remark,Enabled:variant.Enabled,Sort:variant.Sort}) }
+		if len(publicVariants) == 0 { continue }
 		result = append(result, model.MarketModelCard{MarketModel:item, Variants:publicVariants, AvailableVariantIDs:availableIDs, Available:len(availableIDs)>0})
 	}
 	return result, nil
@@ -257,7 +263,9 @@ func SaveModelRoute(item model.ModelRoute) (model.ModelRoute, error) {
 	if item.Enabled {
 		marketModel, modelErr := repository.SavedMarketModelByID(variant.ModelID)
 		if modelErr != nil || !marketModel.Enabled || marketModel.Status == "maintenance" { return model.ModelRoute{}, errors.New("模型未上架或正在维护，不能启用线路") }
-		if !variant.Enabled || variant.PricingMode != "fixed" || variant.PriceCents == nil || *variant.PriceCents <= 0 { return model.ModelRoute{}, errors.New("启用线路前必须为档位设置大于 0 的固定人民币售价并上架") }
+		fixedPriced := variant.PricingMode == "fixed" && variant.PriceCents != nil && *variant.PriceCents > 0
+		dynamicPriced := variant.PricingMode == "dynamic" && strings.TrimSpace(variant.PriceFormula) != ""
+		if !variant.Enabled || (!fixedPriced && !dynamicPriced) { return model.ModelRoute{}, errors.New("启用线路前必须为档位设置售价或有效的动态价格公式并上架") }
 		if !modelProviderReady(withProviderSecret(provider)) { return model.ModelRoute{}, errors.New("启用线路前必须启用供应商并配置 Base URL 与服务器 Secret") }
 	}
 	now := time.Now().Format(time.RFC3339)
@@ -295,6 +303,11 @@ func AdminModelReadiness() (model.ModelReadiness, error) {
 	for _, variant := range variants {
 		if !variant.Enabled || !enabledModels[variant.ModelID] { continue }
 		result.EnabledVariantCount++
+		if variant.PricingMode == "dynamic" {
+			if strings.TrimSpace(variant.PriceFormula) == "" { dynamicCount++; continue }
+			if enabledRoutesByVariant[variant.ID] > 0 { result.AvailableVariantCount++ } else { missingRouteCount++ }
+			continue
+		}
 		if variant.PricingMode != "fixed" || variant.PriceCents == nil || *variant.PriceCents <= 0 { dynamicCount++; continue }
 		if enabledRoutesByVariant[variant.ID] > 0 { result.AvailableVariantCount++ } else { missingRouteCount++ }
 	}
@@ -328,7 +341,15 @@ func ResolveMarketRoutes(variantID string) ([]MarketRouteCandidate, bool, error)
 		provider, providerErr := repository.ModelProviderByID(route.ProviderID)
 		provider = withProviderSecret(provider)
 		if providerErr != nil || !modelProviderReady(provider) { continue }
-		result = append(result, MarketRouteCandidate{RouteID:route.ID, Channel:model.ModelChannel{ID:provider.ID, Protocol:route.Protocol, Name:provider.Name, BaseURL:provider.BaseURL, APIKey:provider.APIKey, Models:[]string{route.UpstreamModelID}, Weight:1, Timeout:provider.Timeout, Enabled:true}, UpstreamModel:route.UpstreamModelID})
+		baseURL := provider.BaseURL
+		protocol := route.Protocol
+		if marketModel, marketErr := repository.SavedMarketModelByID(variant.ModelID); marketErr == nil && marketModel.Category == "llm" && provider.Code == "wavespeed" {
+			// WaveSpeed serves LLMs from its OpenAI-compatible host, separate
+			// from the media prediction API, while keeping the same account key.
+			baseURL = "https://llm.wavespeed.ai/v1"
+			protocol = "openai"
+		}
+		result = append(result, MarketRouteCandidate{RouteID:route.ID, Channel:model.ModelChannel{ID:provider.ID, Protocol:protocol, Name:provider.Name, BaseURL:baseURL, APIKey:provider.APIKey, Models:[]string{route.UpstreamModelID}, Weight:1, Timeout:provider.Timeout, Enabled:true}, UpstreamModel:route.UpstreamModelID})
 	}
 	if len(result) == 0 { return nil, true, errors.New("指定模型渠道不可用") }
 	return result, true, nil
@@ -385,10 +406,42 @@ func MarketModelCost(variantID string) (int, bool, error) {
 }
 
 func MarketModelPricing(variantID string) (int, string, bool, error) {
+	return MarketModelPricingForRequest(variantID, nil)
+}
+
+// MarketModelPricingForRequest returns a conservative RMB reservation for a
+// market request. Dynamic LLM variants are reserved from the declared
+// input/output per-million-token formula; a later usage-aware settlement can
+// refund any unused reservation without exposing provider pricing to clients.
+func MarketModelPricingForRequest(variantID string, body []byte) (int, string, bool, error) {
 	variant, err := repository.MarketVariantByID(strings.TrimSpace(variantID))
 	if errors.Is(err, gorm.ErrRecordNotFound) { return 0, "", false, nil }
 	if err != nil { return 0, "", false, err }
 	if !variant.Enabled || variant.PricingMode == "disabled" { return 0, "", false, errors.New("当前模型档位未上架") }
-	if variant.PriceCents == nil || variant.PricingMode != "fixed" { return 0, "", false, errors.New("动态价格尚未接入真实成本结算，当前不能生成") }
+	if variant.PricingMode == "dynamic" {
+		if strings.TrimSpace(variant.PriceFormula) == "" { return 0, "", false, errors.New("动态价格尚未配置") }
+		return dynamicVariantReservation(variant.PriceFormula, body), strings.TrimSpace(variant.BillingUnit), true, nil
+	}
+	if variant.PriceCents == nil { return 0, "", false, errors.New("模型售价尚未配置") }
 	return int(*variant.PriceCents), strings.TrimSpace(variant.BillingUnit), true, nil
+}
+
+func dynamicVariantReservation(formula string, body []byte) int {
+	prices := regexp.MustCompile(`([0-9]+(?:\.[0-9]+)?)`).FindAllString(formula, -1)
+	if len(prices) < 2 { return 1 }
+	inputRate, _ := strconv.ParseFloat(prices[0], 64)
+	outputRate, _ := strconv.ParseFloat(prices[1], 64)
+	inputTokens := 1
+	if len(body) > 0 {
+		inputTokens = len([]rune(string(body))) / 4
+		if inputTokens < 1 { inputTokens = 1 }
+	}
+	outputTokens := 512
+	var request struct { MaxTokens int `json:"max_tokens"` }
+	if json.Unmarshal(body, &request) == nil && request.MaxTokens > 0 { outputTokens = request.MaxTokens }
+	reservation := (float64(inputTokens)*inputRate + float64(outputTokens)*outputRate) / 10000
+	credits := int(reservation)
+	if float64(credits) < reservation { credits++ }
+	if credits < 1 { credits = 1 }
+	return credits
 }

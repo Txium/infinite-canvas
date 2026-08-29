@@ -155,7 +155,7 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 	if userChannelID == "" {
 		var marketCost bool
 		var billingUnit string
-		credits, billingUnit, marketCost, err = service.MarketModelPricing(requestedModel)
+		credits, billingUnit, marketCost, err = service.MarketModelPricingForRequest(requestedModel, body)
 		if err == nil && !marketCost { credits, err = service.ModelCost(requestedModel) }
 		if err != nil {
 			log.Printf("AI proxy read model cost failed: model=%s err=%v", modelName, err)

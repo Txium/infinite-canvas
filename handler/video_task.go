@@ -86,7 +86,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	if userChannelID == "" {
 		var marketCost bool
 		var billingUnit string
-		credits, billingUnit, marketCost, err = service.MarketModelPricing(requestedModel)
+		credits, billingUnit, marketCost, err = service.MarketModelPricingForRequest(requestedModel, body)
 		if err == nil && !marketCost {
 			credits, err = service.ModelCost(requestedModel)
 		}
@@ -397,6 +397,9 @@ func videoTaskUpstreamModel(task model.VideoTask) string {
 }
 
 func normalizeVideoCreateBody(body []byte, contentType string, modelName string, channel model.ModelChannel, upstreamPath string) ([]byte, string, error) {
+	if isWaveSpeedChannel(channel) && strings.Contains(strings.ToLower(upstreamPath), "/minimax-h3/") {
+		return normalizeWaveSpeedH3VideoBody(body, contentType, upstreamPath)
+	}
 	if service.IsGeminiChannel(channel) {
 		normalized, err := service.StripGeminiModelField(body, contentType)
 		return normalized, contentType, err

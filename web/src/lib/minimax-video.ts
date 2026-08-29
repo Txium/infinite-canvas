@@ -10,6 +10,11 @@ export function isMiniMaxChannel(channel?: { protocol?: string }) {
 
 export function isMiniMaxH3Config(config: AiConfig, modelName: string) {
     const model = modelName.trim();
+    // The managed model market exposes H3 as numbered variants (for example
+    // hailuo_h3__01). They still use the same multimodal request builder; the
+    // server-side market route swaps the variant for WaveSpeed's exact model
+    // endpoint before forwarding it.
+    if (/^hailuo_h3__\d+$/i.test(model)) return true;
     return model.toLowerCase() === "minimax-h3"
         && channelProtocolForConfig({ ...config, model, videoModel: model }) === MINIMAX_CHANNEL_PROTOCOL;
 }
