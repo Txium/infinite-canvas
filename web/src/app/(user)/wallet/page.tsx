@@ -81,6 +81,13 @@ export default function WalletPage() {
                     <Form.Item name="amount" label="充值金额（元）" rules={[{ required: true }]}><InputNumber min={1} max={100000} className="!w-full" /></Form.Item>
                     <Form.Item name="paymentMethod" hidden><input type="hidden" /></Form.Item>
                     <Typography.Paragraph>付款方式：支付宝</Typography.Paragraph>
+                    <Alert
+                        type="info"
+                        showIcon
+                        className="mb-3"
+                        message="测试支付请使用其他支付宝账号"
+                        description="不要用签约商户账号给自己付款，否则支付宝可能返回 AE150003030。"
+                    />
                     <Button type="primary" disabled={(paymentState || payment)?.ready !== true} loading={loading} onClick={() => void submit()}>立即支付</Button>
                 </Form>
             </Card>
