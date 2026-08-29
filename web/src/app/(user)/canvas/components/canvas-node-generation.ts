@@ -116,19 +116,28 @@ function buildComposerGenerationContext(inputs: NodeGenerationInput[], prompt: s
     const effectiveReferenceImages = referenceImages.filter((image) => !frameNodeIds.has(image.id));
 
     if (!hasToken) {
+        // Composer content created before node mentions were introduced may not
+        // contain `@[node:*]` tokens. Keep the legacy connected-node behavior in
+        // that case instead of silently dropping every image/video/audio input.
+        const fallbackInputs = inputs.filter((input) => !advanced.textNodeIds.has(input.nodeId) && !advanced.referenceNodeIds.has(input.nodeId));
+        const fallbackText = fallbackInputs.map((input) => input.text).filter(Boolean).join("\n\n");
+        const fallbackImages = fallbackInputs.map((input) => input.image).filter((image): image is ReferenceImage => Boolean(image));
+        const fallbackVideos = fallbackInputs.map((input) => input.video).filter((video): video is ReferenceVideo => Boolean(video));
+        const fallbackAudios = fallbackInputs.map((input) => input.audio).filter((audio): audio is ReferenceAudio => Boolean(audio));
+        const fallbackImageIDs = new Set([frameReferences.firstFrame?.id, frameReferences.lastFrame?.id].filter((id): id is string => Boolean(id)));
         return {
-            prompt,
-            referenceImages: advanced.klingImageReferences,
+            prompt: mergeUniquePromptBlocks(prompt, fallbackText),
+            referenceImages: [...advanced.klingImageReferences, ...fallbackImages.filter((image) => !fallbackImageIDs.has(image.id))],
             firstFrame: frameReferences.firstFrame,
             lastFrame: frameReferences.lastFrame,
-            referenceVideos: [],
-            referenceAudios: [],
+            referenceVideos: fallbackVideos,
+            referenceAudios: fallbackAudios,
             videoMultiPrompt: advanced.videoMultiPrompt,
             videoElementList: advanced.videoElementList,
-            textCount: 0,
-            imageCount: 0,
-            videoCount: 0,
-            audioCount: 0,
+            textCount: fallbackInputs.filter((input) => input.type === "text").length,
+            imageCount: fallbackImages.length,
+            videoCount: fallbackVideos.length,
+            audioCount: fallbackAudios.length,
         };
     }
 
