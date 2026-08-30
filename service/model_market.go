@@ -89,6 +89,14 @@ func ListMarketModels(category string, featured bool) ([]model.MarketModelCard, 
 	if err != nil {
 		return nil, err
 	}
+	providers, err := repository.ListModelProviders()
+	if err != nil {
+		return nil, err
+	}
+	providerByID := make(map[string]model.ModelProvider, len(providers))
+	for _, provider := range providers {
+		providerByID[provider.ID] = withProviderSecret(provider)
+	}
 	byModel := map[string][]model.ModelVariant{}
 	for _, variant := range variants {
 		byModel[variant.ModelID] = append(byModel[variant.ModelID], variant)
@@ -100,7 +108,7 @@ func ListMarketModels(category string, featured bool) ([]model.MarketModelCard, 
 	availableVariants := map[string]bool{}
 	for _, route := range routes {
 		variant := variantByID[route.VariantID]
-		if provider, providerErr := repository.ModelProviderByID(route.ProviderID); providerErr == nil && modelProviderReady(withProviderSecret(provider)) && publicVariantPriced(variant) {
+		if provider, ok := providerByID[route.ProviderID]; ok && modelProviderReady(provider) && publicVariantPriced(variant) {
 			availableVariants[route.VariantID] = true
 		}
 	}

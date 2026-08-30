@@ -3,6 +3,7 @@ package repository
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/tigerowo/infinite-canvas/model"
 )
@@ -38,6 +39,39 @@ func TestCreateVideoTaskIfAbsentConcurrentClaim(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("claims=%d, want exactly 1", count)
+	}
+}
+
+func TestDistinctVideoTasksAreIndependentlyClaimed(t *testing.T) {
+	useFinanceTestDB(t)
+	for _, id := range []string{"client_video_task_a", "client_video_task_b"} {
+		_, claimed, err := CreateVideoTaskIfAbsent(model.VideoTask{ID: id, UserID: "user-a", ChannelID: "provider_lec", Status: "queued"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !claimed {
+			t.Fatalf("distinct task %s was incorrectly blocked by another LEC task", id)
+		}
+	}
+}
+
+func TestDueVideoTasksKeepRecentReconciliationAndDropExpiredAuditRecords(t *testing.T) {
+	useFinanceTestDB(t)
+	now := time.Now().UTC()
+	tasks := []model.VideoTask{
+		{ID: "recent-reconciling", UserID: "user-a", Status: "reconciling", CreatedAt: now.Add(-2 * time.Hour).Format(time.RFC3339Nano)},
+		{ID: "expired-reconciling", UserID: "user-a", Status: "reconciling", CreatedAt: now.Add(-72 * time.Hour).Format(time.RFC3339Nano)},
+	}
+	database, _ := DB()
+	if err := database.Create(&tasks).Error; err != nil {
+		t.Fatal(err)
+	}
+	due, err := ListDueVideoTasks(now.Add(-48*time.Hour).Format(time.RFC3339Nano), 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(due) != 1 || due[0].ID != "recent-reconciling" {
+		t.Fatalf("unexpected due reconciliation tasks: %+v", due)
 	}
 }
 

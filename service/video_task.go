@@ -295,7 +295,7 @@ func runVideoTaskPoller() {
 	for range videoTaskPollWake {
 		for {
 			current := time.Now()
-			tasks, err := repository.ListDueVideoTasks(200)
+			tasks, err := repository.ListDueVideoTasks(videoTaskTime(current.Add(-videoTaskRecoveryAge)), 200)
 			if err != nil {
 				log.Printf("list due video tasks failed err=%v", err)
 				waitForNextVideoTaskPoll()
@@ -325,17 +325,16 @@ func runVideoTaskPoller() {
 				lastCleanupAt = current
 			}
 			for _, task := range tasks {
-				if videoTaskExpired(task, current) && !recoverableVideoTask(task) {
-					if err := UpdateVideoTaskFromPoll(task, VideoTaskPollUpdate{
-						Status:       "reconciling",
-						ResponseBody: task.LastResponse,
-					}); err != nil {
-						log.Printf("mark video task reconciling failed id=%s err=%v", task.ID, err)
-					}
+				expired := videoTaskExpired(task, current)
+				if expired && videoTaskPolledRecently(task, current, time.Minute) {
 					continue
 				}
-				if NormalizeVideoTaskStatus(task.Status) == "reconciling" && videoTaskPolledRecently(task, current, time.Minute) {
-					continue
+				if expired && NormalizeVideoTaskStatus(task.Status) != "reconciling" && !recoverableVideoTask(task) {
+					task.Status = "reconciling"
+					if _, err := repository.SaveVideoTask(task); err != nil {
+						log.Printf("mark video task reconciling failed id=%s err=%v", task.ID, err)
+						continue
+					}
 				}
 				if _, loaded := inFlight.LoadOrStore(task.ID, true); loaded {
 					continue

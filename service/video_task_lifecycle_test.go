@@ -35,3 +35,18 @@ func TestVideoTaskEntersReconciliationAfterTwentyMinutes(t *testing.T) {
 		t.Fatal("did not expect 19 minute task to expire")
 	}
 }
+
+func TestExpiredVideoTaskRemainsPollableAfterReconciliation(t *testing.T) {
+	now := time.Now().UTC()
+	task := model.VideoTask{
+		CreatedAt:    videoTaskTime(now.Add(-25 * time.Minute)),
+		LastPolledAt: videoTaskTime(now.Add(-2 * time.Minute)),
+		Status:       "reconciling",
+	}
+	if !videoTaskExpired(task, now) {
+		t.Fatal("expected task to be in slow reconciliation mode")
+	}
+	if videoTaskPolledRecently(task, now, time.Minute) {
+		t.Fatal("expected reconciliation poll to be due")
+	}
+}

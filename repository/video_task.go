@@ -122,7 +122,7 @@ func DeleteUserVideoTask(userID string, id string) error {
 		Where("status IN ?", []string{"completed", "failed", "cancelled", "canceled"}).Delete(&model.VideoTask{}).Error
 }
 
-func ListDueVideoTasks(limit int) ([]model.VideoTask, error) {
+func ListDueVideoTasks(createdAfter string, limit int) ([]model.VideoTask, error) {
 	db, err := DB()
 	if err != nil {
 		return nil, err
@@ -131,7 +131,7 @@ func ListDueVideoTasks(limit int) ([]model.VideoTask, error) {
 		limit = 100
 	}
 	var tasks []model.VideoTask
-	err = db.Where("status IN ?", []string{"queued", "in_progress", "processing", "running", "reconciling"}).
+	err = db.Where("status IN ? AND created_at >= ?", []string{"queued", "in_progress", "processing", "running", "reconciling"}, createdAfter).
 		Order("created_at ASC").
 		Limit(limit).
 		Find(&tasks).Error

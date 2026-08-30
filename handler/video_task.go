@@ -108,32 +108,6 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		failAIChannelSelect(w, err, "AI 接口请求失败")
 		return
 	}
-	availableCandidates := make([]service.MarketRouteCandidate, 0, len(candidates))
-	lecBusy := false
-	for _, candidate := range candidates {
-		if !isLECVideoChannel(candidate.Channel) {
-			availableCandidates = append(availableCandidates, candidate)
-			continue
-		}
-		active, activeErr := service.HasActiveVideoTaskForChannel(user.ID, candidate.Channel.ID, clientTaskID)
-		if activeErr != nil {
-			log.Printf("check active LEC video task failed: user=%s channel=%s err=%v", user.ID, candidate.Channel.ID, activeErr)
-			Fail(w, "视频任务状态检查失败，请稍后重试")
-			return
-		}
-		if active {
-			lecBusy = true
-			continue
-		}
-		availableCandidates = append(availableCandidates, candidate)
-	}
-	if len(availableCandidates) == 0 && lecBusy {
-		Fail(w, "当前已有一条 LEC 视频任务正在生成或等待上游确认；为避免重复扣费，请等待该任务结束，或改用其他中转站模型")
-		return
-	}
-	if len(availableCandidates) > 0 {
-		candidates = availableCandidates
-	}
 	credits := 0
 	estimatedProviderCost := int64(0)
 	if userChannelID == "" {
@@ -252,7 +226,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		Fail(w, "视频接口没有返回任务 ID")
 		return
 	}
-	task, err = service.CompleteVideoTaskSubmission(task, service.VideoTaskCreateInput{
+	task, err = completeVideoTaskSubmissionWithRetry(task, service.VideoTaskCreateInput{
 		UserID:                     user.ID,
 		UserDisplayName:            firstNonEmpty(user.DisplayName, user.Username),
 		Model:                      requestedModel,
@@ -291,6 +265,19 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	saveAIProxyLog(logContext, status, string(transformed), "")
 	OK(w, service.VideoTaskResponse(task))
+}
+
+func completeVideoTaskSubmissionWithRetry(task model.VideoTask, input service.VideoTaskCreateInput) (model.VideoTask, error) {
+	var saved model.VideoTask
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		saved, err = service.CompleteVideoTaskSubmission(task, input)
+		if err == nil {
+			return saved, nil
+		}
+		time.Sleep(time.Duration(attempt+1) * 50 * time.Millisecond)
+	}
+	return saved, err
 }
 
 func failVideoTaskBeforeUpstreamAcceptance(task model.VideoTask, message string, detail string) {
@@ -531,16 +518,10 @@ func serveGeminiVideoTaskContent(w http.ResponseWriter, r *http.Request, id stri
 func pollVideoTaskFromUpstream(task model.VideoTask) (service.VideoTaskPollUpdate, error) {
 	channel, upstreamModel, err := selectPersistedVideoTaskChannel(task)
 	if err != nil {
-		// A persisted task cannot recover when its configured channel has been
-		// removed, disabled, or no longer exposes the routed upstream model.
-		// Mark it failed so the billing finalizer releases frozen credits instead
-		// of polling forever until the 30-minute timeout.
-		message := "视频任务渠道不可用，费用已自动退回"
-		return service.VideoTaskPollUpdate{
-			Status:      "failed",
-			Error:       message,
-			ErrorDetail: err.Error(),
-		}, nil
+		// The provider has already accepted this task. A missing/temporarily
+		// disabled local route does not prove the upstream task failed, so keep
+		// funds frozen and retry reconciliation after the route is restored.
+		return reconcilingVideoPollUpdate("暂时无法读取原提交线路："+err.Error(), ""), nil
 	}
 	// A local task ID is never a provider task ID. Sending it upstream creates
 	// false 404 failures and can incorrectly release frozen funds.
@@ -577,10 +558,11 @@ func pollVideoTaskFromUpstream(task model.VideoTask) (service.VideoTaskPollUpdat
 	if status >= http.StatusBadRequest {
 		message := readUpstreamAIErrorMessage(payload, status)
 		saveAIProxyLog(logContext, status, string(payload), strings.TrimSpace(string(payload)))
-		if status == http.StatusTooManyRequests {
-			return service.VideoTaskPollUpdate{Status: task.Status, ErrorDetail: message, ResponseBody: string(payload)}, nil
-		}
-		return service.VideoTaskPollUpdate{Status: "failed", Error: message, ErrorDetail: message, ResponseBody: string(payload)}, nil
+		// HTTP errors while querying an already accepted task are not terminal
+		// generation results. LEC/WaveSpeed can transiently return 404/429/5xx
+		// while the paid task continues and later succeeds. Only an explicit
+		// provider task payload with a failed state may release user funds.
+		return reconcilingVideoPollUpdate(message, string(payload)), nil
 	}
 	transformed := transformVideoStatusPayload(payload, request, channel, upstreamModel)
 	parsed := parseVideoTaskPayload(transformed, upstreamModel)
@@ -612,6 +594,14 @@ func pollVideoTaskFromUpstream(task model.VideoTask) (service.VideoTaskPollUpdat
 		ErrorDetail:  parsed.ErrorDetail,
 		ResponseBody: string(transformed),
 	}, nil
+}
+
+func reconcilingVideoPollUpdate(detail string, responseBody string) service.VideoTaskPollUpdate {
+	return service.VideoTaskPollUpdate{
+		Status:       "reconciling",
+		ErrorDetail:  strings.TrimSpace(detail),
+		ResponseBody: responseBody,
+	}
 }
 
 // selectPersistedVideoTaskChannel restores the same managed-market provider
