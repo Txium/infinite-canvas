@@ -4888,7 +4888,7 @@ function shouldFailMissingClientTask(taskId: string | undefined, startedAt: numb
 }
 
 function taskPollingErrorMessage(error: unknown, fallback: string) {
-    if (error instanceof Error && error.message.trim()) return error.message;
+    if (error instanceof Error && error.message.trim() && !/^request failed with status code \d+$/i.test(error.message.trim())) return error.message;
     return fallback;
 }
 
