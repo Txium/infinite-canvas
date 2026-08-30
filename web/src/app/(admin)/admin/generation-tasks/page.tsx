@@ -2,12 +2,12 @@
 
 import { ReloadOutlined } from "@ant-design/icons";
 import { ProTable, type ActionType, type ProColumns } from "@ant-design/pro-components";
-import { Button, Card, Image, Space, Tag, Typography } from "antd";
+import { Button, Card, Form, Image, Input, Modal, Select, Space, Tag, Typography, message } from "antd";
 import dayjs from "dayjs";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 import { formatCNY } from "@/constant/credits";
-import { fetchAdminGenerationTasks, type AdminGenerationTask } from "@/services/api/admin";
+import { fetchAdminGenerationTasks, importAdminGenerationTask, type AdminGenerationTask } from "@/services/api/admin";
 import { useUserStore } from "@/stores/use-user-store";
 
 const kindLabels: Record<string, string> = { image: "图片", video: "视频", audio: "音频" };
@@ -15,7 +15,10 @@ const billingLabels: Record<string,string> = { frozen:"已冻结", settled:"已�
 
 export default function AdminGenerationTasksPage() {
     const token = useUserStore((state) => state.token);
-    const actionRef = useRef<ActionType>(null);
+	const actionRef = useRef<ActionType>(null);
+	const [form] = Form.useForm();
+	const [importOpen,setImportOpen] = useState(false);
+	const [importing,setImporting] = useState(false);
     const columns: ProColumns<AdminGenerationTask>[] = [
         {title:"搜索",dataIndex:"keyword",hideInTable:true},
         {title:"用户",dataIndex:"userDisplayName",width:160,search:false,render:(_,item)=><Space direction="vertical" size={0}><Typography.Text>{item.userDisplayName||item.userId}</Typography.Text><Typography.Text type="secondary" copyable>{item.userId}</Typography.Text></Space>},
@@ -31,5 +34,5 @@ export default function AdminGenerationTasksPage() {
         {title:"创建时间",dataIndex:"createdAt",width:180,search:false,render:(_,item)=>item.createdAt?dayjs(item.createdAt).format("YYYY-MM-DD HH:mm:ss"):"-"},
         {title:"创建日期",dataIndex:"createdRange",valueType:"dateRange",hideInTable:true},
     ];
-    return <main style={{padding:24}}><Card variant="borderless"><ProTable actionRef={actionRef} rowKey="id" columns={columns} request={async(params)=>{ if(!token)return{data:[],success:true,total:0}; const range=params.createdRange as string[]|undefined; const data=await fetchAdminGenerationTasks(token,{keyword:params.keyword as string,kind:params.kind as string,status:params.status as string,billingStatus:params.billingStatus as string,startedAt:range?.[0],endedAt:range?.[1],limit:500}); return{data,success:true,total:data.length}; }} pagination={{pageSize:20}} headerTitle={<Typography.Text strong>生成任务</Typography.Text>} toolBarRender={()=>[<Button key="refresh" icon={<ReloadOutlined/>} onClick={()=>actionRef.current?.reload()}>刷新</Button>]} /></Card></main>;
+    return <main style={{padding:24}}><Card variant="borderless"><ProTable actionRef={actionRef} rowKey="id" columns={columns} request={async(params)=>{ if(!token)return{data:[],success:true,total:0}; const range=params.createdRange as string[]|undefined; const data=await fetchAdminGenerationTasks(token,{keyword:params.keyword as string,kind:params.kind as string,status:params.status as string,billingStatus:params.billingStatus as string,startedAt:range?.[0],endedAt:range?.[1],limit:500}); return{data,success:true,total:data.length}; }} pagination={{pageSize:20}} headerTitle={<Typography.Text strong>生成任务</Typography.Text>} toolBarRender={()=>[<Button key="import" onClick={()=>setImportOpen(true)}>导入上游结果</Button>,<Button key="refresh" icon={<ReloadOutlined/>} onClick={()=>actionRef.current?.reload()}>刷新</Button>]} /></Card><Modal title="导入上游生成结果" open={importOpen} confirmLoading={importing} onCancel={()=>setImportOpen(false)} onOk={async()=>{try{const values=await form.validateFields();setImporting(true);await importAdminGenerationTask(token,values);message.success("已导入");setImportOpen(false);form.resetFields();actionRef.current?.reload();}finally{setImporting(false);}}}><Form form={form} layout="vertical" initialValues={{status:"completed",channelName:"WaveSpeed"}}><Form.Item name="userId" label="用户 ID" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="userDisplayName" label="用户名"><Input/></Form.Item><Form.Item name="model" label="模型" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="channelName" label="中转站" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="upstreamTaskId" label="上游任务 ID" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="status" label="状态"><Select options={[{label:"成功",value:"completed"},{label:"失败",value:"failed"}]}/></Form.Item><Form.Item name="resultUrl" label="结果地址"><Input/></Form.Item><Form.Item name="error" label="失败原因"><Input/></Form.Item><Form.Item name="createdAt" label="创建时间（ISO 或 RFC3339）"><Input placeholder="2026-08-29T21:00:43+08:00"/></Form.Item></Form></Modal></main>;
 }

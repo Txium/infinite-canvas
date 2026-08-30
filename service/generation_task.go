@@ -2,12 +2,33 @@ package service
 
 import (
 	"encoding/json"
+	"errors"
 	"sort"
 	"strings"
 
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/repository"
 )
+
+type AdminGenerationTaskImport struct {
+	UserID string `json:"userId"`
+	UserDisplayName string `json:"userDisplayName"`
+	Model string `json:"model"`
+	ChannelName string `json:"channelName"`
+	UpstreamTaskID string `json:"upstreamTaskId"`
+	Status string `json:"status"`
+	ResultURL string `json:"resultUrl"`
+	Error string `json:"error"`
+	CreatedAt string `json:"createdAt"`
+}
+
+func ImportAdminGenerationTask(input AdminGenerationTaskImport) (model.VideoTask, error) {
+	if strings.TrimSpace(input.UserID) == "" || strings.TrimSpace(input.UpstreamTaskID) == "" || strings.TrimSpace(input.Model) == "" { return model.VideoTask{}, errors.New("用户、模型和上游任务 ID 不能为空") }
+	task, err := CreateVideoTask(VideoTaskCreateInput{UserID:input.UserID,UserDisplayName:input.UserDisplayName,Model:input.Model,UpstreamModel:input.Model,ChannelName:input.ChannelName,Source:"video-workbench",ClientTaskID:"import-"+strings.TrimSpace(input.UpstreamTaskID),UpstreamTaskID:input.UpstreamTaskID,Status:input.Status,Progress:100,VideoURL:input.ResultURL,Error:input.Error})
+	if err != nil { return task, err }
+	if strings.TrimSpace(input.CreatedAt) != "" { task.CreatedAt = strings.TrimSpace(input.CreatedAt); task.UpdatedAt = task.CreatedAt; if task.CompletedAt != "" { task.CompletedAt = task.CreatedAt }; return repository.SaveVideoTask(task) }
+	return task, nil
+}
 
 type AdminGenerationTaskQuery struct {
 	Keyword       string
