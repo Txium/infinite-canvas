@@ -170,6 +170,20 @@ func SyncDefaultModelCatalog(version int, models []model.MarketModel, variants [
 			var saved model.ModelRoute
 			findErr := tx.Where("id = ?", item.ID).First(&saved).Error
 			if findErr == nil {
+				// Catalog v16 replaces the unavailable LEC AC alias used by the
+				// public Seedance 900 tier. This is a catalog-owned route, so the
+				// corrected upstream model must also update existing databases.
+				if version >= 16 && saved.ID == "route_seedance_2__01" {
+					saved.ProviderID = item.ProviderID
+					saved.Protocol = item.Protocol
+					saved.UpstreamModelID = item.UpstreamModelID
+					saved.Priority = item.Priority
+					saved.Enabled = item.Enabled
+					if err := tx.Save(&saved).Error; err != nil {
+						return err
+					}
+					continue
+				}
 				if version >= 15 && (saved.ID == "route_midjourney__01" || saved.ID == "route_midjourney__02") {
 					saved.Protocol = item.Protocol
 					saved.UpstreamModelID = item.UpstreamModelID
