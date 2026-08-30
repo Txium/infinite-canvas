@@ -510,9 +510,10 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
 }
 
 function ErrorContent({ node, theme, onRetry }: Pick<NodeContentRendererProps, "node" | "theme" | "onRetry">) {
+    const errorText = canvasTaskErrorText(node);
     return (
         <div className="flex max-w-[260px] flex-col items-center gap-3 px-5 text-center">
-            <div className="text-xs leading-5 text-red-300">{node.metadata?.errorDetails || "生成失败"}</div>
+            <div className="text-xs leading-5 text-red-300">{errorText}</div>
             <button
                 type="button"
                 className="inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition hover:scale-[1.02]"
@@ -678,6 +679,15 @@ function VideoNodeContent({ node, theme }: NodeContentRendererProps) {
             {actualResolution ? <span className="pointer-events-none absolute right-2 top-2 rounded-md bg-black/65 px-1.5 py-0.5 text-[10px] text-white">实际 {actualResolution}</span> : null}
         </div>
     );
+}
+
+function canvasTaskErrorText(node: CanvasNodeData) {
+    const error = node.metadata?.errorDetails?.trim() || "";
+    if (!/^request failed with status code 404$/i.test(error)) return error || "生成失败";
+    if (node.metadata?.videoTaskId?.startsWith("client_video_task_")) return "视频任务未提交成功或已丢失，请重新生成";
+    if (node.metadata?.imageTaskId?.startsWith("client_image_task_")) return "图片任务未提交成功或已丢失，请重新生成";
+    if (node.metadata?.audioTaskId?.startsWith("client_audio_task_")) return "音频任务未提交成功或已丢失，请重新生成";
+    return "任务不存在，请重新生成";
 }
 
 function AudioNodeContent({ node, theme }: NodeContentRendererProps) {
