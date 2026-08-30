@@ -1,5 +1,5 @@
 {
-  "version": 15,
+  "version": 14,
   "sourceFile": "模型广场V1最终模型数据库_最终接入定价版.xlsx",
   "sourceSheet": "最终接入定价",
   "providerWhitelist": [
@@ -611,8 +611,8 @@
           "personNote": "2.0≤9图/3视频/3音频；2.5≤30图/10视频/10音频",
           "refundPolicy": "失败全额退款",
           "sourceUrl": "https://api.seedance.nz/docs/",
-          "remark": "上游动态结算且当前价格偏高，已停用；保留配置供以后重新比价",
-          "enabled": false,
+          "remark": "已接官方 /v1/videos；后端按参考素材自动切换 t2v / i2v / multi。该上游动态结算，确定人民币售价前不向用户开放",
+          "enabled": true,
           "sort": 50
         },
         {
@@ -632,8 +632,8 @@
           "personNote": "2.0≤9图/3视频/3音频；2.5≤30图/10视频/10音频",
           "refundPolicy": "失败全额退款",
           "sourceUrl": "https://api.seedance.nz/docs/",
-          "remark": "上游动态结算且当前价格偏高，已停用；保留配置供以后重新比价",
-          "enabled": false,
+          "remark": "已接官方 /v1/videos；后端按参考素材自动切换 t2v / i2v / multi。该上游动态结算，确定人民币售价前不向用户开放",
+          "enabled": true,
           "sort": 60
         },
         {
@@ -653,8 +653,8 @@
           "personNote": "2.0≤9图/3视频/3音频；2.5≤30图/10视频/10音频",
           "refundPolicy": "失败全额退款",
           "sourceUrl": "https://api.seedance.nz/docs/",
-          "remark": "上游动态结算且当前价格偏高，已停用；保留配置供以后重新比价",
-          "enabled": false,
+          "remark": "已接官方 /v1/videos；后端按参考素材自动切换 t2v / i2v / multi。该上游动态结算，确定人民币售价前不向用户开放",
+          "enabled": true,
           "sort": 70
         },
         {
@@ -2494,7 +2494,7 @@
       "upstreamModelId": "seedance-2.0-mini-t2v",
       "protocol": "openai",
       "priority": 1,
-      "enabled": false
+      "enabled": true
     },
     {
       "id": "route_seedance_2__06",
@@ -2504,7 +2504,7 @@
       "upstreamModelId": "seedance-2.0-fast-t2v",
       "protocol": "openai",
       "priority": 1,
-      "enabled": false
+      "enabled": true
     },
     {
       "id": "route_seedance_2__07",
@@ -2514,7 +2514,7 @@
       "upstreamModelId": "seedance-2.0-standard-t2v",
       "protocol": "openai",
       "priority": 1,
-      "enabled": false
+      "enabled": true
     },
     {
       "id": "route_seedance_25__01",
