@@ -1,6 +1,10 @@
 package handler
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/tigerowo/infinite-canvas/model"
+)
 
 func TestValidateFixedMarketVideoResolution(t *testing.T) {
 	if err := validateFixedMarketVideoResolution("lec_seedance_2_0_full_933_480p", []byte(`{"resolution":"720p"}`), "application/json"); err == nil {
@@ -24,5 +28,20 @@ func TestFixedMarketVideoResolution(t *testing.T) {
 		if actual := fixedMarketVideoResolution(model); actual != expected {
 			t.Fatalf("fixedMarketVideoResolution(%q) = %q, want %q", model, actual, expected)
 		}
+	}
+}
+
+func TestIsLECVideoChannel(t *testing.T) {
+	for _, channel := range []model.ModelChannel{
+		{ID: "provider_lec"},
+		{Name: "LEC"},
+		{BaseURL: "https://api.paipu.net/v1"},
+	} {
+		if !isLECVideoChannel(channel) {
+			t.Fatalf("expected LEC channel: %#v", channel)
+		}
+	}
+	if isLECVideoChannel(model.ModelChannel{ID: "provider_wavespeed", Name: "WaveSpeed", BaseURL: "https://api.wavespeed.ai/api/v3"}) {
+		t.Fatal("did not expect WaveSpeed to be treated as LEC")
 	}
 }

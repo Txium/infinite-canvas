@@ -461,7 +461,11 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
     const startedAt = typeof node.metadata?.startedAt === "number" ? node.metadata.startedAt : startTimeRef.current;
     const elapsedMs = Math.max(0, currentNow - startedAt);
     const progress = Math.max(0, Math.min(100, Math.round(node.metadata?.progress || 0)));
-    const waitingStage = elapsedMs < 15_000 ? "正在提交任务" : "上游生成中";
+    const waitingStage = elapsedMs < 15_000
+        ? "正在提交任务"
+        : elapsedMs >= 20 * 60 * 1000
+            ? "等待上游确认，请勿重复生成"
+            : "上游生成中";
 
     if (node.type === CanvasNodeType.Video) {
         return (

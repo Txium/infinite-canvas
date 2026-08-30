@@ -62,6 +62,22 @@ func ListUserVideoTasks(userID string, source string, limit int) ([]model.VideoT
 	return tasks, err
 }
 
+func HasActiveVideoTaskForChannel(userID string, channelID string, excludeID string) (bool, error) {
+	db, err := DB()
+	if err != nil {
+		return false, err
+	}
+	query := db.Model(&model.VideoTask{}).
+		Where("user_id = ? AND channel_id = ?", userID, channelID).
+		Where("status IN ?", []string{"queued", "in_progress", "processing", "running", "reconciling"})
+	if excludeID != "" {
+		query = query.Where("id <> ?", excludeID)
+	}
+	var count int64
+	err = query.Count(&count).Error
+	return count > 0, err
+}
+
 func ListRecoverableTimedOutVideoTasks(createdAfter string, limit int) ([]model.VideoTask, error) {
 	db, err := DB()
 	if err != nil {

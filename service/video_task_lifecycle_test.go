@@ -26,7 +26,7 @@ func TestVideoTaskPolledRecently(t *testing.T) {
 	}
 }
 
-func TestVideoTaskExpiresAfterTwentyMinutes(t *testing.T) {
+func TestVideoTaskEntersReconciliationAfterTwentyMinutes(t *testing.T) {
 	now := time.Now().UTC()
 	if !videoTaskExpired(model.VideoTask{CreatedAt: videoTaskTime(now.Add(-21 * time.Minute))}, now) {
 		t.Fatal("expected 21 minute task to expire")

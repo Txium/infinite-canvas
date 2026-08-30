@@ -81,6 +81,12 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	clientTaskID := readClientVideoTaskID(r)
+	if clientTaskID != "" {
+		if existing, found, lookupErr := service.GetUserVideoTask(user.ID, clientTaskID); lookupErr == nil && found {
+			OK(w, service.VideoTaskResponse(existing))
+			return
+		}
+	}
 	billingID := firstNonEmpty(clientTaskID, "video_"+uuid.NewString())
 	candidates, routed, err := service.ResolveMarketRoutes(requestedModel)
 	userChannelID := ""
@@ -95,6 +101,32 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		log.Printf("AI video select channel failed: model=%s err=%v", requestedModel, err)
 		failAIChannelSelect(w, err, "AI 接口请求失败")
 		return
+	}
+	availableCandidates := make([]service.MarketRouteCandidate, 0, len(candidates))
+	lecBusy := false
+	for _, candidate := range candidates {
+		if !isLECVideoChannel(candidate.Channel) {
+			availableCandidates = append(availableCandidates, candidate)
+			continue
+		}
+		active, activeErr := service.HasActiveVideoTaskForChannel(user.ID, candidate.Channel.ID, clientTaskID)
+		if activeErr != nil {
+			log.Printf("check active LEC video task failed: user=%s channel=%s err=%v", user.ID, candidate.Channel.ID, activeErr)
+			Fail(w, "视频任务状态检查失败，请稍后重试")
+			return
+		}
+		if active {
+			lecBusy = true
+			continue
+		}
+		availableCandidates = append(availableCandidates, candidate)
+	}
+	if len(availableCandidates) == 0 && lecBusy {
+		Fail(w, "当前已有一条 LEC 视频任务正在生成或等待上游确认；为避免重复扣费，请等待该任务结束，或改用其他中转站模型")
+		return
+	}
+	if len(availableCandidates) > 0 {
+		candidates = availableCandidates
 	}
 	credits := 0
 	estimatedProviderCost := int64(0)
@@ -236,6 +268,13 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	saveAIProxyLog(logContext, status, string(transformed), "")
 	OK(w, service.VideoTaskResponse(task))
+}
+
+func isLECVideoChannel(channel model.ModelChannel) bool {
+	id := strings.ToLower(strings.TrimSpace(channel.ID))
+	name := strings.ToLower(strings.TrimSpace(channel.Name))
+	baseURL := strings.ToLower(strings.TrimSpace(channel.BaseURL))
+	return id == "provider_lec" || name == "lec" || strings.Contains(baseURL, "paipu.net")
 }
 
 func validateFixedMarketVideoResolution(modelName string, body []byte, contentType string) error {

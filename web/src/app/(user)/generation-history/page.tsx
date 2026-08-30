@@ -10,7 +10,7 @@ import { formatCNY } from "@/constant/credits";
 import { fetchUserGenerationTasks, type UserGenerationTask } from "@/services/api/generation-tasks";
 import { useUserStore } from "@/stores/use-user-store";
 
-const statusText: Record<string,string> = { queued:"排队中",processing:"生成中",completed:"成功",failed:"失败",refunded:"已退款" };
+const statusText: Record<string,string> = { queued:"排队中",processing:"生成中",reconciling:"等待上游确认",completed:"成功",failed:"失败",refunded:"已退款" };
 
 export default function GenerationHistoryPage() {
     const { message } = App.useApp();
