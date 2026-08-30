@@ -2,11 +2,82 @@ package handler
 
 import (
 	"bytes"
+	"encoding/json"
+	"io"
 	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/tigerowo/infinite-canvas/model"
 )
+
+// TestVideoReferenceMockProviderChain exercises the paid boundary without
+// calling a real provider: the provider must receive the exact public image
+// URL, return a real upstream task ID, and later return the completed video.
+func TestVideoReferenceMockProviderChain(t *testing.T) {
+	const referenceURL = "https://canvas.example.test/api/media/references/image-123.png"
+	const upstreamTaskID = "provider-task-123"
+	const videoURL = "https://cdn.example.test/video-123.mp4"
+
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/videos":
+			if err := r.ParseMultipartForm(2 << 20); err != nil {
+				t.Fatalf("provider could not parse multipart request: %v", err)
+			}
+			if got := r.FormValue("input_reference[]"); got != referenceURL {
+				t.Fatalf("provider reference = %q, want %q", got, referenceURL)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"task_id":"`+upstreamTaskID+`","status":"queued"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/videos/"+upstreamTaskID:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"task_id": upstreamTaskID, "status": "completed", "progress": 100, "video_url": videoURL})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer provider.Close()
+
+	var requestBody bytes.Buffer
+	writer := multipart.NewWriter(&requestBody)
+	_ = writer.WriteField("model", "seedance_2__01")
+	_ = writer.WriteField("input_reference[]", referenceURL)
+	_ = writer.Close()
+	contentType := writer.FormDataContentType()
+	if err := validateRequiredVideoReferences("seedance_2__01", requestBody.Bytes(), contentType); err != nil {
+		t.Fatalf("valid reference rejected: %v", err)
+	}
+
+	channel := model.ModelChannel{BaseURL: provider.URL}
+	createRequest, err := http.NewRequest(http.MethodPost, provider.URL+"/videos", bytes.NewReader(requestBody.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	createRequest.Header.Set("Content-Type", contentType)
+	createPayload, createStatus, err := doAIRequest(createRequest, channel)
+	if err != nil || createStatus != http.StatusOK {
+		t.Fatalf("create request failed: status=%d err=%v payload=%s", createStatus, err, createPayload)
+	}
+	created := parseVideoTaskPayload(createPayload, "seedance_2__01")
+	if created.UpstreamTaskID != upstreamTaskID {
+		t.Fatalf("upstream task id = %q, want %q", created.UpstreamTaskID, upstreamTaskID)
+	}
+
+	pollRequest, err := http.NewRequest(http.MethodGet, provider.URL+"/videos/"+created.UpstreamTaskID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pollPayload, pollStatus, err := doAIRequest(pollRequest, channel)
+	if err != nil || pollStatus != http.StatusOK {
+		t.Fatalf("poll request failed: status=%d err=%v payload=%s", pollStatus, err, pollPayload)
+	}
+	completed := parseVideoTaskPayload(pollPayload, "seedance_2__01")
+	if completed.Status != "completed" || completed.VideoURL != videoURL {
+		t.Fatalf("completed task = %+v", completed)
+	}
+}
 
 func TestRequiredLECVideoReferenceRejectedBeforeProvider(t *testing.T) {
 	if err := validateRequiredVideoReferences("seedance_2__01", []byte(`{"prompt":"scene"}`), "application/json"); err == nil {

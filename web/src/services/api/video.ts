@@ -388,10 +388,13 @@ async function createVideoRequestBody(config: AiConfig, model: string, prompt: s
     if (motionControl) body.append("character_orientation", normalizeCharacterOrientation(config.videoCharacterOrientation));
     if (supportsVideoAudioGeneration(model)) body.append("video_generate_audio", String(boolConfig(config.videoGenerateAudio, false)));
     const imageReferenceLimit = kieKlingOmni === "text-to-video" ? 0 : kieKlingOmni === "reference-to-video" ? input.references.length : kieKlingOmni === "transformation" ? 4 : kling ? 2 : 9;
-    const files = await Promise.all(input.references.slice(0, imageReferenceLimit).map(imageReferenceToFormValue));
-    files.forEach((file) => body.append("input_reference[]", file));
-    if (!kling && input.firstFrame) body.append("first_frame_url", await imageReferenceToFormValue(input.firstFrame));
-    if (!kling && input.lastFrame) body.append("last_frame_url", await imageReferenceToFormValue(input.lastFrame));
+    // The generic multipart path is used by LEC and several compatible
+    // providers. Finish uploading each image before the task is submitted and
+    // pass a public URL rather than a browser-only File/blob URL.
+    const files = await Promise.all(input.references.slice(0, imageReferenceLimit).map(ensureDurableImageReference));
+    files.forEach((url) => body.append("input_reference[]", url));
+    if (!kling && input.firstFrame) body.append("first_frame_url", await ensureDurableImageReference(input.firstFrame));
+    if (!kling && input.lastFrame) body.append("last_frame_url", await ensureDurableImageReference(input.lastFrame));
     const videoFiles = kling && kieKlingOmni !== "reference-to-video" && kieKlingOmni !== "transformation" ? [] : await Promise.all(input.videoReferences.slice(0, kieKlingOmni ? 1 : input.videoReferences.length).map(mediaReferenceToFormValue));
     videoFiles.forEach((file) => body.append("video_reference[]", file));
     const audioFiles = kling ? [] : await Promise.all(input.audioReferences.map(mediaReferenceToFormValue));
@@ -490,6 +493,18 @@ async function ensurePublicReference(value: string | File, label: string) {
         throw new VideoRequestError(payload?.msg || `本地参考${label}上传失败，请检查 PUBLIC_BASE_URL`);
     }
     return url;
+}
+
+async function ensureDurableImageReference(image: ReferenceImage) {
+    // Server-backed images already have a durable storage record. All other
+    // images, including provider temporary URLs and IndexedDB/blob images, are
+    // copied to the authenticated reference store before provider submission.
+    if (image.storageKey?.startsWith("server:")) {
+        const resolvedUrl = await resolveImageUrl(image.storageKey, image.url || image.dataUrl || "");
+        const publicUrl = publicHttpUrl(resolvedUrl);
+        if (publicUrl) return publicUrl;
+    }
+    return ensurePublicReference(await imageReferenceToFile(image), "图片");
 }
 
 async function mediaUrlToFile(url: string, name: string) {

@@ -33,8 +33,8 @@ export type NodeGenerationInput = {
     audio?: ReferenceAudio;
 };
 
-export function buildNodeGenerationContext(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[], prompt: string): NodeGenerationContext {
-    const inputs = buildNodeGenerationInputs(nodeId, nodes, connections);
+export function buildNodeGenerationContext(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[], prompt: string, includeSourceResource = false): NodeGenerationContext {
+    const inputs = buildNodeGenerationInputs(nodeId, nodes, connections, includeSourceResource);
     const sourceNode = nodes.find((node) => node.id === nodeId);
     if (sourceNode?.type === CanvasNodeType.Config && Boolean(sourceNode.metadata?.composerContent?.trim())) {
         return buildComposerGenerationContext(inputs, prompt, sourceNode);
@@ -207,8 +207,11 @@ function inputToElementReference(input: NodeGenerationInput | undefined): VideoE
     return null;
 }
 
-export function buildNodeGenerationInputs(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[]): NodeGenerationInput[] {
-    return getGenerationResourceNodes(nodeId, nodes, connections).flatMap((node): NodeGenerationInput[] => {
+export function buildNodeGenerationInputs(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[], includeSourceResource = false): NodeGenerationInput[] {
+    const resourceNodes = getGenerationResourceNodes(nodeId, nodes, connections);
+    const sourceNode = includeSourceResource ? nodes.find((node) => node.id === nodeId) : undefined;
+    const inputNodes = sourceNode && !resourceNodes.some((node) => node.id === sourceNode.id) ? [sourceNode, ...resourceNodes] : resourceNodes;
+    return inputNodes.flatMap((node): NodeGenerationInput[] => {
         const image = readReferenceImage(node);
         if (image) return [{ nodeId: node.id, type: "image" as const, title: node.title, image }];
         const video = readReferenceVideo(node);
