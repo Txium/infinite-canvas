@@ -26,7 +26,15 @@ func UserVideoTasks(w http.ResponseWriter, r *http.Request) {
 		Fail(w, "未登录或权限不足")
 		return
 	}
-	tasks, err := service.ListUserVideoTasks(user.ID, "video-workbench", 100)
+	source := strings.TrimSpace(r.URL.Query().Get("source"))
+	if source == "" {
+		source = "video-workbench"
+	}
+	if source != "video-workbench" && source != "canvas" {
+		Fail(w, "视频任务来源无效")
+		return
+	}
+	tasks, err := service.ListUserVideoTasks(user.ID, source, 200)
 	if err != nil {
 		log.Printf("list video tasks failed: user=%s err=%v", user.ID, err)
 		Fail(w, "AI 接口请求失败")
@@ -686,7 +694,7 @@ func findFirstHTTPURL(value any) string {
 			}
 		}
 	case map[string]any:
-		for _, key := range []string{"uri", "url", "video_url", "videoUrl", "download_url", "downloadUrl", "output_url", "outputUrl", "resultUrls", "result_urls", "videoUrls", "video_urls", "urls", "videos", "video_result", "video", "generatedSamples", "generateVideoResponse", "response", "data", "result", "metadata"} {
+		for _, key := range []string{"uri", "url", "video_url", "videoUrl", "download_url", "downloadUrl", "output_url", "outputUrl", "outputs", "output", "content", "resultUrls", "result_urls", "videoUrls", "video_urls", "urls", "videos", "video_result", "video", "generatedSamples", "generateVideoResponse", "response", "data", "result", "metadata"} {
 			if url := findFirstHTTPURL(typed[key]); url != "" {
 				return url
 			}

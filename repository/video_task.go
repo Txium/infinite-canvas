@@ -53,9 +53,27 @@ func ListUserVideoTasks(userID string, source string, limit int) ([]model.VideoT
 			query = query.Where("source = ?", source)
 		}
 	}
-	err = query.
-		Where("status IN ?", []string{"queued", "in_progress", "processing", "running"}).
-		Order("created_at DESC").
+	if source != "canvas" {
+		query = query.Where("status IN ?", []string{"queued", "in_progress", "processing", "running"})
+	}
+	err = query.Order("created_at DESC").
+		Limit(limit).
+		Find(&tasks).Error
+	return tasks, err
+}
+
+func ListRecoverableTimedOutVideoTasks(createdAfter string, limit int) ([]model.VideoTask, error) {
+	db, err := DB()
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	var tasks []model.VideoTask
+	err = db.
+		Where("status = ? AND billing_status = ? AND error = ? AND error_detail = ? AND created_at >= ?", "failed", "released", "任务处理超时，已自动解冻", "任务超过 30 分钟仍未完成", createdAfter).
+		Order("created_at ASC").
 		Limit(limit).
 		Find(&tasks).Error
 	return tasks, err

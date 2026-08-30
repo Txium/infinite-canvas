@@ -12,7 +12,8 @@ import (
 )
 
 const videoTaskPollInterval = 5 * time.Second
-const videoTaskMaxAge = 30 * time.Minute
+const videoTaskMaxAge = 2 * time.Hour
+const videoTaskRecoveryAge = 48 * time.Hour
 const videoTaskFinishedRetention = 30 * 24 * time.Hour
 const videoTaskCleanupInterval = 10 * time.Minute
 
@@ -224,6 +225,12 @@ func runVideoTaskPoller() {
 				waitForNextVideoTaskPoll()
 				continue
 			}
+			recoverable, recoveryErr := repository.ListRecoverableTimedOutVideoTasks(videoTaskTime(current.Add(-videoTaskRecoveryAge)), 100)
+			if recoveryErr != nil {
+				log.Printf("list recoverable video tasks failed err=%v", recoveryErr)
+			} else {
+				tasks = append(tasks, recoverable...)
+			}
 			if len(tasks) == 0 {
 				videoTaskRunningMu.Lock()
 				if videoTaskWakePending {
@@ -242,8 +249,12 @@ func runVideoTaskPoller() {
 				lastCleanupAt = current
 			}
 			for _, task := range tasks {
-				if videoTaskExpired(task, current) {
-					if err := UpdateVideoTaskFromPoll(task, VideoTaskPollUpdate{Status: "failed", Error: "任务处理超时，已自动解冻", ErrorDetail: "任务超过 30 分钟仍未完成"}); err != nil {
+				if videoTaskExpired(task, current) && !recoverableVideoTask(task) {
+					detail := "任务超过 2 小时仍未完成"
+					if task.BillingStatus == "released" {
+						detail = "任务超时复查后上游仍未完成"
+					}
+					if err := UpdateVideoTaskFromPoll(task, VideoTaskPollUpdate{Status: "failed", Error: "任务处理超时，已自动解冻", ErrorDetail: detail}); err != nil {
 						log.Printf("expire video task failed id=%s err=%v", task.ID, err)
 					}
 					continue
@@ -310,6 +321,10 @@ func UpdateVideoTaskFromPoll(task model.VideoTask, update VideoTaskPollUpdate) e
 	}
 	task.UpdatedAt = current
 	task.LastPolledAt = videoTaskTime(time.Now())
+	if !IsFailedVideoTaskStatus(task.Status) {
+		task.Error = ""
+		task.ErrorDetail = ""
+	}
 	if task.VideoURL != "" || IsCompletedVideoTaskStatus(task.Status) {
 		task.Status = "completed"
 		task.Progress = 100
@@ -323,6 +338,10 @@ func UpdateVideoTaskFromPoll(task model.VideoTask, update VideoTaskPollUpdate) e
 	if err := finalizeVideoTaskBilling(&task); err != nil { return err }
 	_, err := repository.SaveVideoTask(task)
 	return err
+}
+
+func recoverableVideoTask(task model.VideoTask) bool {
+	return task.Status == "failed" && task.BillingStatus == "released" && task.Error == "任务处理超时，已自动解冻" && task.ErrorDetail == "任务超过 30 分钟仍未完成"
 }
 
 func videoTaskExpired(task model.VideoTask, current time.Time) bool {
@@ -346,7 +365,7 @@ func NormalizeVideoTaskStatus(status string) string {
 	switch strings.ToLower(strings.TrimSpace(status)) {
 	case "completed", "complete", "done", "succeeded", "success":
 		return "completed"
-	case "failed", "fail", "error", "cancelled", "canceled":
+	case "failed", "fail", "error", "cancelled", "canceled", "timeout", "deleted":
 		return "failed"
 	case "running", "processing", "in_progress", "in-progress":
 		return "processing"

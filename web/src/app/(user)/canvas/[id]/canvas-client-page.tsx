@@ -10,7 +10,7 @@ import { saveAs } from "file-saver";
 import { deleteCanvasProjects, deleteCanvasTasks } from "@/services/api/canvas-tasks";
 import { createCanvasImageTask, pollCanvasImageTaskStatus, requestImageQuestion, type CanvasImageTask } from "@/services/api/image";
 import { createCanvasAudioTask, pollCanvasAudioTaskStatus, type CanvasAudioTask } from "@/services/api/audio";
-import { createVideoGenerationTask, pollVideoGenerationTaskStatus, VIDEO_POLL_INTERVAL_MS, type VideoResponse } from "@/services/api/video";
+import { createVideoGenerationTask, listVideoGenerationTasks, pollVideoGenerationTaskStatus, VIDEO_POLL_INTERVAL_MS, type VideoResponse } from "@/services/api/video";
 import { channelProtocolForConfig, defaultConfig, modelMatchesCapability, normalizeLocalChannels, type AiConfig, type ModelCapability, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import { collectImageStorageKeys, deleteStoredImages, resolveImageUrl, uploadImage, uploadRemoteImageToServer, type UploadedImage } from "@/services/image-storage";
 import { resolveMediaUrl, uploadMediaFile, uploadRemoteMediaToServer, type UploadedFile } from "@/services/file-storage";
@@ -550,12 +550,29 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     useEffect(() => {
         if (!projectLoaded) return;
         const pollCanvasTasks = () => {
+            void listVideoGenerationTasks(effectiveConfig, "canvas")
+                .then((tasks) => {
+                    if (!tasks.length) return;
+                    const latestTasks = [...tasks.reduce((byNode, task) => {
+                        const nodeId = task.source_id || task.sourceId || "";
+                        if (nodeId && !byNode.has(nodeId)) byNode.set(nodeId, task);
+                        return byNode;
+                    }, new Map<string, VideoResponse>()).values()];
+                    setNodes((prev) => latestTasks.reduce((next, task) => {
+                        const nodeId = task.source_id || task.sourceId || "";
+                        const node = next.find((item) => item.id === nodeId && item.type === CanvasNodeType.Video);
+                        if (!node) return next;
+                        const generationConfig = buildGenerationConfig(effectiveConfig, node, "video");
+                        return applyCanvasVideoTaskUpdate(next, nodeId, task, generationConfig, node.metadata?.startedAt || Date.now(), { width: node.width, height: node.height });
+                    }, prev));
+                })
+                .catch(() => undefined);
             const videoTargets = nodesRef.current.filter((node) => node.type === CanvasNodeType.Video && node.metadata?.status === NODE_STATUS_LOADING && !node.metadata.content && canvasVideoTaskId(node.metadata));
             videoTargets.forEach((node) => {
                 if (pollingVideoNodeIdsRef.current.has(node.id)) return;
                 const taskId = canvasVideoTaskId(node.metadata);
                 const generationConfig = buildGenerationConfig(effectiveConfig, node, "video");
-                if (!taskId || !isAiConfigReady(generationConfig, generationConfig.model)) return;
+                if (!taskId) return;
                 pollingVideoNodeIdsRef.current.add(node.id);
                 void pollVideoGenerationTaskStatus(generationConfig, canvasVideoTaskFromMetadata(node.metadata))
                     .then((task) => {
