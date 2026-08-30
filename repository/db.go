@@ -99,7 +99,12 @@ func dialector(driver string, dsn string) gorm.Dialector {
 	case "mysql":
 		return gormmysql.Open(dsn)
 	case "postgres", "postgresql":
-		return postgres.Open(dsn)
+		// Neon/PgBouncer may reuse a server-side prepared statement after an
+		// online schema migration. SELECT * then fails with SQLSTATE 0A000
+		// ("cached plan must not change result type"). Simple protocol avoids
+		// cross-connection prepared-plan reuse and keeps compatible migrations
+		// available without restarting or manually clearing the pool.
+		return postgres.New(postgres.Config{DSN: dsn, PreferSimpleProtocol: true})
 	default:
 		return sqlite.Open(dsn)
 	}
