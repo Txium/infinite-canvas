@@ -67,6 +67,8 @@ export function VideoSettingsPanel({ config, modelName, onConfigChange, theme, s
     }
 
     const model = modelName || config.model || config.videoModel;
+    const normalizedModel = modelKey(model);
+    const durationOptions = normalizedModel === "seedance_2__01" || normalizedModel === "lec_seed_2_0_900" ? [10, 15] : secondOptions;
     const grokMode = config.videoMode === "fun" || config.videoMode === "spicy" ? config.videoMode : "normal";
     const cogVideoX3 = isCogVideoX3Model(model);
     const seconds = cogVideoX3 ? normalizeCogVideoX3Duration(config.videoSeconds) : config.videoSeconds || "6";
@@ -168,7 +170,7 @@ export function VideoSettingsPanel({ config, modelName, onConfigChange, theme, s
                     <>
                         <SettingGroup title="秒数" color={theme.node.muted}>
                             <div className="grid grid-cols-3 gap-2.5">
-                                {(cogVideoX3 ? COGVIDEOX3_DURATIONS : secondOptions).map((value) => (
+                                {(cogVideoX3 ? COGVIDEOX3_DURATIONS : durationOptions).map((value) => (
                                     <OptionPill key={value} selected={seconds === String(value)} theme={theme} onClick={() => onConfigChange("videoSeconds", String(value))}>
                                         {value}s
                                     </OptionPill>

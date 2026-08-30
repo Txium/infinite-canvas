@@ -515,7 +515,7 @@
           "modelId": "seedance_2",
           "name": "人物特惠 720P / 900",
           "providerCode": "lec",
-          "upstreamModelId": "lec-ac-seedance-900-720p",
+          "upstreamModelId": "lec-seed-2-0-900",
           "costCents": 150,
           "costText": "1.5",
           "priceCents": 169,
@@ -2451,7 +2451,7 @@
       "modelId": "seedance_2",
       "variantId": "seedance_2__01",
       "providerId": "provider_lec",
-      "upstreamModelId": "lec-ac-seedance-900-720p",
+      "upstreamModelId": "lec-seed-2-0-900",
       "protocol": "custom",
       "priority": 1,
       "enabled": true
