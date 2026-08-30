@@ -37,12 +37,13 @@ type AdminFinanceSummary struct {
 }
 
 type ModelProfitSummary struct {
-	Model                  string `json:"model"`
-	TaskCount              int64  `json:"taskCount"`
-	RevenueCents           int64  `json:"revenueCents"`
-	ProviderCostCents      int64  `json:"providerCostCents"`
-	GrossProfitCents       int64  `json:"grossProfitCents"`
-	EstimatedCostTaskCount int64  `json:"estimatedCostTaskCount"`
+	Model                    string `json:"model"`
+	TaskCount                int64  `json:"taskCount"`
+	RevenueCents             int64  `json:"revenueCents"`
+	ProviderCostCents        int64  `json:"providerCostCents"`
+	GrossProfitCents         int64  `json:"grossProfitCents"`
+	EstimatedCostTaskCount   int64  `json:"estimatedCostTaskCount"`
+	UnconfirmedCostTaskCount int64  `json:"unconfirmedCostTaskCount"`
 }
 
 type ProviderCostSummary struct {

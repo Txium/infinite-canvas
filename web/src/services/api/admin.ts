@@ -98,7 +98,7 @@ export async function fetchAdminCreditLogs(token: string, query: AdminUserQuery 
 }
 
 export type FinancePeriodSummary = { rechargeCents: number; revenueCents: number; releasedCents: number; settledTasks: number; releasedTasks: number };
-export type ModelProfitSummary = { model: string; taskCount: number; revenueCents: number; providerCostCents: number; grossProfitCents: number; estimatedCostTaskCount: number };
+export type ModelProfitSummary = { model: string; taskCount: number; revenueCents: number; providerCostCents: number; grossProfitCents: number; estimatedCostTaskCount: number; unconfirmedCostTaskCount: number };
 export type ProviderCostSummary = { provider: string; todayCents: number; last7DaysCents: number; allTimeCents: number };
 export type AdminFinanceSummary = { userCount: number; availableBalanceCents: number; frozenBalanceCents: number; unconsumedBalanceCents: number; realizedRevenueCents: number; actualProviderCostCents: number; providerReserveCents: number; grossProfitCents: number; paymentFeeCents: number; compensationCents: number; operatingCostCents: number; estimatedNetProfitCents: number; allTime: FinancePeriodSummary; today: FinancePeriodSummary; selected: FinancePeriodSummary; selectedProviderCostCents: number; selectedGrossProfitCents: number; selectedPaymentFeeCents: number; selectedCompensationCents: number; selectedOperatingCostCents: number; selectedNetProfitCents: number; modelProfits: ModelProfitSummary[]; providerCosts: ProviderCostSummary[]; period: string; upstreamCostReady: boolean };
 export async function fetchAdminFinanceSummary(token: string, period = "all") { return apiGet<AdminFinanceSummary>("/api/admin/finance-summary", { period }, token); }

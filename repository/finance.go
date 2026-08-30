@@ -111,7 +111,11 @@ func AdminFinanceSummary(todayStart, period, periodStart, periodEnd string) (mod
 		return result, err
 	}
 	result.ModelProfits = profits
-	result.UpstreamCostReady = true
+	var providerCostEntries int64
+	if err := db.Model(&model.ProviderLedger{}).Where("type = ?", model.ProviderLedgerCost).Count(&providerCostEntries).Error; err != nil {
+		return result, err
+	}
+	result.UpstreamCostReady = result.AllTime.SettledTasks == 0 || providerCostEntries >= result.AllTime.SettledTasks
 	return result, nil
 }
 
@@ -192,8 +196,8 @@ func timeNowDate(todayStart string, days int) string {
 
 func modelProfitSummaries(db *gorm.DB, start, end string) ([]model.ModelProfitSummary, error) {
 	type row struct {
-		Model                                                              string
-		TaskCount, RevenueCents, ProviderCostCents, EstimatedCostTaskCount int64
+		Model                                                                                        string
+		TaskCount, RevenueCents, ProviderCostCents, EstimatedCostTaskCount, UnconfirmedCostTaskCount int64
 	}
 	combined := map[string]*model.ModelProfitSummary{}
 	for _, table := range []string{"video_tasks", "canvas_image_tasks", "canvas_audio_tasks"} {
@@ -205,7 +209,7 @@ func modelProfitSummaries(db *gorm.DB, start, end string) ([]model.ModelProfitSu
 			query = query.Where("created_at < ?", end)
 		}
 		var rows []row
-		if err := query.Select(`model, COUNT(*) AS task_count, COALESCE(SUM(sale_price_cents),0) AS revenue_cents, COALESCE(SUM(actual_provider_cost_cents),0) AS provider_cost_cents, COALESCE(SUM(CASE WHEN provider_cost_source = 'estimated' THEN 1 ELSE 0 END),0) AS estimated_cost_task_count`).Group("model").Scan(&rows).Error; err != nil {
+		if err := query.Select(`model, COUNT(*) AS task_count, COALESCE(SUM(sale_price_cents),0) AS revenue_cents, COALESCE(SUM(actual_provider_cost_cents),0) AS provider_cost_cents, COALESCE(SUM(CASE WHEN provider_cost_source = 'estimated' THEN 1 ELSE 0 END),0) AS estimated_cost_task_count, COALESCE(SUM(CASE WHEN provider_cost_source IS NULL OR provider_cost_source = '' THEN 1 ELSE 0 END),0) AS unconfirmed_cost_task_count`).Group("model").Scan(&rows).Error; err != nil {
 			return nil, err
 		}
 		for _, item := range rows {
@@ -218,6 +222,7 @@ func modelProfitSummaries(db *gorm.DB, start, end string) ([]model.ModelProfitSu
 			current.RevenueCents += item.RevenueCents
 			current.ProviderCostCents += item.ProviderCostCents
 			current.EstimatedCostTaskCount += item.EstimatedCostTaskCount
+			current.UnconfirmedCostTaskCount += item.UnconfirmedCostTaskCount
 		}
 	}
 	result := make([]model.ModelProfitSummary, 0, len(combined))
