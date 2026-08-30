@@ -10,6 +10,7 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 支付宝异步回调新增 `seller_id` 校验，第三方 `trade_no` 通过独立支付回执主键保持全局唯一，重复 notify 不重复入账。
 - 管理员余额调整改为只有 `super_admin` 可做的增量调账，原因必填，余额与 `admin_adjustment` 流水同事务提交；配置页不能再静默覆盖上游余额。
 - `/admin/finance` 展示未消费预付余额、已消费收入、实际上游成本、成本准备金、毛差、支付手续费、补偿、运营费用和估算净收益，并可登记运营费用。
+- 管理后台前端统一将 `admin` 与 `super_admin` 识别为管理员；普通用户仍不能进入 `/admin/*`，后端 `AdminAuth` 同样复用统一角色判断。
 - `/admin/providers` 可登记已手工完成的上游充值并查看独立 Provider 流水；系统不会自动登录中转站、保存支付密码或自动充值。
 - 本地 A～G 资金测试、全仓 Go 测试、TypeScript 检查和 Next.js 生产构建已通过；仍需 staging 验证 PostgreSQL/Neon 迁移、真实支付宝回调和历史生产数据汇总。
 

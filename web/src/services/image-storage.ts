@@ -6,6 +6,7 @@ import { nanoid } from "nanoid";
 import { readImageMeta } from "@/lib/image-utils";
 import { deleteAnonymousStorageFile, uploadAnonymousStorageFile } from "@/services/anonymous-storage";
 import { apiGet } from "@/services/api/request";
+import { isAdminRole } from "@/services/api/auth";
 import { useUserStore } from "@/stores/use-user-store";
 
 export type UploadedImage = {
@@ -61,7 +62,7 @@ let storageConfigPromise: Promise<StorageConfig> | null = null;
 
 export function canUseGlobalStorage(config: StorageConfig) {
     const user = useUserStore.getState().user;
-    return config.mode === "server_sqlite_s3" && Boolean(user && user.role !== "guest" && (user.role === "admin" || config.allowUserGlobalProvider));
+    return config.mode === "server_sqlite_s3" && Boolean(user && user.role !== "guest" && (isAdminRole(user.role) || config.allowUserGlobalProvider));
 }
 
 function isLocalNetworkHost(hostname: string) {

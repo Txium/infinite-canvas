@@ -2,7 +2,11 @@ import { apiGet, apiPost } from "@/services/api/request";
 
 export const AUTH_TOKEN_KEY = "infinite-canvas-auth-token-v1";
 
-export type UserRole = "guest" | "user" | "admin";
+export type UserRole = "guest" | "user" | "admin" | "super_admin";
+
+export function isAdminRole(role: UserRole | undefined): boolean {
+    return role === "admin" || role === "super_admin";
+}
 
 export type AuthUser = {
     id: string;

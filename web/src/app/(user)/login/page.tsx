@@ -5,7 +5,7 @@ import { App, Button, Form, Input, Segmented, Space } from "antd";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
-import { fetchCurrentUser } from "@/services/api/auth";
+import { fetchCurrentUser, isAdminRole } from "@/services/api/auth";
 import { useConfigStore } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 
@@ -78,7 +78,7 @@ function LoginContent() {
             message.success(mode === "register" ? "注册成功" : "登录成功");
             router.replace(redirect);
             router.refresh();
-            if (user.role !== "admin") router.replace("/");
+            if (!isAdminRole(user.role)) router.replace("/");
         } catch (error) {
             message.error(error instanceof Error ? error.message : "登录失败");
         }

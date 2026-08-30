@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { App } from "antd";
 
 import { fetchUserConfig } from "@/services/api/user-config";
+import { isAdminRole } from "@/services/api/auth";
 import { defaultUserStorageProvider, defaultUserWebDAVStorageProvider, saveUserStorageProvider, saveUserWebDAVStorageProvider } from "@/services/image-storage";
 import { useConfigStore, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
@@ -84,7 +85,7 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
         searchParams.delete("apiKey");
         searchParams.delete("apikey");
         window.history.replaceState(null, "", `${window.location.pathname}${searchParams.size ? `?${searchParams}` : ""}${window.location.hash}`);
-        if (user?.role !== "admin" || !publicSettings.modelChannel.allowCustomChannel) {
+        if (!isAdminRole(user?.role) || !publicSettings.modelChannel.allowCustomChannel) {
             openConfigDialog(false);
             message.error("后台未允许用户自定义渠道，请联系管理员进行配置");
             return;

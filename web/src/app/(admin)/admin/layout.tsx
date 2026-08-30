@@ -9,6 +9,7 @@ import { useEffect } from "react";
 
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { adminLayoutStyle } from "@/lib/app-theme";
+import { isAdminRole } from "@/services/api/auth";
 import { useUserStore } from "@/stores/use-user-store";
 
 const adminMenus = [
@@ -64,12 +65,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             router.replace("/login?redirect=/admin");
             return;
         }
-        if (user?.role !== "admin") {
+        if (!isAdminRole(user?.role)) {
             router.replace("/");
         }
     }, [isReady, router, token, user?.role]);
 
-    if (!isReady || !token || user?.role !== "admin") {
+    if (!isReady || !token || !isAdminRole(user?.role)) {
         return (
             <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: antToken.colorBgLayout }}>
                 <span />

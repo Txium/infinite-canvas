@@ -9,6 +9,7 @@ import { fetchModelMarket, type MarketModelCard, type MarketModelVariant } from 
 import { formatCNY } from "@/constant/credits";
 import { useConfigStore } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
+import { isAdminRole } from "@/services/api/auth";
 
 const categories = [
     { value: "all", label: "全部", icon: <Sparkles className="size-4" /> },
@@ -59,7 +60,7 @@ export default function ModelMarketPage() {
             <div className="mx-auto max-w-[1500px]">
                 <section className="mb-6 flex flex-col gap-4 rounded-2xl border border-stone-200 p-6 dark:border-stone-800 md:flex-row md:items-end md:justify-between">
                     <div><h1 className="text-3xl font-semibold">模型广场</h1><p className="mt-2 text-sm text-stone-500">统一模型名称，后台自动选择主线路与备用线路；用户不会看到供应商。</p></div>
-                    {user?.role === "admin" ? <Button icon={<Settings2 className="size-4" />} onClick={() => router.push("/admin/model-routing")}>管理模型线路</Button> : null}
+                    {isAdminRole(user?.role) ? <Button icon={<Settings2 className="size-4" />} onClick={() => router.push("/admin/model-routing")}>管理模型线路</Button> : null}
                 </section>
                 <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-stone-200 p-4 dark:border-stone-800 md:flex-row md:items-center md:justify-between">
                     <div className="flex flex-wrap gap-2">{categories.map((item) => <Button key={item.value} type={category === item.value ? "primary" : "default"} icon={item.icon} onClick={() => setCategory(item.value)}>{item.label}</Button>)}</div>
