@@ -22,7 +22,10 @@ export type VideoGenerationResult = { id: string; url: string; durationMs: numbe
 export type CreatedVideoGenerationTask = { task: VideoResponse; pollId: string; startedAt: number; requestBody: unknown };
 export type VideoProgressHandler = (progress: number, task: VideoResponse) => void;
 export type VideoTaskCreateOptions = { clientTaskId?: string; source?: "video-workbench" | "canvas"; sourceId?: string };
-export const VIDEO_POLL_INTERVAL_MS = 5000;
+// The server persists asynchronous image/video status.  A shorter client-side
+// interval does not call the paid generation endpoint again; it only reduces
+// the delay between an upstream completion and the result appearing on canvas.
+export const VIDEO_POLL_INTERVAL_MS = 2000;
 
 export class VideoRequestError extends Error {
     detail?: string;

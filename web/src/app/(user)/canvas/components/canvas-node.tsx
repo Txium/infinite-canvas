@@ -461,6 +461,7 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
     const startedAt = typeof node.metadata?.startedAt === "number" ? node.metadata.startedAt : startTimeRef.current;
     const elapsedMs = Math.max(0, currentNow - startedAt);
     const progress = Math.max(0, Math.min(100, Math.round(node.metadata?.progress || 0)));
+    const waitingStage = elapsedMs < 15_000 ? "正在提交任务" : "上游生成中";
 
     if (node.type === CanvasNodeType.Video) {
         return (
@@ -468,7 +469,7 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
                     <div className="size-10 animate-spin rounded-full border-2" style={{ borderColor: theme.node.stroke, borderTopColor: selectionBlue }} />
                     <div className="text-sm font-semibold" style={{ color: selectionBlue }}>
-                        正在创作 {progress}%
+                        {waitingStage}{progress > 0 ? ` ${progress}%` : ""}
                     </div>
                     <span className="rounded-full px-2 py-1 text-xs" style={{ background: theme.toolbar.panel, color: theme.node.text }}>
                         {formatDuration(elapsedMs)}
@@ -490,7 +491,7 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
     return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: theme.node.activeStroke }}>
             <div className="size-10 animate-spin rounded-full border-2" style={{ borderColor: theme.node.stroke, borderTopColor: theme.node.activeStroke }} />
-            <span className="text-[10px] tracking-[0.2em]">{progress > 0 ? `生成中 ${progress}%` : "生成中"}</span>
+            <span className="text-[10px] tracking-[0.2em]">{waitingStage}{progress > 0 ? ` ${progress}%` : ""}</span>
             <span className="rounded-full border px-2 py-1 text-xs tracking-normal" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
                 {formatDuration(elapsedMs)}
             </span>

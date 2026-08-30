@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -80,16 +81,37 @@ func firstWaveSpeedImage(payload map[string]any, names ...string) string {
 }
 
 func waveSpeedAspectRatio(size string) string {
-	switch strings.ToLower(strings.TrimSpace(size)) {
-	case "1024x1024", "1:1":
-		return "1:1"
-	case "1536x1024", "3:2":
-		return "3:2"
-	case "1024x1536", "2:3":
-		return "2:3"
+	value := strings.ToLower(strings.TrimSpace(size))
+	parts := strings.FieldsFunc(value, func(r rune) bool { return r == 'x' || r == ':' })
+	if len(parts) != 2 {
+		return ""
+	}
+	width, widthErr := strconv.Atoi(strings.TrimSpace(parts[0]))
+	height, heightErr := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if widthErr != nil || heightErr != nil || width <= 0 || height <= 0 {
+		return ""
+	}
+	divisor := waveSpeedGreatestCommonDivisor(width, height)
+	ratio := fmt.Sprintf("%d:%d", width/divisor, height/divisor)
+	// WaveSpeed GPT Image 2 accepts these aspect ratios.  Returning an empty
+	// value for any other ratio lets the upstream use its documented default
+	// instead of sending an unsupported value.
+	switch ratio {
+	case "1:1", "1:2", "2:1", "1:3", "3:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "9:21", "21:9":
+		return ratio
 	default:
 		return ""
 	}
+}
+
+func waveSpeedGreatestCommonDivisor(a int, b int) int {
+	for b != 0 {
+		a, b = b, a%b
+	}
+	if a < 0 {
+		return -a
+	}
+	return a
 }
 
 func waveSpeedGPTImageTier(variantID string) (string, string, bool) {
@@ -115,7 +137,9 @@ func copyWaveSpeedImageResponse(w http.ResponseWriter, response *http.Response, 
 	payload, _ := io.ReadAll(io.LimitReader(response.Body, 512*1024))
 	taskID, outputs, status, errorMessage := readWaveSpeedTask(payload)
 	if errorMessage != "" {
-		if onFailure != nil { onFailure() }
+		if onFailure != nil {
+			onFailure()
+		}
 		writeWaveSpeedImageError(w, errorMessage, logContext)
 		return true
 	}
@@ -123,7 +147,9 @@ func copyWaveSpeedImageResponse(w http.ResponseWriter, response *http.Response, 
 		outputs, errorMessage = pollWaveSpeedImageTask(request, channel, taskID)
 	}
 	if errorMessage != "" || len(outputs) == 0 {
-		if onFailure != nil { onFailure() }
+		if onFailure != nil {
+			onFailure()
+		}
 		writeWaveSpeedImageError(w, firstNonEmpty(errorMessage, "WaveSpeed 图片任务完成但没有返回图片"), logContext)
 		return true
 	}
@@ -156,45 +182,69 @@ func pollWaveSpeedImageTask(request *http.Request, channel model.ModelChannel, t
 			return nil, readUpstreamAIErrorMessage(body, pollResponse.StatusCode)
 		}
 		_, outputs, status, errorMessage := readWaveSpeedTask(body)
-		if errorMessage != "" { return nil, errorMessage }
-		if len(outputs) > 0 { return outputs, "" }
-		if waveSpeedFailed(status) { return nil, "WaveSpeed 图片生成失败" }
-		if waveSpeedDone(status) { return nil, "WaveSpeed 图片任务完成但没有返回图片" }
+		if errorMessage != "" {
+			return nil, errorMessage
+		}
+		if len(outputs) > 0 {
+			return outputs, ""
+		}
+		if waveSpeedFailed(status) {
+			return nil, "WaveSpeed 图片生成失败"
+		}
+		if waveSpeedDone(status) {
+			return nil, "WaveSpeed 图片任务完成但没有返回图片"
+		}
 	}
 	return nil, "WaveSpeed 图片任务超时"
 }
 
 func readWaveSpeedTask(payload []byte) (string, []string, string, string) {
 	var result struct {
-		Code int `json:"code"`
+		Code    int    `json:"code"`
 		Message string `json:"message"`
-		Data struct {
-			ID string `json:"id"`
-			Status string `json:"status"`
+		Data    struct {
+			ID      string   `json:"id"`
+			Status  string   `json:"status"`
 			Outputs []string `json:"outputs"`
-			Error string `json:"error"`
+			Error   string   `json:"error"`
 		} `json:"data"`
 	}
-	if err := json.Unmarshal(payload, &result); err != nil { return "", nil, "", "WaveSpeed 响应无法解析" }
-	if result.Code != 0 && result.Code != 200 { return "", nil, result.Data.Status, firstNonEmpty(result.Message, result.Data.Error, "WaveSpeed 请求失败") }
-	if waveSpeedFailed(result.Data.Status) { return result.Data.ID, result.Data.Outputs, result.Data.Status, firstNonEmpty(result.Data.Error, result.Message, "WaveSpeed 图片生成失败") }
+	if err := json.Unmarshal(payload, &result); err != nil {
+		return "", nil, "", "WaveSpeed 响应无法解析"
+	}
+	if result.Code != 0 && result.Code != 200 {
+		return "", nil, result.Data.Status, firstNonEmpty(result.Message, result.Data.Error, "WaveSpeed 请求失败")
+	}
+	if waveSpeedFailed(result.Data.Status) {
+		return result.Data.ID, result.Data.Outputs, result.Data.Status, firstNonEmpty(result.Data.Error, result.Message, "WaveSpeed 图片生成失败")
+	}
 	return strings.TrimSpace(result.Data.ID), result.Data.Outputs, strings.TrimSpace(result.Data.Status), ""
 }
 
 func waveSpeedDone(status string) bool {
-	switch strings.ToLower(strings.TrimSpace(status)) { case "completed", "succeeded", "success": return true }
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "completed", "succeeded", "success":
+		return true
+	}
 	return false
 }
 
 func waveSpeedFailed(status string) bool {
-	switch strings.ToLower(strings.TrimSpace(status)) { case "failed", "error", "cancelled", "canceled": return true }
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "failed", "error", "cancelled", "canceled":
+		return true
+	}
 	return false
 }
 
 func writeWaveSpeedImagesResponse(w http.ResponseWriter, outputs []string, logContext aiLogContext) {
 	data := make([]map[string]string, 0, len(outputs))
-	for _, output := range outputs { if output = strings.TrimSpace(output); output != "" { data = append(data, map[string]string{"url": output}) } }
-	payload, _ := json.Marshal(map[string]any{"created":time.Now().Unix(), "data":data})
+	for _, output := range outputs {
+		if output = strings.TrimSpace(output); output != "" {
+			data = append(data, map[string]string{"url": output})
+		}
+	}
+	payload, _ := json.Marshal(map[string]any{"created": time.Now().Unix(), "data": data})
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(payload)
@@ -202,7 +252,7 @@ func writeWaveSpeedImagesResponse(w http.ResponseWriter, outputs []string, logCo
 }
 
 func writeWaveSpeedImageError(w http.ResponseWriter, message string, logContext aiLogContext) {
-	payload, _ := json.Marshal(map[string]any{"code":1, "data":nil, "msg":message})
+	payload, _ := json.Marshal(map[string]any{"code": 1, "data": nil, "msg": message})
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-Upstream-Status", "502")
 	w.WriteHeader(http.StatusOK)
