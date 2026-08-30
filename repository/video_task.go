@@ -46,14 +46,14 @@ func ListUserVideoTasks(userID string, source string, limit int) ([]model.VideoT
 	}
 	var tasks []model.VideoTask
 	query := db.Where("user_id = ?", userID)
-	if source != "" {
+	if source != "" && source != "all" {
 		if source == "video-workbench" {
 			query = query.Where("(source = ? OR source = '' OR source IS NULL)", source)
 		} else {
 			query = query.Where("source = ?", source)
 		}
 	}
-	if source != "canvas" {
+	if source != "canvas" && source != "all" {
 		query = query.Where("status IN ?", []string{"queued", "in_progress", "processing", "running"})
 	}
 	err = query.Order("created_at DESC").

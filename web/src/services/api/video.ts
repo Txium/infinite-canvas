@@ -218,8 +218,8 @@ export async function pollAccountVideoGenerationTaskStatus(config: AiConfig, tas
     return cacheProtectedGeminiVideo(config, model, await cacheProtectedGrokVideo(config, model, unwrapVideoResponseForConfig(config, model, payload)));
 }
 
-export async function listVideoGenerationTasks(config: AiConfig, source: "video-workbench" | "canvas" = "video-workbench") {
-    if (!usesAccountProxy(config) && source !== "canvas") return [];
+export async function listVideoGenerationTasks(config: AiConfig, source: "video-workbench" | "canvas" | "all" = "video-workbench") {
+    if (!usesAccountProxy(config) && source === "video-workbench") return [];
     if (!useUserStore.getState().token) return [];
     const payload = (await axios.get<ApiVideoEnvelope>("/api/v1/video-tasks", { headers: aiHeaders(config), params: { source } })).data;
     if (payload.code !== 0) throw new VideoRequestError(payload.msg || payload.message || "读取视频任务失败", payload);

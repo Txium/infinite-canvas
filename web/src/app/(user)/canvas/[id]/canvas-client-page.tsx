@@ -550,20 +550,22 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     useEffect(() => {
         if (!projectLoaded) return;
         const pollCanvasTasks = () => {
-            void listVideoGenerationTasks(effectiveConfig, "canvas")
+            void listVideoGenerationTasks(effectiveConfig, "all")
                 .then((tasks) => {
                     if (!tasks.length) return;
                     const latestTasks = [...tasks.reduce((byNode, task) => {
                         const nodeId = task.source_id || task.sourceId || "";
-                        if (nodeId && !byNode.has(nodeId)) byNode.set(nodeId, task);
+                        const recoveryKey = nodeId || task.id || task.task_id || task.video_id || "";
+                        if (recoveryKey && !byNode.has(recoveryKey)) byNode.set(recoveryKey, task);
                         return byNode;
                     }, new Map<string, VideoResponse>()).values()];
                     setNodes((prev) => latestTasks.reduce((next, task) => {
                         const nodeId = task.source_id || task.sourceId || "";
-                        const node = next.find((item) => item.id === nodeId && item.type === CanvasNodeType.Video);
+                        const taskIds = [task.id, task.task_id, task.video_id].filter(Boolean);
+                        const node = next.find((item) => item.type === CanvasNodeType.Video && (item.id === nodeId || taskIds.includes(canvasVideoTaskId(item.metadata))));
                         if (!node) return next;
                         const generationConfig = buildGenerationConfig(effectiveConfig, node, "video");
-                        return applyCanvasVideoTaskUpdate(next, nodeId, task, generationConfig, node.metadata?.startedAt || Date.now(), { width: node.width, height: node.height });
+                        return applyCanvasVideoTaskUpdate(next, node.id, task, generationConfig, node.metadata?.startedAt || Date.now(), { width: node.width, height: node.height });
                     }, prev));
                 })
                 .catch(() => undefined);

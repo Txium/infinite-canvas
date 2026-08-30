@@ -30,7 +30,7 @@ func UserVideoTasks(w http.ResponseWriter, r *http.Request) {
 	if source == "" {
 		source = "video-workbench"
 	}
-	if source != "video-workbench" && source != "canvas" {
+	if source != "video-workbench" && source != "canvas" && source != "all" {
 		Fail(w, "视频任务来源无效")
 		return
 	}
