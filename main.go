@@ -20,5 +20,6 @@ func main() {
 	service.StartCanvasProjectCleanupScheduler()
 	service.StartCanvasTaskCleanupScheduler()
 	handler.StartVideoTaskPoller()
+	service.StartProviderCatalogSync()
 	log.Fatal(router.New().Run(":" + config.Cfg.Port))
 }

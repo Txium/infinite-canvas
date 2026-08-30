@@ -103,6 +103,42 @@ func SaveModelRoute(item model.ModelRoute) error {
 	}
 	return db.Save(&item).Error
 }
+
+func ApplyProviderCatalog(providerID string, available map[string]bool, checkedAt string, eligible func(model.ModelRoute) bool) ([]model.ModelRoute, error) {
+	db, err := DB()
+	if err != nil {
+		return nil, err
+	}
+	disabled := []model.ModelRoute{}
+	err = db.Transaction(func(tx *gorm.DB) error {
+		var routes []model.ModelRoute
+		if err := tx.Where("provider_id = ?", providerID).Find(&routes).Error; err != nil {
+			return err
+		}
+		for _, route := range routes {
+			if !eligible(route) {
+				continue
+			}
+			route.CatalogCheckedAt = checkedAt
+			if available[route.UpstreamModelID] {
+				route.CatalogStatus = "available"
+			} else {
+				route.CatalogStatus = "missing"
+				if route.Enabled {
+					route.Enabled = false
+					route.CatalogAutoDisabled = true
+					disabled = append(disabled, route)
+				}
+			}
+			route.UpdatedAt = checkedAt
+			if err := tx.Save(&route).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return disabled, err
+}
 func SaveModelVariant(item model.ModelVariant) error {
 	db, err := DB()
 	if err != nil {

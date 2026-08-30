@@ -160,6 +160,9 @@ func New() *gin.Engine {
 	admin.POST("/model-providers/:id/test", func(c *gin.Context) {
 		handler.AdminTestModelProvider(c.Writer, c.Request, c.Param("id"))
 	})
+	admin.POST("/model-providers/:id/sync-models", func(c *gin.Context) {
+		handler.AdminSyncModelProviderCatalog(c.Writer, c.Request, c.Param("id"))
+	})
 	admin.GET("/model-routes", gin.WrapF(handler.AdminModelRoutes))
 	admin.GET("/model-readiness", gin.WrapF(handler.AdminModelReadiness))
 	admin.POST("/model-routes", gin.WrapF(handler.AdminSaveModelRoute))
