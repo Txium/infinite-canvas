@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/service"
-	"github.com/google/uuid"
 )
 
 func StartVideoTaskPoller() {
@@ -83,7 +83,9 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	if err == nil && !routed {
 		channel, selectedUserChannelID, selectErr := selectAIRequestChannel(user, modelName, r.Header.Get("X-Model-Channel-ID"), r.Header.Get(userModelChannelHeader))
 		userChannelID, err = selectedUserChannelID, selectErr
-		if err == nil { candidates = []service.MarketRouteCandidate{{Channel:channel, UpstreamModel:modelName}} }
+		if err == nil {
+			candidates = []service.MarketRouteCandidate{{Channel: channel, UpstreamModel: modelName}}
+		}
 	}
 	if err != nil {
 		log.Printf("AI video select channel failed: model=%s err=%v", requestedModel, err)
@@ -91,6 +93,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	credits := 0
+	estimatedProviderCost := int64(0)
 	if userChannelID == "" {
 		var marketCost bool
 		var billingUnit string
@@ -103,7 +106,13 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 			Fail(w, err.Error())
 			return
 		}
-		credits *= readAIRequestBillingUnits(body, contentType, billingUnit)
+		billingUnits := readAIRequestBillingUnits(body, contentType, billingUnit)
+		credits *= billingUnits
+		if estimatedProviderCost, err = service.MarketModelEstimatedProviderCost(requestedModel, billingUnits); err != nil {
+			log.Printf("AI video read provider cost failed: model=%s err=%v", requestedModel, err)
+			Fail(w, "模型成本配置无效")
+			return
+		}
 	}
 	if credits > 0 {
 		if err := service.FreezeUserCredits(user.ID, requestedModel, credits, "/videos", billingID); err != nil {
@@ -123,14 +132,22 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		if routed && isSeedanceNZChannel(channel) {
 			modelName = resolveSeedanceNZVideoModel(modelName, attemptBody, attemptContentType)
 		}
-		if routed { attemptBody, err = replaceAIRequestModel(attemptBody, attemptContentType, modelName) }
+		if routed {
+			attemptBody, err = replaceAIRequestModel(attemptBody, attemptContentType, modelName)
+		}
 		upstreamPath = resolveAIProxyPath(channel, modelName, "/videos")
-		if err == nil { attemptBody, attemptContentType, err = normalizeVideoCreateBody(attemptBody, attemptContentType, modelName, channel, upstreamPath) }
-		if err == nil { request, err = http.NewRequest(http.MethodPost, service.BuildModelChannelURL(channel, upstreamPath), bytes.NewReader(attemptBody)) }
-		logContext = aiLogContext{StartedAt:startedAt,Endpoint:"/videos",Method:http.MethodPost,Model:requestedModel,Channel:channel,UserID:user.ID,UserDisplayName:firstNonEmpty(user.DisplayName,user.Username),Credits:credits,RequestBody:summarizeAIRequest(attemptBody,attemptContentType)}
+		if err == nil {
+			attemptBody, attemptContentType, err = normalizeVideoCreateBody(attemptBody, attemptContentType, modelName, channel, upstreamPath)
+		}
+		if err == nil {
+			request, err = http.NewRequest(http.MethodPost, service.BuildModelChannelURL(channel, upstreamPath), bytes.NewReader(attemptBody))
+		}
+		logContext = aiLogContext{StartedAt: startedAt, Endpoint: "/videos", Method: http.MethodPost, Model: requestedModel, Channel: channel, UserID: user.ID, UserDisplayName: firstNonEmpty(user.DisplayName, user.Username), Credits: credits, RequestBody: summarizeAIRequest(attemptBody, attemptContentType)}
 		if err == nil {
 			service.SetModelChannelAuthHeader(request, channel)
-			if attemptContentType != "" { request.Header.Set("Content-Type", attemptContentType) }
+			if attemptContentType != "" {
+				request.Header.Set("Content-Type", attemptContentType)
+			}
 			payload, status, err = doAIRequest(request, channel)
 		}
 		if index+1 < len(candidates) && retryableMarketRouteFailure(status, err) {
@@ -176,34 +193,39 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	task, err := service.CreateVideoTask(service.VideoTaskCreateInput{
-		UserID:          user.ID,
-		UserDisplayName: firstNonEmpty(user.DisplayName, user.Username),
-		Model:           requestedModel,
-		UpstreamModel:   modelName,
-		ChannelID:       channel.ID,
-		UserChannelID:   userChannelID,
-		ChannelName:     channel.Name,
-		Source:          readVideoTaskSource(r),
-		SourceID:        readVideoTaskSourceID(r),
-		ClientTaskID:     clientTaskID,
-		UpstreamTaskID:  parsed.UpstreamTaskID,
-		UpstreamVideoID: parsed.UpstreamVideoID,
-		Status:          parsed.Status,
-		Progress:        parsed.Progress,
-		Seconds:         parsed.Seconds,
-		Size:            parsed.Size,
-		VideoURL:        parsed.VideoURL,
-		Error:           parsed.Error,
-		ErrorDetail:     parsed.ErrorDetail,
-		RequestBody:     logContext.RequestBody,
-		ResponseBody:    string(transformed),
-		Credits:         credits,
-		BillingID:       billingID,
-		BillingStatus:   map[bool]string{true: "frozen", false: ""}[credits > 0],
-		BillingPath:     upstreamPath,
+		UserID:                     user.ID,
+		UserDisplayName:            firstNonEmpty(user.DisplayName, user.Username),
+		Model:                      requestedModel,
+		UpstreamModel:              modelName,
+		ChannelID:                  channel.ID,
+		UserChannelID:              userChannelID,
+		ChannelName:                channel.Name,
+		Source:                     readVideoTaskSource(r),
+		SourceID:                   readVideoTaskSourceID(r),
+		ClientTaskID:               clientTaskID,
+		UpstreamTaskID:             parsed.UpstreamTaskID,
+		UpstreamVideoID:            parsed.UpstreamVideoID,
+		Status:                     parsed.Status,
+		Progress:                   parsed.Progress,
+		Seconds:                    parsed.Seconds,
+		Size:                       parsed.Size,
+		VideoURL:                   parsed.VideoURL,
+		Error:                      parsed.Error,
+		ErrorDetail:                parsed.ErrorDetail,
+		RequestBody:                logContext.RequestBody,
+		ResponseBody:               string(transformed),
+		Credits:                    credits,
+		BillingID:                  billingID,
+		BillingStatus:              map[bool]string{true: "frozen", false: ""}[credits > 0],
+		BillingPath:                upstreamPath,
+		SalePriceCents:             int64(credits),
+		EstimatedProviderCostCents: estimatedProviderCost,
+		UpstreamRefundStatus:       "not_required",
 	})
 	if err != nil {
-		if credits > 0 { releaseVideoCredits(user.ID, requestedModel, credits, upstreamPath, billingID) }
+		if credits > 0 {
+			releaseVideoCredits(user.ID, requestedModel, credits, upstreamPath, billingID)
+		}
 		log.Printf("save video task failed: model=%s err=%v", modelName, err)
 		Fail(w, "AI 接口请求失败")
 		return
@@ -709,4 +731,9 @@ func releaseVideoCredits(userID string, modelName string, credits int, endpoint 
 	}
 }
 
-func errorString(err error) string { if err == nil { return "" }; return err.Error() }
+func errorString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}

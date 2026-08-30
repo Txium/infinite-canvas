@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/repository"
-	"github.com/google/uuid"
 )
 
 const videoTaskPollInterval = 5 * time.Second
@@ -28,31 +28,34 @@ var (
 )
 
 type VideoTaskCreateInput struct {
-	UserID          string
-	UserDisplayName string
-	Model           string
-	UpstreamModel   string
-	ChannelID       string
-	UserChannelID   string
-	ChannelName     string
-	Source          string
-	SourceID        string
-	ClientTaskID    string
-	UpstreamTaskID  string
-	UpstreamVideoID string
-	Status          string
-	Progress        int
-	Seconds         string
-	Size            string
-	VideoURL        string
-	Error           string
-	ErrorDetail     string
-	RequestBody     string
-	ResponseBody    string
-	Credits         int
-	BillingID       string
-	BillingStatus   string
-	BillingPath     string
+	UserID                     string
+	UserDisplayName            string
+	Model                      string
+	UpstreamModel              string
+	ChannelID                  string
+	UserChannelID              string
+	ChannelName                string
+	Source                     string
+	SourceID                   string
+	ClientTaskID               string
+	UpstreamTaskID             string
+	UpstreamVideoID            string
+	Status                     string
+	Progress                   int
+	Seconds                    string
+	Size                       string
+	VideoURL                   string
+	Error                      string
+	ErrorDetail                string
+	RequestBody                string
+	ResponseBody               string
+	Credits                    int
+	BillingID                  string
+	BillingStatus              string
+	BillingPath                string
+	SalePriceCents             int64
+	EstimatedProviderCostCents int64
+	UpstreamRefundStatus       string
 }
 
 type VideoTaskPollUpdate struct {
@@ -75,34 +78,37 @@ func CreateVideoTask(input VideoTaskCreateInput) (model.VideoTask, error) {
 		status = "queued"
 	}
 	task := model.VideoTask{
-		ID:              firstVideoTaskValue(input.ClientTaskID, input.UpstreamTaskID, input.UpstreamVideoID, "video-task-"+uuid.NewString()),
-		UserID:          strings.TrimSpace(input.UserID),
-		UserDisplayName: strings.TrimSpace(input.UserDisplayName),
-		Model:           strings.TrimSpace(input.Model),
-		UpstreamModel:   strings.TrimSpace(input.UpstreamModel),
-		ChannelID:       strings.TrimSpace(input.ChannelID),
-		UserChannelID:   strings.TrimSpace(input.UserChannelID),
-		ChannelName:     strings.TrimSpace(input.ChannelName),
-		Source:          normalizeVideoTaskSource(input.Source),
-		SourceID:        strings.TrimSpace(input.SourceID),
-		UpstreamTaskID:  strings.TrimSpace(input.UpstreamTaskID),
-		UpstreamVideoID: strings.TrimSpace(input.UpstreamVideoID),
-		Status:          status,
-		Progress:        clampProgress(input.Progress),
-		Seconds:         strings.TrimSpace(input.Seconds),
-		Size:            strings.TrimSpace(input.Size),
-		VideoURL:        strings.TrimSpace(input.VideoURL),
-		Error:           strings.TrimSpace(input.Error),
-		ErrorDetail:     strings.TrimSpace(input.ErrorDetail),
-		RequestBody:     input.RequestBody,
-		ResponseBody:    input.ResponseBody,
-		LastResponse:    input.ResponseBody,
-		Credits:         input.Credits,
-		BillingID:       strings.TrimSpace(input.BillingID),
-		BillingStatus:   strings.TrimSpace(input.BillingStatus),
-		BillingPath:     strings.TrimSpace(input.BillingPath),
-		CreatedAt:       current,
-		UpdatedAt:       current,
+		ID:                         firstVideoTaskValue(input.ClientTaskID, input.UpstreamTaskID, input.UpstreamVideoID, "video-task-"+uuid.NewString()),
+		UserID:                     strings.TrimSpace(input.UserID),
+		UserDisplayName:            strings.TrimSpace(input.UserDisplayName),
+		Model:                      strings.TrimSpace(input.Model),
+		UpstreamModel:              strings.TrimSpace(input.UpstreamModel),
+		ChannelID:                  strings.TrimSpace(input.ChannelID),
+		UserChannelID:              strings.TrimSpace(input.UserChannelID),
+		ChannelName:                strings.TrimSpace(input.ChannelName),
+		Source:                     normalizeVideoTaskSource(input.Source),
+		SourceID:                   strings.TrimSpace(input.SourceID),
+		UpstreamTaskID:             strings.TrimSpace(input.UpstreamTaskID),
+		UpstreamVideoID:            strings.TrimSpace(input.UpstreamVideoID),
+		Status:                     status,
+		Progress:                   clampProgress(input.Progress),
+		Seconds:                    strings.TrimSpace(input.Seconds),
+		Size:                       strings.TrimSpace(input.Size),
+		VideoURL:                   strings.TrimSpace(input.VideoURL),
+		Error:                      strings.TrimSpace(input.Error),
+		ErrorDetail:                strings.TrimSpace(input.ErrorDetail),
+		RequestBody:                input.RequestBody,
+		ResponseBody:               input.ResponseBody,
+		LastResponse:               input.ResponseBody,
+		Credits:                    input.Credits,
+		BillingID:                  strings.TrimSpace(input.BillingID),
+		BillingStatus:              strings.TrimSpace(input.BillingStatus),
+		BillingPath:                strings.TrimSpace(input.BillingPath),
+		SalePriceCents:             input.SalePriceCents,
+		EstimatedProviderCostCents: input.EstimatedProviderCostCents,
+		UpstreamRefundStatus:       strings.TrimSpace(input.UpstreamRefundStatus),
+		CreatedAt:                  current,
+		UpdatedAt:                  current,
 	}
 	if IsCompletedVideoTaskStatus(task.Status) || task.VideoURL != "" {
 		task.Status = "completed"
@@ -114,7 +120,9 @@ func CreateVideoTask(input VideoTaskCreateInput) (model.VideoTask, error) {
 	}
 	saved, err := repository.SaveVideoTask(task)
 	if err == nil && (IsCompletedVideoTaskStatus(saved.Status) || IsFailedVideoTaskStatus(saved.Status)) {
-		if err = finalizeVideoTaskBilling(&saved); err == nil { saved, err = repository.SaveVideoTask(saved) }
+		if err = finalizeVideoTaskBilling(&saved); err == nil {
+			saved, err = repository.SaveVideoTask(saved)
+		}
 	}
 	if err == nil && !IsCompletedVideoTaskStatus(saved.Status) && !IsFailedVideoTaskStatus(saved.Status) {
 		WakeVideoTaskPoller()
@@ -144,24 +152,24 @@ func DeleteUserVideoTask(userID string, id string) error {
 
 func VideoTaskResponse(task model.VideoTask) map[string]any {
 	result := map[string]any{
-		"id":           task.ID,
-		"object":       "video",
-		"model":        task.Model,
-		"source":       task.Source,
-		"source_id":    task.SourceID,
-		"status":       task.Status,
-		"progress":     task.Progress,
-		"task_id":      firstVideoTaskValue(task.UpstreamTaskID, task.ID),
-		"video_id":     task.UpstreamVideoID,
-		"seconds":      task.Seconds,
-		"size":         task.Size,
-		"created_at":   task.CreatedAt,
-		"updated_at":   task.UpdatedAt,
-		"started_at":   task.StartedAt,
-		"completed_at": task.CompletedAt,
+		"id":            task.ID,
+		"object":        "video",
+		"model":         task.Model,
+		"source":        task.Source,
+		"source_id":     task.SourceID,
+		"status":        task.Status,
+		"progress":      task.Progress,
+		"task_id":       firstVideoTaskValue(task.UpstreamTaskID, task.ID),
+		"video_id":      task.UpstreamVideoID,
+		"seconds":       task.Seconds,
+		"size":          task.Size,
+		"created_at":    task.CreatedAt,
+		"updated_at":    task.UpdatedAt,
+		"started_at":    task.StartedAt,
+		"completed_at":  task.CompletedAt,
 		"billingStatus": task.BillingStatus,
-		"createdAt":    task.CreatedAt,
-		"updatedAt":    task.UpdatedAt,
+		"createdAt":     task.CreatedAt,
+		"updatedAt":     task.UpdatedAt,
 	}
 	if strings.TrimSpace(task.UpstreamModel) == "" {
 		result["channelId"] = task.ChannelID
@@ -258,7 +266,9 @@ func runVideoTaskPoller() {
 					}
 					continue
 				}
-				if NormalizeVideoTaskStatus(task.Status) == "reconciling" && videoTaskPolledRecently(task, current, time.Minute) { continue }
+				if NormalizeVideoTaskStatus(task.Status) == "reconciling" && videoTaskPolledRecently(task, current, time.Minute) {
+					continue
+				}
 				if _, loaded := inFlight.LoadOrStore(task.ID, true); loaded {
 					continue
 				}
@@ -335,7 +345,9 @@ func UpdateVideoTaskFromPoll(task model.VideoTask, update VideoTaskPollUpdate) e
 		task.Status = "failed"
 		task.CompletedAt = current
 	}
-	if err := finalizeVideoTaskBilling(&task); err != nil { return err }
+	if err := finalizeVideoTaskBilling(&task); err != nil {
+		return err
+	}
 	_, err := repository.SaveVideoTask(task)
 	return err
 }
@@ -355,13 +367,19 @@ func videoTaskPolledRecently(task model.VideoTask, current time.Time, interval t
 }
 
 func finalizeVideoTaskBilling(task *model.VideoTask) error {
-	if task == nil || task.Credits <= 0 || strings.TrimSpace(task.BillingID) == "" || task.BillingStatus != "frozen" { return nil }
+	if task == nil || task.Credits <= 0 || strings.TrimSpace(task.BillingID) == "" || task.BillingStatus != "frozen" {
+		return nil
+	}
 	if IsCompletedVideoTaskStatus(task.Status) {
-		if err := SettleUserCredits(task.UserID, task.Model, task.Credits, task.BillingPath, task.BillingID); err != nil { return err }
-		task.BillingStatus = "settled"
+		return repository.SettleVideoTaskFinancials(task, now())
 	} else if IsFailedVideoTaskStatus(task.Status) {
-		if err := ReleaseUserCredits(task.UserID, task.Model, task.Credits, task.BillingPath, task.BillingID); err != nil { return err }
+		if err := ReleaseUserCredits(task.UserID, task.Model, task.Credits, task.BillingPath, task.BillingID); err != nil {
+			return err
+		}
 		task.BillingStatus = "released"
+		if task.UpstreamRefundStatus == "" {
+			task.UpstreamRefundStatus = "pending"
+		}
 	}
 	return nil
 }

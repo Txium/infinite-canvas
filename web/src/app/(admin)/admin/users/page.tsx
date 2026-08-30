@@ -9,11 +9,12 @@ import { useEffect, useState } from "react";
 import type { AdminUser } from "@/services/api/admin";
 import { useAdminUsers } from "./use-admin-users";
 
-type UserFormValues = Partial<AdminUser> & { password?: string };
+type UserFormValues = Partial<AdminUser> & { password?: string; creditAdjustment?: number; creditReason?: string };
 
 const roleOptions = [
     { label: "普通用户", value: "user" },
     { label: "管理员", value: "admin" },
+    { label: "超级管理员", value: "super_admin" },
 ];
 
 const statusOptions = [
@@ -44,7 +45,9 @@ export default function AdminUsersPage() {
 
     const saveCredits = async () => {
         if (!editingUser?.id) return;
-        await adjustCredits(editingUser.id, form.getFieldValue("credits") || 0);
+        const values = await form.validateFields(["creditAdjustment", "creditReason"]);
+        await adjustCredits(editingUser.id, values.creditAdjustment || 0, values.creditReason || "");
+        form.setFieldsValue({ creditAdjustment: undefined, creditReason: "" });
     };
 
     const columns: ProColumns<AdminUser>[] = [
@@ -70,7 +73,7 @@ export default function AdminUsersPage() {
             title: "角色",
             dataIndex: "role",
             width: 100,
-            render: (_, item) => <Tag color={item.role === "admin" ? "gold" : "default"}>{item.role === "admin" ? "管理员" : "用户"}</Tag>,
+            render: (_, item) => <Tag color={item.role === "super_admin" ? "red" : item.role === "admin" ? "gold" : "default"}>{item.role === "super_admin" ? "超级管理员" : item.role === "admin" ? "管理员" : "用户"}</Tag>,
         },
         {
             title: "状态",
@@ -232,13 +235,18 @@ export default function AdminUsersPage() {
                             <Typography.Text strong>可用余额调整</Typography.Text>
                             <Row gutter={14}>
                                 <Col span={12}>
-                                    <Form.Item label="人民币分">
+                                    <Form.Item label="增减金额（人民币分）">
                                         <Space.Compact style={{ width: "100%" }}>
-                                            <Form.Item name="credits" noStyle>
-                                                <InputNumber min={0} precision={0} style={{ width: "100%" }} />
+                                            <Form.Item name="creditAdjustment" noStyle rules={[{ required: true, message: "请输入增减金额" }, { validator: (_, value) => value === 0 ? Promise.reject(new Error("调整金额不能为 0")) : Promise.resolve() }]}>
+                                                <InputNumber precision={0} placeholder="增加填正数，减少填负数" style={{ width: "100%" }} />
                                             </Form.Item>
                                             <Button onClick={() => void saveCredits()}>调整</Button>
                                         </Space.Compact>
+                                    </Form.Item>
+                                </Col>
+                                <Col span={12}>
+                                    <Form.Item name="creditReason" label="调账原因" rules={[{ required: true, whitespace: true, message: "请填写调账原因" }]}>
+                                        <Input placeholder="必填，将写入不可变流水" />
                                     </Form.Item>
                                 </Col>
                             </Row>

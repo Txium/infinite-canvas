@@ -59,8 +59,12 @@ func TestPaymentConfiguredRejectsLegacyEpay(t *testing.T) {
 }
 
 func TestPaymentConfiguredAcceptsOfficialAlipay(t *testing.T) {
-	Cfg = Config{AlipayAppID: "2021000000000000", AlipayAppPrivateKey: "private", AlipayPublicKey: "public", AlipayGatewayURL: "https://openapi.alipay.com/gateway.do", AlipayPaymentEnabled: true, PublicBaseURL: "https://canvas.example.com"}
-	if !PaymentConfigured() { t.Fatal("official Alipay configuration should be ready") }
+	Cfg = Config{AlipayAppID: "2021000000000000", AlipayAppPrivateKey: "private", AlipayPublicKey: "public", AlipaySellerID: "2088000000000000", AlipayGatewayURL: "https://openapi.alipay.com/gateway.do", AlipayPaymentEnabled: true, PublicBaseURL: "https://canvas.example.com"}
+	if !PaymentConfigured() {
+		t.Fatal("official Alipay configuration should be ready")
+	}
 	Cfg.AlipayPublicKey = ""
-	if PaymentConfigured() { t.Fatal("Alipay without public key must not be ready") }
+	if PaymentConfigured() {
+		t.Fatal("Alipay without public key must not be ready")
+	}
 }

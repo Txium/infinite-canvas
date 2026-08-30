@@ -12,28 +12,29 @@ import (
 )
 
 type Config struct {
-	Port                string `env:"PORT" envDefault:"8080"`
-	AdminUsername       string `env:"ADMIN_USERNAME" envDefault:"admin"`
-	AdminPassword       string `env:"ADMIN_PASSWORD" envDefault:"infinite-canvas"`
-	JWTSecret           string `env:"JWT_SECRET" envDefault:"infinite-canvas"`
-	JWTExpireHours      int    `env:"JWT_EXPIRE_HOURS" envDefault:"168"`
-	StorageDriver       string `env:"STORAGE_DRIVER" envDefault:"sqlite"`
-	DatabaseDSN         string `env:"DATABASE_DSN" envDefault:"data/infinite-canvas.db"`
-	PublicBaseURL       string `env:"PUBLIC_BASE_URL"`
-	LinuxDoAuthorizeURL string `env:"LINUX_DO_AUTHORIZE_URL" envDefault:"https://connect.linux.do/oauth2/authorize"`
-	LinuxDoTokenURL     string `env:"LINUX_DO_TOKEN_URL" envDefault:"https://connect.linux.do/oauth2/token"`
-	LinuxDoUserInfoURL  string `env:"LINUX_DO_USERINFO_URL" envDefault:"https://connect.linux.do/api/user"`
-	AILogDir            string `env:"AI_LOG_DIR" envDefault:"data/logs/ai-calls"`
-	EpayAPIURL          string `env:"EPAY_API_URL"`
-	EpayMerchantID      string `env:"EPAY_MERCHANT_ID"`
-	EpayMerchantKey     string `env:"EPAY_MERCHANT_KEY"`
+	Port                 string `env:"PORT" envDefault:"8080"`
+	AdminUsername        string `env:"ADMIN_USERNAME" envDefault:"admin"`
+	AdminPassword        string `env:"ADMIN_PASSWORD" envDefault:"infinite-canvas"`
+	JWTSecret            string `env:"JWT_SECRET" envDefault:"infinite-canvas"`
+	JWTExpireHours       int    `env:"JWT_EXPIRE_HOURS" envDefault:"168"`
+	StorageDriver        string `env:"STORAGE_DRIVER" envDefault:"sqlite"`
+	DatabaseDSN          string `env:"DATABASE_DSN" envDefault:"data/infinite-canvas.db"`
+	PublicBaseURL        string `env:"PUBLIC_BASE_URL"`
+	LinuxDoAuthorizeURL  string `env:"LINUX_DO_AUTHORIZE_URL" envDefault:"https://connect.linux.do/oauth2/authorize"`
+	LinuxDoTokenURL      string `env:"LINUX_DO_TOKEN_URL" envDefault:"https://connect.linux.do/oauth2/token"`
+	LinuxDoUserInfoURL   string `env:"LINUX_DO_USERINFO_URL" envDefault:"https://connect.linux.do/api/user"`
+	AILogDir             string `env:"AI_LOG_DIR" envDefault:"data/logs/ai-calls"`
+	EpayAPIURL           string `env:"EPAY_API_URL"`
+	EpayMerchantID       string `env:"EPAY_MERCHANT_ID"`
+	EpayMerchantKey      string `env:"EPAY_MERCHANT_KEY"`
 	AlipayAppID          string `env:"ALIPAY_APP_ID"`
 	AlipayAppPrivateKey  string `env:"ALIPAY_APP_PRIVATE_KEY"`
 	AlipayPublicKey      string `env:"ALIPAY_PUBLIC_KEY"`
+	AlipaySellerID       string `env:"ALIPAY_SELLER_ID"`
 	AlipayGatewayURL     string `env:"ALIPAY_GATEWAY_URL" envDefault:"https://openapi.alipay.com/gateway.do"`
 	AlipayPaymentEnabled bool   `env:"ALIPAY_PAYMENT_ENABLED" envDefault:"false"`
-	ManagedPlatformMode bool   `env:"MANAGED_PLATFORM_MODE" envDefault:"true"`
-	GenerationRPM      int    `env:"GENERATION_REQUESTS_PER_MINUTE" envDefault:"30"`
+	ManagedPlatformMode  bool   `env:"MANAGED_PLATFORM_MODE" envDefault:"true"`
+	GenerationRPM        int    `env:"GENERATION_REQUESTS_PER_MINUTE" envDefault:"30"`
 }
 
 var Cfg Config
@@ -138,6 +139,7 @@ func AlipayCredentialsConfigured() bool {
 	return strings.TrimSpace(Cfg.AlipayAppID) != "" &&
 		strings.TrimSpace(Cfg.AlipayAppPrivateKey) != "" &&
 		strings.TrimSpace(Cfg.AlipayPublicKey) != "" &&
+		strings.TrimSpace(Cfg.AlipaySellerID) != "" &&
 		strings.TrimSpace(Cfg.AlipayGatewayURL) != "" &&
 		strings.TrimSpace(Cfg.PublicBaseURL) != ""
 }

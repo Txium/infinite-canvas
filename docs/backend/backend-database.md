@@ -477,3 +477,13 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 ### video_tasks
 
 平台模型广场发起的视频任务同时保存公开档位 ID 和仅服务器使用的 `upstream_model`。用户任务响应只返回公开档位 ID，不返回供应商、线路、上游模型 ID或请求体；服务器轮询使用 `upstream_model`。完成或失败的视频任务保留 30 天，供管理员在“生成任务”中追踪用户、模型、结果、错误和账务状态。
+# 财务兼容扩展
+
+现有用户钱包继续使用 `users.credits`（可用人民币分）、`users.frozen_credits`（冻结人民币分）、`credit_logs` 与 `recharge_orders`，不创建第二套用户钱包。
+
+- `payment_receipts`：只在验签、AppID、seller_id、金额、状态均通过后写入；`trade_no` 为主键，`order_id` 唯一，防止同一第三方交易重复入账。
+- `provider_ledgers`：上游独立不可变资金流水，类型包括 `provider_cost`、`provider_topup`、`provider_refund`、`manual_balance_adjustment`，保存原币种金额、人民币折算、任务、上游任务、余额前后、操作人、原因、凭证和幂等键。
+- `operating_expenses`：服务器、数据库、存储、CDN、域名、支付手续费和其他运营费用，保存原币种、人民币折算、费用日期、操作人、原因与凭证。
+- `video_tasks`、`canvas_image_tasks`、`canvas_audio_tasks`：兼容增加售价、预计/实际 Provider 成本、毛差、成本来源、成本确认时间与上游退款状态字段。
+
+`provider_reserve` 不保存为可被任意修改的余额字段，第一版由冻结/对账中任务的预计 Provider 成本汇总计算。未消费预付余额由所有用户 `credits + frozen_credits` 汇总计算，不能计入利润。

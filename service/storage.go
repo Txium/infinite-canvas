@@ -93,7 +93,7 @@ func canUseGlobalStorage(ctx context.Context, storage model.PrivateStorageSettin
 	if !ok || user.ID == "" || user.Role == model.UserRoleGuest {
 		return false
 	}
-	return user.Role == model.UserRoleAdmin || storage.AllowUserGlobalProvider
+	return model.IsAdminRole(user.Role) || storage.AllowUserGlobalProvider
 }
 
 // HasActiveCloudStorage 判断当前请求是否有可用的云存储。

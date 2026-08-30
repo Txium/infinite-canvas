@@ -137,6 +137,10 @@ func New() *gin.Engine {
 	})
 	admin.GET("/credit-logs", gin.WrapF(handler.AdminCreditLogs))
 	admin.GET("/finance-summary", gin.WrapF(handler.AdminFinanceSummary))
+	admin.GET("/provider-ledgers", gin.WrapF(handler.AdminProviderLedgers))
+	admin.POST("/provider-topups", gin.WrapF(handler.AdminRecordProviderTopup))
+	admin.GET("/operating-expenses", gin.WrapF(handler.AdminOperatingExpenses))
+	admin.POST("/operating-expenses", gin.WrapF(handler.AdminRecordOperatingExpense))
 	admin.GET("/recharge-orders", gin.WrapF(handler.AdminRechargeOrders))
 	admin.POST("/recharge-orders/:id/review", func(c *gin.Context) {
 		handler.AdminReviewRechargeOrder(c.Writer, c.Request, c.Param("id"))

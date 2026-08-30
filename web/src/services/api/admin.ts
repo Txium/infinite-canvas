@@ -33,7 +33,7 @@ export type AdminUser = {
     email: string;
     displayName: string;
     avatarUrl: string;
-    role: "user" | "admin";
+    role: "user" | "admin" | "super_admin";
     credits: number;
     frozenCredits: number;
     affCode: string;
@@ -85,8 +85,8 @@ export async function saveAdminUser(token: string, user: Partial<AdminUser> & { 
     return apiPost<AdminUser>("/api/admin/users", user, token);
 }
 
-export async function adjustAdminUserCredits(token: string, id: string, credits: number) {
-    return apiPost<AdminUser>(`/api/admin/users/${encodeURIComponent(id)}/credits`, { credits }, token);
+export async function adjustAdminUserCredits(token: string, id: string, adjustment: number, reason: string) {
+    return apiPost<AdminUser>(`/api/admin/users/${encodeURIComponent(id)}/credits`, { adjustment, reason }, token);
 }
 
 export async function deleteAdminUser(token: string, id: string) {
@@ -98,8 +98,14 @@ export async function fetchAdminCreditLogs(token: string, query: AdminUserQuery 
 }
 
 export type FinancePeriodSummary = { rechargeCents: number; revenueCents: number; releasedCents: number; settledTasks: number; releasedTasks: number };
-export type AdminFinanceSummary = { userCount: number; availableBalanceCents: number; frozenBalanceCents: number; allTime: FinancePeriodSummary; today: FinancePeriodSummary; upstreamCostReady: boolean };
+export type AdminFinanceSummary = { userCount: number; availableBalanceCents: number; frozenBalanceCents: number; unconsumedBalanceCents: number; realizedRevenueCents: number; actualProviderCostCents: number; providerReserveCents: number; grossProfitCents: number; paymentFeeCents: number; compensationCents: number; operatingCostCents: number; estimatedNetProfitCents: number; allTime: FinancePeriodSummary; today: FinancePeriodSummary; upstreamCostReady: boolean };
 export async function fetchAdminFinanceSummary(token: string) { return apiGet<AdminFinanceSummary>("/api/admin/finance-summary", undefined, token); }
+export type AdminProviderLedger = { id: string; providerId: string; type: string; amount: number; currency: string; amountCny: number; taskId: string; upstreamTaskId: string; balanceBefore: number; balanceAfter: number; operatorId: string; reason: string; reference: string; createdAt: string };
+export async function fetchAdminProviderLedgers(token: string) { return apiGet<AdminProviderLedger[]>("/api/admin/provider-ledgers", undefined, token); }
+export async function recordAdminProviderTopup(token: string, input: { providerId: string; amountCents: number; reason: string; reference?: string }) { return apiPost<AdminProviderLedger>("/api/admin/provider-topups", input, token); }
+export type AdminOperatingExpense = { id: string; category: string; amount: number; currency: string; amountCny: number; date: string; operatorId: string; reason: string; reference: string; createdAt: string };
+export async function fetchAdminOperatingExpenses(token: string) { return apiGet<AdminOperatingExpense[]>("/api/admin/operating-expenses", undefined, token); }
+export async function recordAdminOperatingExpense(token: string, input: { category: string; amountCents: number; date?: string; reason: string; reference?: string }) { return apiPost<AdminOperatingExpense>("/api/admin/operating-expenses", input, token); }
 
 export async function saveAdminCreditLog(token: string, log: Partial<AdminCreditLog>) {
     return apiPost<AdminCreditLog>("/api/admin/credit-logs", log, token);

@@ -44,10 +44,10 @@ export function useAdminUsers() {
     });
 
     const creditMutation = useMutation({
-        mutationFn: ({ id, credits }: { id: string; credits: number }) => adjustAdminUserCredits(token, id, credits),
+        mutationFn: ({ id, adjustment, reason }: { id: string; adjustment: number; reason: string }) => adjustAdminUserCredits(token, id, adjustment, reason),
         onSuccess: async () => {
             await queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
-            message.success("算力点已调整");
+            message.success("余额增量调账已完成");
         },
         onError: (error) => message.error(error instanceof Error ? error.message : "调整失败"),
     });
@@ -83,7 +83,7 @@ export function useAdminUsers() {
         resetFilters: () => updateFilters({ keyword: "", page: 1, pageSize: defaultPageSize }),
         refreshUsers: () => query.refetch(),
         saveUser: (user: Partial<AdminUser> & { password?: string }) => saveMutation.mutateAsync(user),
-        adjustCredits: (id: string, credits: number) => creditMutation.mutateAsync({ id, credits }),
+        adjustCredits: (id: string, adjustment: number, reason: string) => creditMutation.mutateAsync({ id, adjustment, reason }),
         deleteUser: (id: string) => deleteMutation.mutateAsync(id),
     };
 }

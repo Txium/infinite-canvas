@@ -151,7 +151,9 @@ func CurrentUserConfig(ctx context.Context) (UserConfigPayload, error) {
 	}
 	if strings.TrimSpace(config.ModelConfig) != "" {
 		result.ModelConfig = json.RawMessage(config.ModelConfig)
-		if user.Role != model.UserRoleAdmin { result.ModelConfig = sanitizePlatformUserModelConfig(result.ModelConfig) }
+		if !model.IsAdminRole(user.Role) {
+			result.ModelConfig = sanitizePlatformUserModelConfig(result.ModelConfig)
+		}
 	}
 	if strings.TrimSpace(config.StorageProvider) != "" {
 		providers := readUserStorageProviders(config.StorageProvider)
@@ -201,7 +203,9 @@ func SaveCurrentUserModelConfig(ctx context.Context, raw json.RawMessage) (UserC
 		config.UserID = user.ID
 		config.CreatedAt = current
 	}
-	if user.Role != model.UserRoleAdmin { raw = sanitizePlatformUserModelConfig(raw) }
+	if !model.IsAdminRole(user.Role) {
+		raw = sanitizePlatformUserModelConfig(raw)
+	}
 	config.ModelConfig = string(raw)
 	config.UpdatedAt = current
 	if _, err := repository.SaveUserConfig(config); err != nil {
@@ -212,10 +216,17 @@ func SaveCurrentUserModelConfig(ctx context.Context, raw json.RawMessage) (UserC
 
 func sanitizePlatformUserModelConfig(raw json.RawMessage) json.RawMessage {
 	var values map[string]any
-	if json.Unmarshal(raw, &values) != nil { return json.RawMessage(`{"channelMode":"remote"}`) }
-	for _, key := range []string{"apiKey","baseUrl","localChannels","publicChannels"} { delete(values,key) }
+	if json.Unmarshal(raw, &values) != nil {
+		return json.RawMessage(`{"channelMode":"remote"}`)
+	}
+	for _, key := range []string{"apiKey", "baseUrl", "localChannels", "publicChannels"} {
+		delete(values, key)
+	}
 	values["channelMode"] = "remote"
-	clean, err := json.Marshal(values); if err != nil { return json.RawMessage(`{"channelMode":"remote"}`) }
+	clean, err := json.Marshal(values)
+	if err != nil {
+		return json.RawMessage(`{"channelMode":"remote"}`)
+	}
 	return clean
 }
 

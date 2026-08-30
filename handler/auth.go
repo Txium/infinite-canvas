@@ -31,7 +31,8 @@ type saveUserRequest struct {
 }
 
 type adjustUserCreditsRequest struct {
-	Credits int `json:"credits"`
+	Adjustment int    `json:"adjustment"`
+	Reason     string `json:"reason"`
 }
 
 func Register(w http.ResponseWriter, r *http.Request) {
@@ -82,7 +83,7 @@ func AdminLogin(w http.ResponseWriter, r *http.Request) {
 		FailError(w, err)
 		return
 	}
-	if session.User.Role != model.UserRoleAdmin {
+	if !model.IsAdminRole(session.User.Role) {
 		Fail(w, "需要管理员权限")
 		return
 	}
@@ -125,9 +126,10 @@ func AdminSaveUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func AdminAdjustUserCredits(w http.ResponseWriter, r *http.Request, id string) {
+	admin, _ := service.UserFromContext(r.Context())
 	var request adjustUserCreditsRequest
 	_ = json.NewDecoder(r.Body).Decode(&request)
-	user, err := service.AdjustUserCredits(id, request.Credits)
+	user, err := service.AdjustUserCredits(admin, id, request.Adjustment, request.Reason)
 	if err != nil {
 		FailError(w, err)
 		return
@@ -147,7 +149,10 @@ func AdminCreditLogs(w http.ResponseWriter, r *http.Request) {
 func UserCreditLogs(w http.ResponseWriter, r *http.Request) {
 	user, _ := service.UserFromContext(r.Context())
 	logs, err := service.ListUserCreditLogs(user.ID)
-	if err != nil { FailError(w, err); return }
+	if err != nil {
+		FailError(w, err)
+		return
+	}
 	OK(w, logs)
 }
 

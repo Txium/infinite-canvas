@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/service"
-	"github.com/google/uuid"
 )
 
 const userModelChannelHeader = "X-User-Model-Channel-ID"
@@ -25,7 +25,9 @@ const deferredBillingReleaseHeader = "X-Billing-Defer-Release"
 func selectAIRequestChannel(user model.AuthUser, modelName string, channelID string, userChannelID string) (model.ModelChannel, string, error) {
 	userChannelID = strings.TrimSpace(userChannelID)
 	if userChannelID != "" {
-		if user.Role != model.UserRoleAdmin { return model.ModelChannel{}, "", fmt.Errorf("普通用户只能使用平台云端模型") }
+		if !model.IsAdminRole(user.Role) {
+			return model.ModelChannel{}, "", fmt.Errorf("普通用户只能使用平台云端模型")
+		}
 		channel, err := service.SelectUserLocalModelChannelForModel(user.ID, modelName, userChannelID)
 		return channel, userChannelID, err
 	}
@@ -156,7 +158,9 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		var marketCost bool
 		var billingUnit string
 		credits, billingUnit, marketCost, err = service.MarketModelPricingForRequest(requestedModel, body)
-		if err == nil && !marketCost { credits, err = service.ModelCost(requestedModel) }
+		if err == nil && !marketCost {
+			credits, err = service.ModelCost(requestedModel)
+		}
 		if err != nil {
 			log.Printf("AI proxy read model cost failed: model=%s err=%v", modelName, err)
 			Fail(w, err.Error())
@@ -257,9 +261,13 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 }
 
 func replaceAIRequestModel(body []byte, contentType string, modelName string) ([]byte, error) {
-	if strings.Contains(strings.ToLower(contentType), "multipart/form-data") { return body, nil }
+	if strings.Contains(strings.ToLower(contentType), "multipart/form-data") {
+		return body, nil
+	}
 	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil { return nil, err }
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, err
+	}
 	payload["model"] = modelName
 	return json.Marshal(payload)
 }
@@ -285,7 +293,12 @@ type aiLogContext struct {
 
 func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.ModelChannel, logContext aiLogContext, onSuccess func(), onFailure func()) {
 	failed := false
-	fail := func() { failed = true; if onFailure != nil { onFailure() } }
+	fail := func() {
+		failed = true
+		if onFailure != nil {
+			onFailure()
+		}
+	}
 	response, err := service.HTTPClientForChannel(channel).Do(request)
 	if err != nil {
 		w.Header().Set("X-Upstream-Status", "503")
@@ -309,25 +322,35 @@ func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.
 	}
 
 	if copyMiMoTTSResponse(w, response, logContext, fail) {
-		if !failed && onSuccess != nil { onSuccess() }
+		if !failed && onSuccess != nil {
+			onSuccess()
+		}
 		return
 	}
 	if copyKIEVideoResponse(w, response, request, channel, logContext, fail) {
-		if !failed && onSuccess != nil { onSuccess() }
+		if !failed && onSuccess != nil {
+			onSuccess()
+		}
 		return
 	}
 	if isAPIMartChannel(channel, logContext.Model) {
 		if copyAPIMartImageResponse(w, response, request, channel, logContext, fail) {
-			if !failed && onSuccess != nil { onSuccess() }
+			if !failed && onSuccess != nil {
+				onSuccess()
+			}
 			return
 		}
 		if copyAPIMartVideoResponse(w, response, request, channel, logContext) {
-			if onSuccess != nil { onSuccess() }
+			if onSuccess != nil {
+				onSuccess()
+			}
 			return
 		}
 	}
 	if copyWaveSpeedImageResponse(w, response, request, channel, logContext, fail) {
-		if !failed && onSuccess != nil { onSuccess() }
+		if !failed && onSuccess != nil {
+			onSuccess()
+		}
 		return
 	}
 
@@ -342,7 +365,9 @@ func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.
 	w.WriteHeader(response.StatusCode)
 	responseBody := copyAIResponseBody(w, response.Body)
 	saveAIProxyLog(logContext, response.StatusCode, responseBody, "")
-	if onSuccess != nil { onSuccess() }
+	if onSuccess != nil {
+		onSuccess()
+	}
 }
 
 func copyAIResponseBody(w http.ResponseWriter, body io.Reader) string {
@@ -708,7 +733,9 @@ func isArkSeedanceVideo(baseURL string, modelName string) bool {
 }
 
 func readAIRequestBillingUnits(body []byte, contentType string, billingUnit string) int {
-	if !strings.Contains(strings.ToLower(billingUnit), "秒") { return readAIRequestCount(body, contentType) }
+	if !strings.Contains(strings.ToLower(billingUnit), "秒") {
+		return readAIRequestCount(body, contentType)
+	}
 	seconds := 0
 	if strings.HasPrefix(contentType, "multipart/form-data") {
 		_, params, err := mime.ParseMediaType(contentType)
@@ -716,19 +743,33 @@ func readAIRequestBillingUnits(body []byte, contentType string, billingUnit stri
 			form, formErr := multipart.NewReader(bytes.NewReader(body), params["boundary"]).ReadForm(32 << 20)
 			if formErr == nil {
 				defer form.RemoveAll()
-				for _, name := range []string{"seconds", "duration"} { if values := form.Value[name]; len(values) > 0 { _, _ = fmt.Sscan(values[0], &seconds); break } }
+				for _, name := range []string{"seconds", "duration"} {
+					if values := form.Value[name]; len(values) > 0 {
+						_, _ = fmt.Sscan(values[0], &seconds)
+						break
+					}
+				}
 			}
 		}
 	} else {
 		var payload map[string]any
 		if json.Unmarshal(body, &payload) == nil {
 			for _, name := range []string{"seconds", "duration"} {
-				switch value := payload[name].(type) { case float64: seconds = int(value); case string: _, _ = fmt.Sscan(value, &seconds) }
-				if seconds != 0 { break }
+				switch value := payload[name].(type) {
+				case float64:
+					seconds = int(value)
+				case string:
+					_, _ = fmt.Sscan(value, &seconds)
+				}
+				if seconds != 0 {
+					break
+				}
 			}
 		}
 	}
-	if seconds < 1 { return 15 }
+	if seconds < 1 {
+		return 15
+	}
 	return seconds
 }
 

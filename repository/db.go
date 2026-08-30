@@ -86,6 +86,9 @@ func DB() (*gorm.DB, error) {
 			&model.ModelVariant{},
 			&model.ModelRoute{},
 			&model.ModelCatalogVersion{},
+			&model.PaymentReceipt{},
+			&model.ProviderLedger{},
+			&model.OperatingExpense{},
 		)
 	})
 	return db, dbErr

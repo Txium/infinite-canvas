@@ -35,7 +35,9 @@ func PublicSettings() (model.PublicSetting, error) {
 
 func RuntimeReadiness() model.RuntimeReadiness {
 	driver := strings.ToLower(strings.TrimSpace(config.Cfg.StorageDriver))
-	if driver == "" { driver = "sqlite" }
+	if driver == "" {
+		driver = "sqlite"
+	}
 	result := model.RuntimeReadiness{
 		DatabaseDriver:     driver,
 		DatabasePersistent: config.DatabasePersistent(),
@@ -80,7 +82,7 @@ func publicPaymentSetting() model.PublicPaymentSetting {
 }
 
 func UserCanUseRemoteModelChannel(user model.AuthUser) bool {
-	if user.Role == model.UserRoleAdmin {
+	if model.IsAdminRole(user.Role) {
 		return true
 	}
 	settings, err := PublicSettings()

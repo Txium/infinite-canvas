@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/tigerowo/infinite-canvas/model"
 	"gorm.io/gorm"
 )
@@ -48,7 +49,7 @@ func HasAdmin() (bool, error) {
 		return false, err
 	}
 	var total int64
-	err = db.Model(&model.User{}).Where("role = ?", model.UserRoleAdmin).Count(&total).Error
+	err = db.Model(&model.User{}).Where("role IN ?", []model.UserRole{model.UserRoleAdmin, model.UserRoleSuperAdmin}).Count(&total).Error
 	return total > 0, err
 }
 
@@ -131,14 +132,48 @@ func ReleaseUserCredits(id string, credits int, log model.CreditLog, now string)
 	return updateFrozenCredits(id, credits, log, now, "release")
 }
 
+func AdjustUserCredits(id string, adjustment int, operatorID, reason, now string) (model.User, error) {
+	db, err := DB()
+	if err != nil {
+		return model.User{}, err
+	}
+	var result model.User
+	err = db.Transaction(func(tx *gorm.DB) error {
+		var user model.User
+		if err := tx.Where("id = ?", id).First(&user).Error; err != nil {
+			return err
+		}
+		if adjustment == 0 {
+			result = user
+			return nil
+		}
+		if user.Credits+adjustment < 0 {
+			return gorm.ErrInvalidValue
+		}
+		before := user.Credits
+		if err := tx.Model(&model.User{}).Where("id = ?", id).Updates(map[string]any{"credits": gorm.Expr("credits + ?", adjustment), "updated_at": now}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("id = ?", id).First(&result).Error; err != nil {
+			return err
+		}
+		return tx.Create(&model.CreditLog{ID: "credit_admin_adjust_" + uuid.NewString(), UserID: id, Type: model.CreditLogTypeAdminAdjust, Amount: adjustment, BalanceBefore: before, Balance: result.Credits, FrozenBalance: result.FrozenCredits, OperatorID: operatorID, Reason: reason, Remark: "后台增量调账：" + reason, CreatedAt: now}).Error
+	})
+	return result, err
+}
+
 func updateFrozenCredits(id string, credits int, log model.CreditLog, now string, operation string) (model.User, bool, error) {
 	db, err := DB()
-	if err != nil { return model.User{}, false, err }
+	if err != nil {
+		return model.User{}, false, err
+	}
 	var result model.User
 	applied := false
 	err = db.Transaction(func(tx *gorm.DB) error {
 		var existing int64
-		if err := tx.Model(&model.CreditLog{}).Where("id = ?", log.ID).Count(&existing).Error; err != nil { return err }
+		if err := tx.Model(&model.CreditLog{}).Where("id = ?", log.ID).Count(&existing).Error; err != nil {
+			return err
+		}
 		if existing > 0 {
 			applied = true
 			return tx.Where("id = ?", id).First(&result).Error
@@ -159,14 +194,20 @@ func updateFrozenCredits(id string, credits int, log model.CreditLog, now string
 			updates["frozen_credits"] = gorm.Expr("frozen_credits - ?", credits)
 		}
 		updated := query.Updates(updates)
-		if updated.Error != nil { return updated.Error }
+		if updated.Error != nil {
+			return updated.Error
+		}
 		if updated.RowsAffected == 0 {
 			return tx.Where("id = ?", id).First(&result).Error
 		}
-		if err := tx.Where("id = ?", id).First(&result).Error; err != nil { return err }
+		if err := tx.Where("id = ?", id).First(&result).Error; err != nil {
+			return err
+		}
 		log.Balance = result.Credits
 		log.FrozenBalance = result.FrozenCredits
-		if err := tx.Create(&log).Error; err != nil { return err }
+		if err := tx.Create(&log).Error; err != nil {
+			return err
+		}
 		applied = true
 		return nil
 	})
@@ -204,7 +245,9 @@ func ListCreditLogs(q model.Query) ([]model.CreditLog, int64, error) {
 
 func ListUserCreditLogs(userID string) ([]model.CreditLog, error) {
 	db, err := DB()
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var logs []model.CreditLog
 	err = db.Where("user_id = ?", userID).Order("created_at desc").Limit(100).Find(&logs).Error
 	return logs, err

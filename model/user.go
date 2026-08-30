@@ -3,10 +3,14 @@ package model
 type UserRole string
 
 const (
-	UserRoleGuest UserRole = "guest"
-	UserRoleUser  UserRole = "user"
-	UserRoleAdmin UserRole = "admin"
+	UserRoleGuest      UserRole = "guest"
+	UserRoleUser       UserRole = "user"
+	UserRoleAdmin      UserRole = "admin"
+	UserRoleSuperAdmin UserRole = "super_admin"
 )
+
+func IsAdminRole(role UserRole) bool      { return role == UserRoleAdmin || role == UserRoleSuperAdmin }
+func IsSuperAdminRole(role UserRole) bool { return role == UserRoleSuperAdmin }
 
 type UserStatus string
 
@@ -17,26 +21,26 @@ const (
 
 // User 系统用户。
 type User struct {
-	ID          string     `json:"id" gorm:"primaryKey"`
-	Username    string     `json:"username" gorm:"uniqueIndex"`
-	Password    string     `json:"password,omitempty"`
-	Email       string     `json:"email"`
-	DisplayName string     `json:"displayName"`
-	AvatarURL   string     `json:"avatarUrl"`
-	Role        UserRole   `json:"role"`
-	Credits     int        `json:"credits"`
-	FrozenCredits int      `json:"frozenCredits"`
-	AffCode     string     `json:"affCode" gorm:"uniqueIndex"`
-	AffCount    int        `json:"affCount"`
-	InviterID   string     `json:"inviterId"`
-	GithubID    string     `json:"githubId"`
-	LinuxDoID   string     `json:"linuxDoId" gorm:"index"`
-	WechatID    string     `json:"wechatId"`
-	Status      UserStatus `json:"status"`
-	LastLoginAt string     `json:"lastLoginAt"`
-	Extra       string     `json:"extra" gorm:"type:text"`
-	CreatedAt   string     `json:"createdAt"`
-	UpdatedAt   string     `json:"updatedAt"`
+	ID            string     `json:"id" gorm:"primaryKey"`
+	Username      string     `json:"username" gorm:"uniqueIndex"`
+	Password      string     `json:"password,omitempty"`
+	Email         string     `json:"email"`
+	DisplayName   string     `json:"displayName"`
+	AvatarURL     string     `json:"avatarUrl"`
+	Role          UserRole   `json:"role"`
+	Credits       int        `json:"credits"`
+	FrozenCredits int        `json:"frozenCredits"`
+	AffCode       string     `json:"affCode" gorm:"uniqueIndex"`
+	AffCount      int        `json:"affCount"`
+	InviterID     string     `json:"inviterId"`
+	GithubID      string     `json:"githubId"`
+	LinuxDoID     string     `json:"linuxDoId" gorm:"index"`
+	WechatID      string     `json:"wechatId"`
+	Status        UserStatus `json:"status"`
+	LastLoginAt   string     `json:"lastLoginAt"`
+	Extra         string     `json:"extra" gorm:"type:text"`
+	CreatedAt     string     `json:"createdAt"`
+	UpdatedAt     string     `json:"updatedAt"`
 }
 
 // UserList 用户分页结果。
@@ -47,15 +51,15 @@ type UserList struct {
 
 // AuthUser 用户公开信息。
 type AuthUser struct {
-	ID          string   `json:"id"`
-	Username    string   `json:"username"`
-	DisplayName string   `json:"displayName"`
-	AvatarURL   string   `json:"avatarUrl"`
-	Role        UserRole `json:"role"`
-	Credits     int      `json:"credits"`
-	FrozenCredits int    `json:"frozenCredits"`
-	CreatedAt   string   `json:"createdAt"`
-	UpdatedAt   string   `json:"updatedAt"`
+	ID            string   `json:"id"`
+	Username      string   `json:"username"`
+	DisplayName   string   `json:"displayName"`
+	AvatarURL     string   `json:"avatarUrl"`
+	Role          UserRole `json:"role"`
+	Credits       int      `json:"credits"`
+	FrozenCredits int      `json:"frozenCredits"`
+	CreatedAt     string   `json:"createdAt"`
+	UpdatedAt     string   `json:"updatedAt"`
 }
 
 // AuthSession 登录会话信息。
@@ -66,43 +70,51 @@ type AuthSession struct {
 
 func PublicUser(user User) AuthUser {
 	return AuthUser{
-		ID:          user.ID,
-		Username:    user.Username,
-		DisplayName: user.DisplayName,
-		AvatarURL:   user.AvatarURL,
-		Role:        user.Role,
-		Credits:     user.Credits,
+		ID:            user.ID,
+		Username:      user.Username,
+		DisplayName:   user.DisplayName,
+		AvatarURL:     user.AvatarURL,
+		Role:          user.Role,
+		Credits:       user.Credits,
 		FrozenCredits: user.FrozenCredits,
-		CreatedAt:   user.CreatedAt,
-		UpdatedAt:   user.UpdatedAt,
+		CreatedAt:     user.CreatedAt,
+		UpdatedAt:     user.UpdatedAt,
 	}
 }
 
 type CreditLogType string
 
 const (
-	CreditLogTypeAdminAdjust CreditLogType = "admin_adjust"
-	CreditLogTypeAIConsume   CreditLogType = "ai_consume"
-	CreditLogTypeAIRefund    CreditLogType = "ai_refund"
-	CreditLogTypeAIFreeze    CreditLogType = "ai_freeze"
-	CreditLogTypeAISettle    CreditLogType = "ai_settle"
-	CreditLogTypeAIRelease   CreditLogType = "ai_release"
-	CreditLogTypeRecharge    CreditLogType = "recharge"
+	CreditLogTypeAdminAdjust   CreditLogType = "admin_adjust"
+	CreditLogTypeAIConsume     CreditLogType = "ai_consume"
+	CreditLogTypeAIRefund      CreditLogType = "ai_refund"
+	CreditLogTypeAIFreeze      CreditLogType = "ai_freeze"
+	CreditLogTypeAISettle      CreditLogType = "ai_settle"
+	CreditLogTypeAIRelease     CreditLogType = "ai_release"
+	CreditLogTypeRecharge      CreditLogType = "recharge"
+	CreditLogTypeProviderCost  CreditLogType = "provider_cost"
+	CreditLogTypeProviderTopup CreditLogType = "provider_topup"
+	CreditLogTypePaymentFee    CreditLogType = "payment_fee"
+	CreditLogTypeOperatingCost CreditLogType = "operating_cost"
+	CreditLogTypeCompensation  CreditLogType = "compensation"
 )
 
 // CreditLog 用户人民币钱包变更流水，金额单位为分。
 type CreditLog struct {
-	ID        string        `json:"id" gorm:"primaryKey"`
-	UserID    string        `json:"userId" gorm:"index"`
-	Type      CreditLogType `json:"type"`
-	Amount    int           `json:"amount"`
-	Balance   int           `json:"balance"`
-	FrozenAmount  int       `json:"frozenAmount"`
-	FrozenBalance int       `json:"frozenBalance"`
-	RelatedID string        `json:"relatedId"`
-	Remark    string        `json:"remark"`
-	Extra     string        `json:"extra" gorm:"type:text"`
-	CreatedAt string        `json:"createdAt"`
+	ID            string        `json:"id" gorm:"primaryKey"`
+	UserID        string        `json:"userId" gorm:"index"`
+	Type          CreditLogType `json:"type"`
+	Amount        int           `json:"amount"`
+	Balance       int           `json:"balance"`
+	FrozenAmount  int           `json:"frozenAmount"`
+	FrozenBalance int           `json:"frozenBalance"`
+	RelatedID     string        `json:"relatedId"`
+	Remark        string        `json:"remark"`
+	Extra         string        `json:"extra" gorm:"type:text"`
+	OperatorID    string        `json:"operatorId" gorm:"index"`
+	Reason        string        `json:"reason"`
+	BalanceBefore int           `json:"balanceBefore"`
+	CreatedAt     string        `json:"createdAt"`
 }
 
 type CreditLogList struct {
