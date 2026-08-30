@@ -76,6 +76,10 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	requestedModel := modelName
+	if err := validateFixedMarketVideoResolution(requestedModel, body, contentType); err != nil {
+		Fail(w, err.Error())
+		return
+	}
 	clientTaskID := readClientVideoTaskID(r)
 	billingID := firstNonEmpty(clientTaskID, "video_"+uuid.NewString())
 	candidates, routed, err := service.ResolveMarketRoutes(requestedModel)
@@ -232,6 +236,67 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	saveAIProxyLog(logContext, status, string(transformed), "")
 	OK(w, service.VideoTaskResponse(task))
+}
+
+func validateFixedMarketVideoResolution(modelName string, body []byte, contentType string) error {
+	fixed := fixedMarketVideoResolution(modelName)
+	if fixed == "" || !strings.Contains(strings.ToLower(contentType), "application/json") {
+		return nil
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil
+	}
+	requested := normalizeMarketVideoResolution(firstNonEmpty(
+		toStringSafe(payload["resolution"]),
+		toStringSafe(payload["resolution_name"]),
+		toStringSafe(payload["vquality"]),
+		toStringSafe(payload["quality"]),
+	))
+	if requested == "" || requested == fixed {
+		return nil
+	}
+	return fmt.Errorf("当前视频档位固定输出 %s，不能按 %s 生成；请选择名称明确标注 %s 的高清档位", strings.ToUpper(fixed), strings.ToUpper(requested), strings.ToUpper(requested))
+}
+
+func fixedMarketVideoResolution(modelName string) string {
+	value := strings.ToLower(strings.TrimSpace(modelName))
+	if strings.Contains(value, "_480p") || strings.Contains(value, "-480p") {
+		return "480p"
+	}
+	if strings.Contains(value, "_720p") || strings.Contains(value, "-720p") {
+		return "720p"
+	}
+	switch value {
+	case "seedance_2__01", "lec_seedance_2_0":
+		return "720p"
+	}
+	if strings.HasPrefix(value, "kling_3__") {
+		var index int
+		if _, err := fmt.Sscanf(value, "kling_3__%d", &index); err == nil {
+			if index >= 1 && index <= 8 {
+				return "720p"
+			}
+			if index >= 9 && index <= 16 {
+				return "1080p"
+			}
+		}
+	}
+	return ""
+}
+
+func normalizeMarketVideoResolution(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	switch value {
+	case "480", "480p", "low", "sd":
+		return "480p"
+	case "720", "720p", "medium", "high", "hd", "auto":
+		return "720p"
+	case "1080", "1080p", "fhd", "pro":
+		return "1080p"
+	default:
+		return ""
+	}
 }
 
 func readClientVideoTaskID(r *http.Request) string {

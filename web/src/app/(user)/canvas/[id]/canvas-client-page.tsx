@@ -34,6 +34,7 @@ import { isGlmTtsModel } from "@/lib/audio-generation";
 import { isGrok2APITtsConfig } from "@/lib/grok-tts";
 import { isGeminiConfig, isGeminiTtsModel } from "@/lib/gemini";
 import { isKIESeedreamLayerDecompositionModel } from "@/lib/kie-models";
+import { fixedMarketVideoResolution, resolutionConfigValue } from "@/lib/market-video-resolution";
 import { NODE_DEFAULT_SIZE, getNodeSpec } from "../constants";
 import { ActiveConnectionPath, ConnectionPath } from "../components/canvas-connections";
 import { CanvasConfigComposer } from "../components/canvas-config-composer";
@@ -4975,6 +4976,7 @@ function buildGenerationConfig(config: AiConfig, node: CanvasNodeData | undefine
         )),
     );
     const model = savedSelectionMatchesMode ? savedModel : defaultModel || (mode === "audio" ? defaultConfig.audioModel : config.model || defaultConfig.model);
+    const fixedVideoResolution = mode === "video" ? fixedMarketVideoResolution(model) : "";
     const channelId = savedSelectionMatchesMode ? savedChannelId : "";
     const imageChannelId = mode === "image" ? channelId || config.imageChannelId : config.imageChannelId;
     const videoChannelId = mode === "video" ? channelId || config.videoChannelId : config.videoChannelId;
@@ -4992,7 +4994,7 @@ function buildGenerationConfig(config: AiConfig, node: CanvasNodeData | undefine
         quality: node?.metadata?.quality || config.quality || defaultConfig.quality,
         size: isPanoramaNodeType(node?.type) ? PANORAMA_IMAGE_SIZE : node?.metadata?.size || (mode === "video" ? config.videoSize || defaultConfig.videoSize : config.size || defaultConfig.size),
         videoSeconds: node?.metadata?.seconds || config.videoSeconds || defaultConfig.videoSeconds,
-        vquality: node?.metadata?.vquality || config.vquality || defaultConfig.vquality,
+        vquality: fixedVideoResolution ? resolutionConfigValue(fixedVideoResolution) : node?.metadata?.vquality || config.vquality || defaultConfig.vquality,
         videoMode: node?.metadata?.mode || config.videoMode || defaultConfig.videoMode,
         videoNegativePrompt: node?.metadata?.negativePrompt || config.videoNegativePrompt || defaultConfig.videoNegativePrompt,
         videoMultiShot: node?.metadata?.multiShot || config.videoMultiShot || defaultConfig.videoMultiShot,

@@ -18,6 +18,7 @@ import { CanvasVideoSettingsPopover, type CanvasVideoFrameOption, type CanvasVid
 import { CanvasNodeType, type CanvasGenerationMode, type CanvasNodeData, type CanvasNodeMetadata } from "../types";
 import { PANORAMA_IMAGE_SIZE, isCanvasImageNodeType, isPanoramaNodeType } from "../utils/canvas-panorama";
 import type { CanvasResourceReference } from "../utils/canvas-resource-references";
+import { fixedMarketVideoResolution, resolutionConfigValue } from "@/lib/market-video-resolution";
 
 export type { CanvasVideoFrameOption };
 
@@ -107,7 +108,10 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                         </>
                     ) : mode === "video" ? (
                         <>
-                            <ModelPicker className="!w-[180px] !min-w-0 !shrink-0" config={config} value={config.videoModel} channelId={config.videoChannelId} capability="video" onChange={(model, channelId, capability) => onConfigChange(node.id, { model, channelId, ...(capability ? { generationMode: capability } : {}) })} onMissingConfig={() => openConfigDialog(true)} />
+                            <ModelPicker className="!w-[180px] !min-w-0 !shrink-0" config={config} value={config.videoModel} channelId={config.videoChannelId} capability="video" onChange={(model, channelId, capability) => {
+                                const fixedResolution = fixedMarketVideoResolution(model);
+                                onConfigChange(node.id, { model, channelId, ...(fixedResolution ? { vquality: resolutionConfigValue(fixedResolution) } : {}), ...(capability ? { generationMode: capability } : {}) });
+                            }} onMissingConfig={() => openConfigDialog(true)} />
                             <CanvasVideoSettingsPopover config={config} buttonClassName="!h-10 !w-[148px] !shrink-0 !justify-start !rounded-full !px-3" frameOptions={videoFrameOptions} resourceOptions={videoResourceOptions} metadata={node.metadata} firstFrameNodeId={node.metadata?.firstFrameNodeId} lastFrameNodeId={node.metadata?.lastFrameNodeId} onFrameChange={(patch) => onConfigChange(node.id, patch)} onMetadataChange={(patch) => onConfigChange(node.id, patch)} onConfigChange={(key, value) => onConfigChange(node.id, videoConfigPatch(key, value))} />
                         </>
                     ) : mode === "audio" ? (
@@ -153,9 +157,11 @@ function buildNodeConfig(globalConfig: AiConfig, node: CanvasNodeData, mode: Can
     const textChannelId = mode === "text" ? channelId || globalConfig.textChannelId : globalConfig.textChannelId;
     const audioChannelId = mode === "audio" ? channelId || globalConfig.audioChannelId : globalConfig.audioChannelId;
     const activeChannelId = mode === "image" ? imageChannelId : mode === "video" ? videoChannelId : mode === "text" ? textChannelId : mode === "audio" ? audioChannelId || globalConfig.activeChannelId : globalConfig.activeChannelId;
+    const model = (availableModels.includes(savedModel) ? savedModel : "") || defaultModel || availableModels[0] || (mode === "audio" ? defaultConfig.audioModel : globalConfig.model || defaultConfig.model);
+    const fixedVideoResolution = mode === "video" ? fixedMarketVideoResolution(model) : "";
     return {
         ...globalConfig,
-        model: (availableModels.includes(savedModel) ? savedModel : "") || defaultModel || availableModels[0] || (mode === "audio" ? defaultConfig.audioModel : globalConfig.model || defaultConfig.model),
+        model,
         activeChannelId,
         imageChannelId,
         videoChannelId,
@@ -164,7 +170,7 @@ function buildNodeConfig(globalConfig: AiConfig, node: CanvasNodeData, mode: Can
         quality: node.metadata?.quality || globalConfig.quality || defaultConfig.quality,
         size: isPanoramaNodeType(node.type) ? PANORAMA_IMAGE_SIZE : node.metadata?.size || (mode === "video" ? globalConfig.videoSize || defaultConfig.videoSize : globalConfig.size || defaultConfig.size),
         videoSeconds: node.metadata?.seconds || globalConfig.videoSeconds || defaultConfig.videoSeconds,
-        vquality: node.metadata?.vquality || globalConfig.vquality || defaultConfig.vquality,
+        vquality: fixedVideoResolution ? resolutionConfigValue(fixedVideoResolution) : node.metadata?.vquality || globalConfig.vquality || defaultConfig.vquality,
         videoMode: node.metadata?.mode || globalConfig.videoMode || defaultConfig.videoMode,
         videoNegativePrompt: node.metadata?.negativePrompt || globalConfig.videoNegativePrompt || defaultConfig.videoNegativePrompt,
         videoMultiShot: node.metadata?.multiShot || globalConfig.videoMultiShot || defaultConfig.videoMultiShot,

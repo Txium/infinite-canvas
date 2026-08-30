@@ -5,6 +5,7 @@ import { Input, Switch } from "antd";
 
 import { ImageSettingsTheme } from "@/components/image-settings-panel";
 import { boolConfig, isSeedanceFastOrMiniModel, isSeedanceVideoConfig, normalizeSeedanceDuration, normalizeSeedanceRatio, normalizeSeedanceResolution, seedanceDurationOptions, seedancePixelLabel, seedanceRatioOptions, seedanceResolutionOptions } from "@/lib/seedance-video";
+import { fixedMarketVideoResolution } from "@/lib/market-video-resolution";
 import { type CanvasTheme } from "@/lib/canvas-theme";
 import { COGVIDEOX3_DURATIONS, isCogVideoX3Model, modelKey, normalizeCogVideoX3Duration, supportsVideoAudioGeneration } from "@/lib/video-model-capabilities";
 import { channelIdForActiveModel, channelProtocolForConfig, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
@@ -264,7 +265,8 @@ function KlingV26VideoSettingsPanel({ config, modelName, onConfigChange, theme, 
 
 function SeedanceVideoSettingsPanel({ config, modelName, onConfigChange, theme, showTitle, className, visualOnly }: VideoSettingsPanelProps) {
     const model = modelName || config.model || config.videoModel;
-    const resolution = normalizeSeedanceResolution(config.vquality, model);
+    const fixedResolution = fixedMarketVideoResolution(model);
+    const resolution = fixedResolution || normalizeSeedanceResolution(config.vquality, model);
     const ratio = normalizeSeedanceRatio(config.size);
     const duration = normalizeSeedanceDuration(config.videoSeconds);
     const watermark = boolConfig(config.videoWatermark, false);
@@ -278,7 +280,7 @@ function SeedanceVideoSettingsPanel({ config, modelName, onConfigChange, theme, 
                 <SettingGroup title="分辨率" color={theme.node.muted}>
                     <div className="grid grid-cols-3 gap-2.5">
                         {seedanceResolutionOptions.map((item) => {
-                            const disabled = item.value === "1080p" && isSeedanceFastOrMiniModel(model);
+                            const disabled = Boolean(fixedResolution && item.value !== fixedResolution) || (item.value === "1080p" && isSeedanceFastOrMiniModel(model));
                             return (
                                 <OptionPill key={item.value} selected={resolution === item.value} disabled={disabled} theme={theme} onClick={() => onConfigChange("vquality", item.value)}>
                                     {item.label}
@@ -286,7 +288,7 @@ function SeedanceVideoSettingsPanel({ config, modelName, onConfigChange, theme, 
                             );
                         })}
                     </div>
-                    {isSeedanceFastOrMiniModel(model) ? <div className="text-[11px] leading-4 opacity-55">fast / mini 模型不支持 1080p，会自动使用 720p。</div> : null}
+                    {fixedResolution ? <div className="text-[11px] leading-4 opacity-70">当前档位固定输出 {fixedResolution.toUpperCase()}；需要更高清画质请切换名称明确标注 720P/1080P 的档位。</div> : isSeedanceFastOrMiniModel(model) ? <div className="text-[11px] leading-4 opacity-55">fast / mini 模型不支持 1080p，会自动使用 720p。</div> : null}
                 </SettingGroup>
                 <SettingGroup title="比例" color={theme.node.muted}>
                     <div className="grid grid-cols-3 gap-2.5">

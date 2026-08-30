@@ -656,6 +656,7 @@ function EmptyImageContent({ node, theme, isBatchRoot, batchCount, batchExpanded
 }
 
 function VideoNodeContent({ node, theme }: NodeContentRendererProps) {
+    const [actualResolution, setActualResolution] = useState("");
     if (!node.metadata?.content)
         return (
             <div className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: theme.node.placeholder }}>
@@ -663,7 +664,15 @@ function VideoNodeContent({ node, theme }: NodeContentRendererProps) {
                 <span className="text-sm">空视频节点</span>
             </div>
         );
-    return <video src={node.metadata.content} controls className="h-full w-full rounded-[18px] bg-black object-contain" data-canvas-no-zoom />;
+    return (
+        <div className="relative size-full">
+            <video src={node.metadata.content} controls className="h-full w-full rounded-[18px] bg-black object-contain" data-canvas-no-zoom onLoadedMetadata={(event) => {
+                const video = event.currentTarget;
+                if (video.videoWidth > 0 && video.videoHeight > 0) setActualResolution(`${video.videoWidth}×${video.videoHeight}`);
+            }} />
+            {actualResolution ? <span className="pointer-events-none absolute right-2 top-2 rounded-md bg-black/65 px-1.5 py-0.5 text-[10px] text-white">实际 {actualResolution}</span> : null}
+        </div>
+    );
 }
 
 function AudioNodeContent({ node, theme }: NodeContentRendererProps) {
