@@ -88,3 +88,8 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 构造超过 2 小时且上游仍 processing 的任务，确认转为 reconciling、余额仍 frozen。
 - 确认 reconciling 任务上游 completed 后保存视频并 settled；明确 failed 后才 released。
 - 管理员生成任务点击“放大预览”，确认图片和视频弹窗正常显示。
+
+# 2026-08-30 上游模型目录同步
+
+- 302.AI、LEC 和 WaveSpeed 启动后自动读取权威模型目录，停用目录中已经不存在的精确上游线路；历史任务和模型记录不删除。
+- 管理后台允许 super_admin 手动触发三家目录同步；seedance.nz 未确认权威目录接口前保持不支持自动同步。

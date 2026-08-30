@@ -53,7 +53,7 @@ func syncReadyProviderCatalogs() {
 		return
 	}
 	for _, provider := range providers {
-		if provider.Code != "lec" && provider.Code != "wavespeed" {
+		if provider.Code != "302" && provider.Code != "lec" && provider.Code != "wavespeed" {
 			continue
 		}
 		if _, err := SyncModelProviderCatalog(provider.ID); err != nil {
@@ -71,7 +71,7 @@ func SyncModelProviderCatalog(id string) (ProviderCatalogSyncResult, error) {
 	if !modelProviderReady(provider) {
 		return ProviderCatalogSyncResult{}, errors.New("中转站未启用或服务器 Secret 未配置")
 	}
-	if provider.Code != "lec" && provider.Code != "wavespeed" {
+	if provider.Code != "302" && provider.Code != "lec" && provider.Code != "wavespeed" {
 		return ProviderCatalogSyncResult{}, errors.New("该中转站没有可安全使用的权威模型目录接口")
 	}
 
