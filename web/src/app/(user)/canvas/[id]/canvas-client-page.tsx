@@ -979,11 +979,30 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             );
             if (type === CanvasNodeType.Text && textContent !== undefined) newNode.title = textContent.slice(0, 32) || "Assistant Text";
             setNodes((prev) => [...prev, newNode]);
+            if (type === CanvasNodeType.Video || type === CanvasNodeType.Audio || type === CanvasNodeType.Image || type === CanvasNodeType.Panorama || type === CanvasNodeType.Config) {
+                const selectedResourceIds = nodesRef.current
+                    .filter((node) => selectedNodeIds.has(node.id))
+                    .filter((node) =>
+                        (node.type === CanvasNodeType.Text && Boolean(node.metadata?.content || node.metadata?.prompt)) ||
+                        (isCanvasImageNodeType(node.type) && Boolean(node.metadata?.content)) ||
+                        (node.type === CanvasNodeType.Video && Boolean(node.metadata?.content)) ||
+                        (node.type === CanvasNodeType.Audio && Boolean(node.metadata?.content)),
+                    )
+                    .map((node) => node.id);
+                if (selectedResourceIds.length) {
+                    setConnections((prev) => [
+                        ...prev,
+                        ...selectedResourceIds
+                            .filter((sourceNodeId) => !prev.some((connection) => connection.fromNodeId === sourceNodeId && connection.toNodeId === newNode.id))
+                            .map((sourceNodeId) => ({ id: nanoid(), fromNodeId: sourceNodeId, toNodeId: newNode.id })),
+                    ]);
+                }
+            }
             setSelectedNodeIds(new Set([newNode.id]));
             setSelectedConnectionId(null);
             if (type !== CanvasNodeType.Text && type !== CanvasNodeType.Audio && type !== CanvasNodeType.Director) setDialogNodeId(newNode.id);
         },
-        [effectiveConfig.canvasImageCount, effectiveConfig.count, effectiveConfig.imageModel, effectiveConfig.model, effectiveConfig.size, getCanvasCenter],
+        [effectiveConfig.canvasImageCount, effectiveConfig.count, effectiveConfig.imageModel, effectiveConfig.model, effectiveConfig.size, getCanvasCenter, selectedNodeIds],
     );
 
     const deleteCanvasTaskRecords = useCallback(

@@ -58,6 +58,7 @@ const objectUrls = new Map<string, string>();
 const serverUrls = new Map<string, string>();
 export const USER_STORAGE_PROVIDER_KEY = "infinite-canvas:user_storage_provider";
 export const USER_WEBDAV_STORAGE_PROVIDER_KEY = "infinite-canvas:user_webdav_storage_provider";
+export const REMOTE_IMAGE_UPLOAD_TIMEOUT_MS = 30_000;
 let storageConfigPromise: Promise<StorageConfig> | null = null;
 
 export function canUseGlobalStorage(config: StorageConfig) {
@@ -151,7 +152,15 @@ export async function uploadImage(input: string | Blob, options: UploadImageOpti
 }
 
 export async function uploadRemoteImageToServer(url: string, filename: string): Promise<UploadedImage> {
-    const response = await fetch(getProxyUrl(url));
+    let response: Response;
+    try {
+        response = await fetch(getProxyUrl(url), { signal: AbortSignal.timeout(REMOTE_IMAGE_UPLOAD_TIMEOUT_MS) });
+    } catch (error) {
+        if (error instanceof DOMException && (error.name === "TimeoutError" || error.name === "AbortError")) {
+            throw new Error("图片上传准备超时，请检查图片地址后重试");
+        }
+        throw error;
+    }
     if (!response.ok) {
         const payload = await response.json().catch(() => null) as { msg?: string } | null;
         throw new Error(payload?.msg || "代理图片拉取失败：" + response.status);
