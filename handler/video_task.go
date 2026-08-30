@@ -112,6 +112,9 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	for index, candidate := range candidates {
 		channel, modelName = candidate.Channel, candidate.UpstreamModel
 		attemptBody, attemptContentType := append([]byte(nil), body...), contentType
+		if routed && isSeedanceNZChannel(channel) {
+			modelName = resolveSeedanceNZVideoModel(modelName, attemptBody, attemptContentType)
+		}
 		if routed { attemptBody, err = replaceAIRequestModel(attemptBody, attemptContentType, modelName) }
 		upstreamPath = resolveAIProxyPath(channel, modelName, "/videos")
 		if err == nil { attemptBody, attemptContentType, err = normalizeVideoCreateBody(attemptBody, attemptContentType, modelName, channel, upstreamPath) }
@@ -381,7 +384,10 @@ func selectPersistedVideoTaskChannel(task model.VideoTask) (model.ModelChannel, 
 		}
 		for _, candidate := range candidates {
 			if candidate.Channel.ID == task.ChannelID {
-				return candidate.Channel, candidate.UpstreamModel, nil
+				// A seedance.nz route stores the tier's t2v model in the catalog,
+				// while request-time routing may have selected i2v or multi. Poll the
+				// persisted upstream model instead of silently changing it back.
+				return candidate.Channel, upstreamModel, nil
 			}
 		}
 		if len(candidates) > 0 {

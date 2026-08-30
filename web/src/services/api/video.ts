@@ -280,6 +280,7 @@ async function createAgnesVideoV25RequestBody(config: AiConfig, model: string, p
 
 async function createVideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
     const size = normalizeVideoSize(config.size);
+    if (isSeedanceNZMarketVariant(model)) return createSeedanceNZMarketRequestBody(config, model, prompt, input);
     if (isTmlabSeedanceConfig(config, model)) return createTmlabSeedanceRequestBody(config, model, prompt, input);
     if (isPaisioConfig(config)) return createPaisioVideoRequestBody(config, model, prompt, input);
     if (isGeminiVideoModel(model) && isGeminiConfig(config, model)) return createGeminiVeoRequestBody(config, model, prompt, input);
@@ -361,6 +362,41 @@ async function createVideoRequestBody(config: AiConfig, model: string, prompt: s
     const audioFiles = kling ? [] : await Promise.all(input.audioReferences.map(mediaReferenceToFormValue));
     audioFiles.forEach((file) => body.append("audio_reference[]", file));
     return body;
+}
+
+function isSeedanceNZMarketVariant(model: string) {
+    return ["seedance_2__05", "seedance_2__06", "seedance_2__07"].includes(model.trim().toLowerCase());
+}
+
+async function createSeedanceNZMarketRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
+    const frameImages = [input.firstFrame, input.lastFrame].filter((item): item is ReferenceImage => Boolean(item));
+    const imageInputs = frameImages.length ? [...frameImages, ...input.references] : input.references;
+    const [images, videos, audios] = await Promise.all([
+        Promise.all(imageInputs.slice(0, 9).map(async (item) => ensurePublicReference(await imageReferenceToFormValue(item), "图片"))),
+        Promise.all(input.videoReferences.slice(0, 3).map(async (item) => ensurePublicReference(await mediaReferenceToFormValue(item), "视频"))),
+        Promise.all(input.audioReferences.slice(0, 3).map(async (item) => ensurePublicReference(await mediaReferenceToFormValue(item), "音频"))),
+    ]);
+    const multi = videos.length > 0 || audios.length > 0 || images.length > 2;
+    if (multi && !prompt.trim()) throw new VideoRequestError("Seedance 2.0 多模态视频需要填写提示词");
+    const metadata: Record<string, unknown> = {
+        resolution: normalizeSeedanceResolution(config.vquality, model),
+        ratio: normalizeSeedanceRatio(config.size),
+        generate_audio: boolConfig(config.videoGenerateAudio, false),
+    };
+    if (multi) {
+        metadata.content = [
+            ...images.map((url) => ({ type: "image_url", image_url: { url } })),
+            ...videos.map((url) => ({ type: "video_url", video_url: { url } })),
+            ...audios.map((url) => ({ type: "audio_url", audio_url: { url } })),
+        ];
+    }
+    return {
+        model,
+        prompt,
+        seconds: String(normalizeSeedanceDuration(config.videoSeconds)),
+        ...(images.length > 0 && !multi ? { images: images.slice(0, 2) } : {}),
+        metadata,
+    };
 }
 
 async function createPaisioVideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {

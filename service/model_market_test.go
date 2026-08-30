@@ -1,6 +1,10 @@
 package service
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/tigerowo/infinite-canvas/model"
+)
 
 func TestProviderOriginURL(t *testing.T) {
 	got, err := providerOriginURL("https://api.seedance.nz/v1?debug=1", "/api/usage/wallet/")
@@ -22,5 +26,16 @@ func TestModelIDsFromPayloadAcceptsNestedData(t *testing.T) {
 	got := modelIDsFromPayload(payload)
 	if len(got) != 2 || got[0] != "model-a" || got[1] != "model-b" {
 		t.Fatalf("modelIDsFromPayload = %#v", got)
+	}
+}
+
+func TestPublicVariantPricedRejectsUnsettledActualCostFormula(t *testing.T) {
+	variant := model.ModelVariant{PricingMode: "dynamic", PriceFormula: "实际成本×1.08"}
+	if publicVariantPriced(variant) {
+		t.Fatal("actual-cost formula must remain hidden until usage-aware settlement exists")
+	}
+	variant.PriceFormula = "输入¥5.44 / 输出¥32.66"
+	if !publicVariantPriced(variant) {
+		t.Fatal("input/output token formula should be public")
 	}
 }

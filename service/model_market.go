@@ -70,7 +70,7 @@ func ListMarketModels(category string, featured bool) ([]model.MarketModelCard, 
 	routes, err := repository.ListEnabledModelRoutes(ids); if err != nil { return nil, err }
 	byModel := map[string][]model.ModelVariant{}; for _, variant := range variants { byModel[variant.ModelID] = append(byModel[variant.ModelID], variant) }
 	variantByID := map[string]model.ModelVariant{}; for _, variant := range variants { variantByID[variant.ID] = variant }
-	availableVariants := map[string]bool{}; for _, route := range routes { variant := variantByID[route.VariantID]; priced := variant.PricingMode == "fixed" && variant.PriceCents != nil || variant.PricingMode == "dynamic" && strings.TrimSpace(variant.PriceFormula) != ""; if provider, providerErr := repository.ModelProviderByID(route.ProviderID); providerErr == nil && modelProviderReady(withProviderSecret(provider)) && priced { availableVariants[route.VariantID] = true } }
+	availableVariants := map[string]bool{}; for _, route := range routes { variant := variantByID[route.VariantID]; if provider, providerErr := repository.ModelProviderByID(route.ProviderID); providerErr == nil && modelProviderReady(withProviderSecret(provider)) && publicVariantPriced(variant) { availableVariants[route.VariantID] = true } }
 	result := make([]model.MarketModelCard, 0, len(items))
 	for _, item := range items {
 		modelVariants := byModel[item.ID]
@@ -216,6 +216,19 @@ func TestModelProviderConnection(id string) (ModelProviderConnectionTest, error)
 	}
 	result.Message = "连接正常；钱包接口鉴权通过（余额币种未自动换算）"
 	return result, nil
+}
+
+func publicVariantPriced(variant model.ModelVariant) bool {
+	if variant.PricingMode == "fixed" {
+		return variant.PriceCents != nil && *variant.PriceCents > 0
+	}
+	if variant.PricingMode != "dynamic" {
+		return false
+	}
+	// Dynamic LLM formulas declare both input and output RMB rates. A formula
+	// such as "actual cost x 1.08" cannot be settled by the current wallet
+	// implementation and must not become a one-cent public generation route.
+	return len(regexp.MustCompile(`([0-9]+(?:\.[0-9]+)?)`).FindAllString(variant.PriceFormula, -1)) >= 2
 }
 
 func modelIDsFromPayload(value any) []string {

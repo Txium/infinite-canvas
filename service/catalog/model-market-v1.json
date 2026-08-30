@@ -1,5 +1,5 @@
 {
-  "version": 13,
+  "version": 14,
   "sourceFile": "模型广场V1最终模型数据库_最终接入定价版.xlsx",
   "sourceSheet": "最终接入定价",
   "providerWhitelist": [
@@ -599,7 +599,7 @@
           "modelId": "seedance_2",
           "name": "Mini",
           "providerCode": "seedance_nz",
-          "upstreamModelId": "seedance-2.0-mini-t2v / i2v / multi",
+          "upstreamModelId": "seedance-2.0-mini-t2v",
           "costCents": null,
           "costText": "实际Token+超分费",
           "priceCents": null,
@@ -611,7 +611,7 @@
           "personNote": "2.0≤9图/3视频/3音频；2.5≤30图/10视频/10音频",
           "refundPolicy": "失败全额退款",
           "sourceUrl": "https://api.seedance.nz/docs/",
-          "remark": "该上游本身动态结算，固定售价可能倒贴",
+          "remark": "已接官方 /v1/videos；后端按参考素材自动切换 t2v / i2v / multi。该上游动态结算，确定人民币售价前不向用户开放",
           "enabled": true,
           "sort": 50
         },
@@ -620,7 +620,7 @@
           "modelId": "seedance_2",
           "name": "Fast",
           "providerCode": "seedance_nz",
-          "upstreamModelId": "seedance-2.0-fast-t2v / i2v / multi",
+          "upstreamModelId": "seedance-2.0-fast-t2v",
           "costCents": null,
           "costText": "实际Token+超分费",
           "priceCents": null,
@@ -632,7 +632,7 @@
           "personNote": "2.0≤9图/3视频/3音频；2.5≤30图/10视频/10音频",
           "refundPolicy": "失败全额退款",
           "sourceUrl": "https://api.seedance.nz/docs/",
-          "remark": "该上游本身动态结算，固定售价可能倒贴",
+          "remark": "已接官方 /v1/videos；后端按参考素材自动切换 t2v / i2v / multi。该上游动态结算，确定人民币售价前不向用户开放",
           "enabled": true,
           "sort": 60
         },
@@ -641,7 +641,7 @@
           "modelId": "seedance_2",
           "name": "Standard 满血",
           "providerCode": "seedance_nz",
-          "upstreamModelId": "seedance-2.0-standard-t2v / i2v / multi",
+          "upstreamModelId": "seedance-2.0-standard-t2v",
           "costCents": null,
           "costText": "实际Token+超分费",
           "priceCents": null,
@@ -653,7 +653,7 @@
           "personNote": "2.0≤9图/3视频/3音频；2.5≤30图/10视频/10音频",
           "refundPolicy": "失败全额退款",
           "sourceUrl": "https://api.seedance.nz/docs/",
-          "remark": "该上游本身动态结算，固定售价可能倒贴",
+          "remark": "已接官方 /v1/videos；后端按参考素材自动切换 t2v / i2v / multi。该上游动态结算，确定人民币售价前不向用户开放",
           "enabled": true,
           "sort": 70
         },
@@ -2491,30 +2491,30 @@
       "modelId": "seedance_2",
       "variantId": "seedance_2__05",
       "providerId": "provider_seedance_nz",
-      "upstreamModelId": "seedance-2.0-mini-t2v / i2v / multi",
-      "protocol": "custom",
+      "upstreamModelId": "seedance-2.0-mini-t2v",
+      "protocol": "openai",
       "priority": 1,
-      "enabled": false
+      "enabled": true
     },
     {
       "id": "route_seedance_2__06",
       "modelId": "seedance_2",
       "variantId": "seedance_2__06",
       "providerId": "provider_seedance_nz",
-      "upstreamModelId": "seedance-2.0-fast-t2v / i2v / multi",
-      "protocol": "custom",
+      "upstreamModelId": "seedance-2.0-fast-t2v",
+      "protocol": "openai",
       "priority": 1,
-      "enabled": false
+      "enabled": true
     },
     {
       "id": "route_seedance_2__07",
       "modelId": "seedance_2",
       "variantId": "seedance_2__07",
       "providerId": "provider_seedance_nz",
-      "upstreamModelId": "seedance-2.0-standard-t2v / i2v / multi",
-      "protocol": "custom",
+      "upstreamModelId": "seedance-2.0-standard-t2v",
+      "protocol": "openai",
       "priority": 1,
-      "enabled": false
+      "enabled": true
     },
     {
       "id": "route_seedance_25__01",
