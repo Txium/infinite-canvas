@@ -5091,7 +5091,14 @@ function resetInterruptedGeneration(nodes: CanvasNodeData[]) {
 }
 
 function requiresCanvasVideoReference(modelName: string) {
-    return ["seedance_2__01", "lec_seedance_2_0", "lec_seed_2_0_900"].includes(modelName.trim().toLowerCase());
+    return [
+        "seedance_2__01",
+        "lec_seedance_2_0",
+        "lec_seed_2_0_900",
+        "lec_seedance_2_5_ht_30s",
+        "lec_ac_seedance_2_5_10_image",
+        "lec_ac_seedance_2_5_900",
+    ].includes(modelName.trim().toLowerCase());
 }
 
 function canvasRecoverableTaskId(node: CanvasNodeData) {

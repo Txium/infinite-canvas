@@ -222,6 +222,23 @@ func TestUserGenerationHistoryIsIsolatedByUser(t *testing.T) {
 	if len(items) != 1 || items[0].ID != "task-user-a" {
 		t.Fatalf("user-a received unexpected tasks: %#v", items)
 	}
+	if _, found, err := GetUserVideoTask("user-a", "task-user-b"); err != nil || found {
+		t.Fatalf("user-a could read user-b video task: found=%v err=%v", found, err)
+	}
+	images := []model.CanvasImageTask{
+		{ID: "image-user-a", UserID: "user-a", Status: "completed"},
+		{ID: "image-user-b", UserID: "user-b", Status: "completed"},
+	}
+	if err := database.Create(&images).Error; err != nil {
+		t.Fatal(err)
+	}
+	imageItems, err := ListUserImageTasksForHistory("user-a", 20)
+	if err != nil || len(imageItems) != 1 || imageItems[0].ID != "image-user-a" {
+		t.Fatalf("user-a received unexpected image tasks: items=%#v err=%v", imageItems, err)
+	}
+	if _, found, err := GetUserCanvasImageTask("user-a", "image-user-b"); err != nil || found {
+		t.Fatalf("user-a could read user-b image task: found=%v err=%v", found, err)
+	}
 }
 
 // Time-scoped finance cards must not subtract all-time expenses from a selected period.

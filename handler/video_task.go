@@ -379,11 +379,35 @@ func normalizeMarketVideoResolution(value string) string {
 
 func validateRequiredVideoReferences(modelName string, body []byte, contentType string) error {
 	modelName = strings.ToLower(strings.TrimSpace(modelName))
-	requiresImage := modelName == "seedance_2__01" || modelName == "lec_seedance_2_0" || modelName == "lec_seed_2_0_900"
-	if !requiresImage || countVideoReferenceImages(body, contentType) > 0 {
+	rule, constrained := lecVideoReferenceRules[modelName]
+	if !constrained {
 		return nil
 	}
-	return errors.New("当前视频档位必须连接至少 1 张有效图片；请先连接图片节点，再提交生成")
+	count := countVideoReferenceImages(body, contentType)
+	if count < rule.MinImages {
+		return fmt.Errorf("当前视频档位必须连接至少 %d 张有效图片；请先等待图片生成和保存完成，再提交视频", rule.MinImages)
+	}
+	if rule.MaxImages > 0 && count > rule.MaxImages {
+		return fmt.Errorf("当前视频档位最多支持 %d 张参考图片", rule.MaxImages)
+	}
+	return nil
+}
+
+type videoReferenceRule struct {
+	MinImages int
+	MaxImages int
+}
+
+// lecVideoReferenceRules is the single backend source of truth for LEC
+// variants whose catalog explicitly requires image input. Variants described
+// only as "supports references" remain optional and are deliberately omitted.
+var lecVideoReferenceRules = map[string]videoReferenceRule{
+	"seedance_2__01":               {MinImages: 1, MaxImages: 9},
+	"lec_seedance_2_0":             {MinImages: 1, MaxImages: 9},
+	"lec_seed_2_0_900":             {MinImages: 1, MaxImages: 9},
+	"lec_seedance_2_5_ht_30s":      {MinImages: 1, MaxImages: 9},
+	"lec_ac_seedance_2_5_10_image": {MinImages: 1, MaxImages: 10},
+	"lec_ac_seedance_2_5_900":      {MinImages: 1, MaxImages: 9},
 }
 
 func countVideoReferenceImages(body []byte, contentType string) int {

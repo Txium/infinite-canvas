@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -92,6 +93,30 @@ func TestRequiredLECVideoReferenceRejectedBeforeProvider(t *testing.T) {
 	_ = writer.Close()
 	if err := validateRequiredVideoReferences("seedance_2__01", body.Bytes(), writer.FormDataContentType()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestExplicitLECImageReferenceRules(t *testing.T) {
+	for modelName, rule := range lecVideoReferenceRules {
+		if err := validateRequiredVideoReferences(modelName, []byte(`{"prompt":"scene"}`), "application/json"); err == nil {
+			t.Fatalf("%s accepted an empty reference", modelName)
+		}
+		images := make([]string, rule.MaxImages)
+		for index := range images {
+			images[index] = fmt.Sprintf("https://canvas.example.test/reference-%d.png", index)
+		}
+		payload, _ := json.Marshal(map[string]any{"images": images})
+		if err := validateRequiredVideoReferences(modelName, payload, "application/json"); err != nil {
+			t.Fatalf("%s rejected its documented max image count: %v", modelName, err)
+		}
+		images = append(images, "https://canvas.example.test/too-many.png")
+		payload, _ = json.Marshal(map[string]any{"images": images})
+		if err := validateRequiredVideoReferences(modelName, payload, "application/json"); err == nil {
+			t.Fatalf("%s accepted more than %d images", modelName, rule.MaxImages)
+		}
+	}
+	if err := validateRequiredVideoReferences("lec_seedance_2_0_fast_431_720p", []byte(`{"prompt":"text-to-video remains allowed"}`), "application/json"); err != nil {
+		t.Fatalf("optional-reference LEC variant was incorrectly forced to image-to-video: %v", err)
 	}
 }
 
