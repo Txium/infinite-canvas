@@ -10,6 +10,8 @@ type AdminGenerationTask struct {
 	BillingStatus   string `json:"billingStatus"`
 	PriceCents      int    `json:"priceCents"`
 	Source          string `json:"source"`
+	ChannelName     string `json:"channelName"`
+	UpstreamTaskID  string `json:"upstreamTaskId"`
 	ResultURL       string `json:"resultUrl"`
 	Error           string `json:"error"`
 	CreatedAt       string `json:"createdAt"`
