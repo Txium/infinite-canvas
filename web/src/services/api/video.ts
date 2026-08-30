@@ -206,8 +206,21 @@ export async function pollVideoGenerationTaskStatus(config: AiConfig, task: Vide
     return cacheProtectedGeminiVideo(config, model, await cacheProtectedGrokVideo(config, model, result));
 }
 
+export async function pollAccountVideoGenerationTaskStatus(config: AiConfig, task: VideoResponse) {
+    const token = useUserStore.getState().token;
+    const model = config.model || config.videoModel;
+    const pollId = videoPollId(model, task);
+    if (!token || !pollId) throw new VideoRequestError(!token ? "请先登录后再读取视频任务" : "视频接口没有返回任务 ID", task);
+    const payload = (await axios.get<ApiVideoResponse>(`/api/v1/videos/${encodeURIComponent(pollId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { model },
+    })).data;
+    return cacheProtectedGeminiVideo(config, model, await cacheProtectedGrokVideo(config, model, unwrapVideoResponseForConfig(config, model, payload)));
+}
+
 export async function listVideoGenerationTasks(config: AiConfig, source: "video-workbench" | "canvas" = "video-workbench") {
-    if (!usesAccountProxy(config)) return [];
+    if (!usesAccountProxy(config) && source !== "canvas") return [];
+    if (!useUserStore.getState().token) return [];
     const payload = (await axios.get<ApiVideoEnvelope>("/api/v1/video-tasks", { headers: aiHeaders(config), params: { source } })).data;
     if (payload.code !== 0) throw new VideoRequestError(payload.msg || payload.message || "读取视频任务失败", payload);
     return Array.isArray(payload.data) ? payload.data.map(normalizeVideoResponse) : [];
