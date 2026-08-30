@@ -72,7 +72,7 @@ func ListRecoverableTimedOutVideoTasks(createdAfter string, limit int) ([]model.
 	}
 	var tasks []model.VideoTask
 	err = db.
-		Where("status = ? AND billing_status = ? AND error = ? AND error_detail = ? AND created_at >= ?", "failed", "released", "任务处理超时，已自动解冻", "任务超过 30 分钟仍未完成", createdAfter).
+		Where("status = ? AND billing_status = ? AND error = ? AND created_at >= ?", "failed", "released", "任务处理超时，已自动解冻", createdAfter).
 		Order("created_at ASC").
 		Limit(limit).
 		Find(&tasks).Error
@@ -96,7 +96,7 @@ func ListDueVideoTasks(limit int) ([]model.VideoTask, error) {
 		limit = 100
 	}
 	var tasks []model.VideoTask
-	err = db.Where("status IN ?", []string{"queued", "in_progress", "processing", "running"}).
+	err = db.Where("status IN ?", []string{"queued", "in_progress", "processing", "running", "reconciling"}).
 		Order("created_at ASC").
 		Limit(limit).
 		Find(&tasks).Error

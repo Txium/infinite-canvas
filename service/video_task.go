@@ -249,16 +249,16 @@ func runVideoTaskPoller() {
 				lastCleanupAt = current
 			}
 			for _, task := range tasks {
-				if videoTaskExpired(task, current) && !recoverableVideoTask(task) {
-					detail := "任务超过 2 小时仍未完成"
-					if task.BillingStatus == "released" {
-						detail = "任务超时复查后上游仍未完成"
-					}
-					if err := UpdateVideoTaskFromPoll(task, VideoTaskPollUpdate{Status: "failed", Error: "任务处理超时，已自动解冻", ErrorDetail: detail}); err != nil {
-						log.Printf("expire video task failed id=%s err=%v", task.ID, err)
+				if videoTaskExpired(task, current) && !recoverableVideoTask(task) && NormalizeVideoTaskStatus(task.Status) != "reconciling" {
+					// A long-running asynchronous generation is not proof of upstream
+					// failure. Keep credits frozen and continue reconciliation until the
+					// provider explicitly reports completed or failed.
+					if err := UpdateVideoTaskFromPoll(task, VideoTaskPollUpdate{Status: "reconciling", ResponseBody: task.LastResponse}); err != nil {
+						log.Printf("mark video task reconciling failed id=%s err=%v", task.ID, err)
 					}
 					continue
 				}
+				if NormalizeVideoTaskStatus(task.Status) == "reconciling" && videoTaskPolledRecently(task, current, time.Minute) { continue }
 				if _, loaded := inFlight.LoadOrStore(task.ID, true); loaded {
 					continue
 				}
@@ -349,6 +349,11 @@ func videoTaskExpired(task model.VideoTask, current time.Time) bool {
 	return err == nil && current.Sub(createdAt) >= videoTaskMaxAge
 }
 
+func videoTaskPolledRecently(task model.VideoTask, current time.Time, interval time.Duration) bool {
+	last, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(task.LastPolledAt))
+	return err == nil && current.Sub(last) < interval
+}
+
 func finalizeVideoTaskBilling(task *model.VideoTask) error {
 	if task == nil || task.Credits <= 0 || strings.TrimSpace(task.BillingID) == "" || task.BillingStatus != "frozen" { return nil }
 	if IsCompletedVideoTaskStatus(task.Status) {
@@ -369,6 +374,8 @@ func NormalizeVideoTaskStatus(status string) string {
 		return "failed"
 	case "running", "processing", "in_progress", "in-progress":
 		return "processing"
+	case "reconciling", "waiting_upstream", "waiting-upstream", "manual_review":
+		return "reconciling"
 	case "queued", "queue", "pending", "":
 		return "queued"
 	default:

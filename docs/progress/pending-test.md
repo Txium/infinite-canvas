@@ -56,3 +56,8 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 部署后打开 `/admin/generation-tasks`，确认历史调用日志标记为“历史调用日志”，显示渠道和上游任务号。
 - 确认成功图片/视频可在表格内播放或预览，失败任务显示上游错误。
 - 新建一次视频任务，确认本地 `video_tasks` 与历史调用日志不会重复展示。
+# 2026-08-30 视频任务状态闭环
+
+- 构造超过 2 小时且上游仍 processing 的任务，确认转为 reconciling、余额仍 frozen。
+- 确认 reconciling 任务上游 completed 后保存视频并 settled；明确 failed 后才 released。
+- 管理员生成任务点击“放大预览”，确认图片和视频弹窗正常显示。
