@@ -10,6 +10,24 @@ func SaveVideoTask(task model.VideoTask) (model.VideoTask, error) {
 	return task, db.Save(&task).Error
 }
 
+func CreateVideoTaskIfAbsent(task model.VideoTask) (model.VideoTask, bool, error) {
+	db, err := DB()
+	if err != nil {
+		return task, false, err
+	}
+	if err := db.Create(&task).Error; err == nil {
+		return task, true, nil
+	}
+	existing, found, lookupErr := GetVideoTask(task.ID)
+	if lookupErr != nil {
+		return task, false, lookupErr
+	}
+	if found {
+		return existing, false, nil
+	}
+	return task, false, err
+}
+
 func GetVideoTask(id string) (model.VideoTask, bool, error) {
 	db, err := DB()
 	if err != nil {
@@ -100,7 +118,8 @@ func DeleteUserVideoTask(userID string, id string) error {
 	if err != nil {
 		return err
 	}
-	return db.Where("user_id = ? AND (id = ? OR upstream_task_id = ? OR upstream_video_id = ?)", userID, id, id, id).Delete(&model.VideoTask{}).Error
+	return db.Where("user_id = ? AND (id = ? OR upstream_task_id = ? OR upstream_video_id = ?)", userID, id, id, id).
+		Where("status IN ?", []string{"completed", "failed", "cancelled", "canceled"}).Delete(&model.VideoTask{}).Error
 }
 
 func ListDueVideoTasks(limit int) ([]model.VideoTask, error) {

@@ -3006,9 +3006,11 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 );
             } catch (error) {
                 const errorDetails = error instanceof Error ? error.message : "生成失败";
-                message.error(errorDetails);
+				const uncertainVideoSubmission = mode === "video" && /提交超时|timeout|timed out|任务记录/i.test(errorDetails);
+				if (uncertainVideoSubmission) message.warning("视频提交响应超时，系统正在通过任务记录核对，请勿重复生成");
+				else message.error(errorDetails);
                 setNodes((prev) =>
-                    prev.map((node) => (node.id === nodeId || pendingChildIds.includes(node.id) ? (node.id === nodeId && !markSourceStatus ? node : { ...node, metadata: { ...node.metadata, status: NODE_STATUS_ERROR, errorDetails } }) : node)),
+					prev.map((node) => (node.id === nodeId || pendingChildIds.includes(node.id) ? (node.id === nodeId && !markSourceStatus ? node : { ...node, metadata: { ...node.metadata, status: uncertainVideoSubmission ? NODE_STATUS_LOADING : NODE_STATUS_ERROR, errorDetails: uncertainVideoSubmission ? "提交响应超时，正在核对上游任务；请勿重复提交" : errorDetails } }) : node)),
                 );
             } finally {
                 setRunningNodeId(null);

@@ -62,6 +62,21 @@ func ListUserAudioTasksForHistory(userID string, limit int) ([]model.CanvasAudio
 	return items, err
 }
 
+func ListUserTaskCreditLogs(userID string, relatedIDs []string) ([]model.CreditLog, error) {
+	if len(relatedIDs) == 0 {
+		return []model.CreditLog{}, nil
+	}
+	db, err := DB()
+	if err != nil {
+		return nil, err
+	}
+	var items []model.CreditLog
+	err = db.Where("user_id = ? AND related_id IN ? AND type IN ?", userID, relatedIDs, []model.CreditLogType{model.CreditLogTypeAIFreeze, model.CreditLogTypeAISettle, model.CreditLogTypeAIRelease}).Order("created_at ASC").Find(&items).Error
+	return items, err
+}
+
+// ListTaskCreditLogs is reserved for trusted internal/admin summaries. User
+// endpoints must call ListUserTaskCreditLogs so ownership is enforced in SQL.
 func ListTaskCreditLogs(relatedIDs []string) ([]model.CreditLog, error) {
 	if len(relatedIDs) == 0 {
 		return []model.CreditLog{}, nil

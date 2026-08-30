@@ -155,7 +155,7 @@ func FileContent(w http.ResponseWriter, r *http.Request, id string) {
 
 // FileInfo 获取文件元数据。
 func FileInfo(w http.ResponseWriter, r *http.Request, id string) {
-	object, err := service.StorageObjectInfo(id)
+	object, err := service.CurrentUserStorageObjectInfo(r.Context(), id)
 	if err != nil {
 		FailError(w, err)
 		return

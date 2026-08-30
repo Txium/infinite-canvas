@@ -35,7 +35,7 @@ func UserGenerationTasks(user model.AuthUser, query UserGenerationTaskQuery) ([]
 	}
 	items := make([]model.UserGenerationTask, 0, len(videos)+len(images)+len(audios))
 	logKeys := make([]string, 0, len(videos)+len(images)+len(audios))
-	byLogKey := map[string]*model.UserGenerationTask{}
+	byLogKey := map[string]int{}
 	for _, task := range videos {
 		price := task.SalePriceCents
 		if price == 0 {
@@ -47,27 +47,28 @@ func UserGenerationTasks(user model.AuthUser, query UserGenerationTaskQuery) ([]
 			key = task.ID
 		}
 		logKeys = append(logKeys, key)
-		byLogKey[key] = &items[len(items)-1]
+		byLogKey[key] = len(items) - 1
 	}
 	for _, task := range images {
 		items = append(items, userTask(task.ID, task.Model, "image", task.Status, "", task.SalePriceCents, task.Progress, task.CreatedAt, task.CompletedAt, task.Prompt, task.ImageURL))
 		logKeys = append(logKeys, task.ID)
-		byLogKey[task.ID] = &items[len(items)-1]
+		byLogKey[task.ID] = len(items) - 1
 	}
 	for _, task := range audios {
 		items = append(items, userTask(task.ID, task.Model, "audio", task.Status, "", task.SalePriceCents, task.Progress, task.CreatedAt, task.CompletedAt, task.Prompt, task.AudioURL))
 		logKeys = append(logKeys, task.ID)
-		byLogKey[task.ID] = &items[len(items)-1]
+		byLogKey[task.ID] = len(items) - 1
 	}
-	logs, err := repository.ListTaskCreditLogs(logKeys)
+	logs, err := repository.ListUserTaskCreditLogs(user.ID, logKeys)
 	if err != nil {
 		return nil, err
 	}
 	for _, entry := range logs {
-		item := byLogKey[entry.RelatedID]
-		if item == nil {
+		index, ok := byLogKey[entry.RelatedID]
+		if !ok || index < 0 || index >= len(items) {
 			continue
 		}
+		item := &items[index]
 		if entry.Type == model.CreditLogTypeAIFreeze && item.SalePriceCents == 0 {
 			item.SalePriceCents = int64(-entry.Amount)
 		}

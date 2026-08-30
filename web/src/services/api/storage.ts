@@ -1,4 +1,5 @@
 import { apiDelete, apiGet, apiPost } from "@/services/api/request";
+import { useUserStore } from "@/stores/use-user-store";
 import type { UserWebDAVStorageProvider } from "@/services/image-storage";
 
 export type RegisteredStorageObject = {
@@ -18,7 +19,9 @@ export type StorageObjectInfo = {
 };
 
 export function getStorageObjectInfo(id: string) {
-    return apiGet<StorageObjectInfo>(`/api/files/${encodeURIComponent(id)}`);
+    const token = useUserStore.getState().token;
+    if (!token) return Promise.reject(new Error("请先登录后读取文件信息"));
+    return apiGet<StorageObjectInfo>(`/api/v1/files/${encodeURIComponent(id)}`, undefined, token);
 }
 
 export function registerDirectStorageObject(

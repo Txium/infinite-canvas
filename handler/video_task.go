@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"strings"
 	"time"
@@ -77,6 +79,10 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	requestedModel := modelName
 	if err := validateFixedMarketVideoResolution(requestedModel, body, contentType); err != nil {
+		Fail(w, err.Error())
+		return
+	}
+	if err := validateRequiredVideoReferences(requestedModel, body, contentType); err != nil {
 		Fail(w, err.Error())
 		return
 	}
@@ -156,6 +162,29 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Persist before contacting the provider. A repeated client task ID now
+	// returns this same record instead of creating another paid upstream task.
+	task, claimed, err := service.ClaimVideoTask(service.VideoTaskCreateInput{
+		UserID: user.ID, UserDisplayName: firstNonEmpty(user.DisplayName, user.Username),
+		Model: requestedModel, Source: readVideoTaskSource(r), SourceID: readVideoTaskSourceID(r),
+		ClientTaskID: firstNonEmpty(clientTaskID, billingID), Status: "queued",
+		Credits: credits, BillingID: billingID,
+		BillingStatus: map[bool]string{true: "frozen", false: ""}[credits > 0],
+		BillingPath:   "/videos", SalePriceCents: int64(credits),
+		EstimatedProviderCostCents: estimatedProviderCost, UpstreamRefundStatus: "not_required",
+	})
+	if err != nil {
+		if credits > 0 {
+			releaseVideoCredits(user.ID, requestedModel, credits, "/videos", billingID)
+		}
+		log.Printf("save video task before provider submission failed: model=%s err=%v", requestedModel, err)
+		Fail(w, "视频任务创建失败，未提交上游")
+		return
+	}
+	if !claimed {
+		OK(w, service.VideoTaskResponse(task))
+		return
+	}
 	var channel model.ModelChannel
 	var request *http.Request
 	var payload []byte
@@ -194,41 +223,36 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		break
 	}
 	if err != nil {
-		if credits > 0 {
-			releaseVideoCredits(user.ID, requestedModel, credits, upstreamPath, billingID)
-		}
+		// A transport error can happen after the provider received the request.
+		// Keep funds frozen and require reconciliation; refunding here would make
+		// a retry capable of charging the provider twice.
+		markVideoTaskSubmissionUncertain(task, err.Error())
 		saveAIProxyLog(logContext, 0, "", err.Error())
 		Fail(w, "AI 接口请求失败")
 		return
 	}
 	if status >= http.StatusBadRequest {
 		message := readUpstreamAIErrorMessage(payload, status)
-		if credits > 0 {
-			releaseVideoCredits(user.ID, requestedModel, credits, upstreamPath, billingID)
-		}
+		failVideoTaskBeforeUpstreamAcceptance(task, message, strings.TrimSpace(string(payload)))
 		saveAIProxyLog(logContext, status, string(payload), strings.TrimSpace(string(payload)))
 		Fail(w, message)
 		return
 	}
 	transformed := transformVideoCreatePayload(payload, request, channel, modelName)
 	if message := readVideoCreateErrorMessage(payload, transformed, channel, modelName); message != "" {
-		if credits > 0 {
-			releaseVideoCredits(user.ID, requestedModel, credits, upstreamPath, billingID)
-		}
+		failVideoTaskBeforeUpstreamAcceptance(task, message, message)
 		saveAIProxyLog(logContext, status, string(payload), message)
 		Fail(w, message)
 		return
 	}
 	parsed := parseVideoTaskPayload(transformed, modelName)
 	if parsed.UpstreamTaskID == "" && parsed.UpstreamVideoID == "" {
-		if credits > 0 {
-			releaseVideoCredits(user.ID, requestedModel, credits, upstreamPath, billingID)
-		}
+		markVideoTaskSubmissionUncertain(task, "上游响应未包含任务 ID: "+string(transformed))
 		saveAIProxyLog(logContext, status, string(transformed), "视频接口没有返回任务 ID")
 		Fail(w, "视频接口没有返回任务 ID")
 		return
 	}
-	task, err := service.CreateVideoTask(service.VideoTaskCreateInput{
+	task, err = service.CompleteVideoTaskSubmission(task, service.VideoTaskCreateInput{
 		UserID:                     user.ID,
 		UserDisplayName:            firstNonEmpty(user.DisplayName, user.Username),
 		Model:                      requestedModel,
@@ -238,7 +262,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		ChannelName:                channel.Name,
 		Source:                     readVideoTaskSource(r),
 		SourceID:                   readVideoTaskSourceID(r),
-		ClientTaskID:               clientTaskID,
+		ClientTaskID:               task.ID,
 		UpstreamTaskID:             parsed.UpstreamTaskID,
 		UpstreamVideoID:            parsed.UpstreamVideoID,
 		Status:                     parsed.Status,
@@ -259,15 +283,30 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		UpstreamRefundStatus:       "not_required",
 	})
 	if err != nil {
-		if credits > 0 {
-			releaseVideoCredits(user.ID, requestedModel, credits, upstreamPath, billingID)
-		}
-		log.Printf("save video task failed: model=%s err=%v", modelName, err)
-		Fail(w, "AI 接口请求失败")
+		// The provider has already accepted the task. Never release here: doing so
+		// would let the user retry while the first paid task continues upstream.
+		log.Printf("save accepted video task failed: local_task=%s upstream_task=%s model=%s err=%v", task.ID, parsed.UpstreamTaskID, modelName, err)
+		Fail(w, "上游已接收任务，本地正在对账，请勿重复提交")
 		return
 	}
 	saveAIProxyLog(logContext, status, string(transformed), "")
 	OK(w, service.VideoTaskResponse(task))
+}
+
+func failVideoTaskBeforeUpstreamAcceptance(task model.VideoTask, message string, detail string) {
+	if err := service.UpdateVideoTaskFromPoll(task, service.VideoTaskPollUpdate{
+		Status: "failed", Error: message, ErrorDetail: detail,
+	}); err != nil {
+		log.Printf("mark unaccepted video task failed: id=%s err=%v", task.ID, err)
+	}
+}
+
+func markVideoTaskSubmissionUncertain(task model.VideoTask, detail string) {
+	if err := service.UpdateVideoTaskFromPoll(task, service.VideoTaskPollUpdate{
+		Status: "reconciling", ErrorDetail: detail,
+	}); err != nil {
+		log.Printf("mark uncertain video submission failed: id=%s err=%v", task.ID, err)
+	}
 }
 
 func isLECVideoChannel(channel model.ModelChannel) bool {
@@ -336,6 +375,54 @@ func normalizeMarketVideoResolution(value string) string {
 	default:
 		return ""
 	}
+}
+
+func validateRequiredVideoReferences(modelName string, body []byte, contentType string) error {
+	modelName = strings.ToLower(strings.TrimSpace(modelName))
+	requiresImage := modelName == "seedance_2__01" || modelName == "lec_seedance_2_0" || modelName == "lec_seed_2_0_900"
+	if !requiresImage || countVideoReferenceImages(body, contentType) > 0 {
+		return nil
+	}
+	return errors.New("当前视频档位必须连接至少 1 张有效图片；请先连接图片节点，再提交生成")
+}
+
+func countVideoReferenceImages(body []byte, contentType string) int {
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err == nil && mediaType == "multipart/form-data" {
+		form, readErr := multipart.NewReader(bytes.NewReader(body), params["boundary"]).ReadForm(80 << 20)
+		if readErr != nil {
+			return 0
+		}
+		defer form.RemoveAll()
+		count := 0
+		for _, key := range []string{"input_reference[]", "image", "images", "image_url", "image_urls", "first_frame_url", "start_image_url"} {
+			for _, value := range form.Value[key] {
+				if strings.TrimSpace(value) != "" {
+					count++
+				}
+			}
+			count += len(form.File[key])
+		}
+		return count
+	}
+	var payload map[string]any
+	if json.Unmarshal(body, &payload) != nil {
+		return 0
+	}
+	count := 0
+	for _, key := range []string{"input_reference", "input_reference[]", "image", "images", "image_url", "image_urls", "reference_image", "reference_images", "reference_image_urls", "first_frame_url", "start_image_url"} {
+		if !isEmptyValue(payload[key]) {
+			switch value := payload[key].(type) {
+			case []any:
+				count += len(value)
+			case []string:
+				count += len(value)
+			default:
+				count++
+			}
+		}
+	}
+	return count
 }
 
 func readClientVideoTaskID(r *http.Request) string {
@@ -431,7 +518,9 @@ func pollVideoTaskFromUpstream(task model.VideoTask) (service.VideoTaskPollUpdat
 			ErrorDetail: err.Error(),
 		}, nil
 	}
-	pollID := firstNonEmpty(task.UpstreamTaskID, task.ID)
+	// A local task ID is never a provider task ID. Sending it upstream creates
+	// false 404 failures and can incorrectly release frozen funds.
+	pollID := firstNonEmpty(task.UpstreamTaskID, task.UpstreamVideoID)
 	if isAgnesVideoModel(upstreamModel) && strings.HasPrefix(task.UpstreamVideoID, "video_") {
 		pollID = task.UpstreamVideoID
 	}
@@ -482,6 +571,11 @@ func pollVideoTaskFromUpstream(task model.VideoTask) (service.VideoTaskPollUpdat
 	}
 	if parsed.ErrorDetail == "" && len(payload) > 0 && parsed.Error != "" {
 		parsed.ErrorDetail = string(payload)
+	}
+	if parsed.VideoURL != "" && (service.IsCompletedVideoTaskStatus(parsed.Status) || parsed.Progress >= 100) {
+		if uploaded, ok := persistGeneratedMedia(task.UserID, parsed.VideoURL, "generated-video-"+task.ID, 300<<20); ok {
+			parsed.VideoURL = uploaded.URL
+		}
 	}
 	saveAIProxyLog(logContext, status, string(transformed), firstNonEmpty(parsed.Error, ""))
 	return service.VideoTaskPollUpdate{

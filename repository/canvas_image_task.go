@@ -9,7 +9,9 @@ import (
 
 func ListStaleCanvasImageTasks(before string, limit int) ([]model.CanvasImageTask, error) {
 	db, err := DB()
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var tasks []model.CanvasImageTask
 	err = db.Where("status IN ? AND created_at < ?", []string{"queued", "processing", "running", "in_progress"}, before).
 		Order("created_at ASC").Limit(normalizeTaskLimit(limit)).Find(&tasks).Error
@@ -22,6 +24,24 @@ func SaveCanvasImageTask(task model.CanvasImageTask) (model.CanvasImageTask, err
 		return task, err
 	}
 	return task, db.Save(&task).Error
+}
+
+func CreateCanvasImageTaskIfAbsent(task model.CanvasImageTask) (model.CanvasImageTask, bool, error) {
+	db, err := DB()
+	if err != nil {
+		return task, false, err
+	}
+	if err := db.Create(&task).Error; err == nil {
+		return task, true, nil
+	}
+	existing, found, lookupErr := GetUserCanvasImageTask(task.UserID, task.ID)
+	if lookupErr != nil {
+		return task, false, lookupErr
+	}
+	if found {
+		return existing, false, nil
+	}
+	return task, false, err
 }
 
 func UpdateCanvasImageTask(task model.CanvasImageTask) (model.CanvasImageTask, error) {
@@ -89,7 +109,8 @@ func DeleteUserCanvasImageTask(userID string, id string) error {
 	if err != nil {
 		return err
 	}
-	return db.Where("user_id = ? AND id = ?", userID, strings.TrimSpace(id)).Delete(&model.CanvasImageTask{}).Error
+	return db.Where("user_id = ? AND id = ?", userID, strings.TrimSpace(id)).
+		Where("status IN ?", []string{"completed", "failed", "cancelled", "canceled"}).Delete(&model.CanvasImageTask{}).Error
 }
 
 func DeleteUserCanvasTasks(userID string, sourceID string, nodeIDs []string) error {
@@ -111,6 +132,7 @@ func DeleteUserCanvasTasks(userID string, sourceID string, nodeIDs []string) err
 			if len(nodeIDs) > 0 {
 				query = query.Where("node_id IN ?", nodeIDs)
 			}
+			query = query.Where("status IN ?", []string{"completed", "failed", "cancelled", "canceled"})
 			return query.Delete(task).Error
 		}
 

@@ -33,9 +33,6 @@ func New() *gin.Engine {
 	api.HEAD("/media/references/:id", func(c *gin.Context) {
 		handler.ReferenceMedia(c.Writer, c.Request, c.Param("id"))
 	})
-	api.GET("/files/:id", func(c *gin.Context) {
-		handler.FileInfo(c.Writer, c.Request, c.Param("id"))
-	})
 	api.GET("/files/:id/content", func(c *gin.Context) {
 		handler.FileContent(c.Writer, c.Request, c.Param("id"))
 	})
@@ -87,6 +84,9 @@ func New() *gin.Engine {
 	})
 	v1.POST("/storage/measure", gin.WrapF(handler.MeasureUserStorageProvider))
 	v1.POST("/files", gin.WrapF(handler.UploadFile))
+	v1.GET("/files/:id", func(c *gin.Context) {
+		handler.FileInfo(c.Writer, c.Request, c.Param("id"))
+	})
 	v1.POST("/files/direct", gin.WrapF(handler.RegisterDirectFile))
 	v1.DELETE("/files/:id", func(c *gin.Context) {
 		handler.DeleteFile(c.Writer, c.Request, c.Param("id"))

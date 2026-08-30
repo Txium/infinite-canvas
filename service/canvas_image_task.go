@@ -1,11 +1,12 @@
 package service
 
 import (
+	"errors"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/repository"
-	"github.com/google/uuid"
 )
 
 type CanvasImageTaskCreateInput struct {
@@ -26,7 +27,7 @@ type CanvasImageTaskCreateInput struct {
 	RequestBody     string
 }
 
-func CreateCanvasImageTask(input CanvasImageTaskCreateInput) (model.CanvasImageTask, error) {
+func CreateCanvasImageTask(input CanvasImageTaskCreateInput) (model.CanvasImageTask, bool, error) {
 	current := now()
 	task := model.CanvasImageTask{
 		ID:              firstVideoTaskValue(input.ClientTaskID, "canvas_image_task_"+uuid.NewString()),
@@ -49,7 +50,7 @@ func CreateCanvasImageTask(input CanvasImageTaskCreateInput) (model.CanvasImageT
 		CreatedAt:       current,
 		UpdatedAt:       current,
 	}
-	return repository.SaveCanvasImageTask(task)
+	return repository.CreateCanvasImageTaskIfAbsent(task)
 }
 
 func GetUserCanvasImageTask(userID string, id string) (model.CanvasImageTask, bool, error) {
@@ -81,7 +82,18 @@ func BatchUserCanvasImageTasks(userID string, ids []string) ([]map[string]any, e
 }
 
 func DeleteUserCanvasImageTask(userID string, id string) error {
-	return repository.DeleteUserCanvasImageTask(strings.TrimSpace(userID), strings.TrimSpace(id))
+	userID, id = strings.TrimSpace(userID), strings.TrimSpace(id)
+	task, found, err := repository.GetUserCanvasImageTask(userID, id)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return nil
+	}
+	if NormalizeVideoTaskStatus(task.Status) != "completed" && NormalizeVideoTaskStatus(task.Status) != "failed" {
+		return errors.New("生成中的任务不能删除，请等待完成或失败")
+	}
+	return repository.DeleteUserCanvasImageTask(userID, id)
 }
 
 func DeleteUserCanvasTasks(userID string, sourceID string, nodeIDs []string) error {
@@ -125,8 +137,7 @@ func CanvasImageTaskResponse(task model.CanvasImageTask) map[string]any {
 		result["bytes"] = task.Bytes
 	}
 	if task.Error != "" || task.ErrorDetail != "" {
-		result["error"] = map[string]any{"message": firstVideoTaskValue(task.Error, task.ErrorDetail)}
-		result["error_detail"] = task.ErrorDetail
+		result["error"] = map[string]any{"message": userFriendlyTaskError(firstVideoTaskValue(task.Error, task.ErrorDetail), "当前模型生成失败，请稍后重试")}
 	}
 	return result
 }
@@ -156,4 +167,3 @@ func normalizeCanvasImageTaskSources(sources []string) []string {
 	}
 	return result
 }
-

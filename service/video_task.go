@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"log"
 	"strings"
 	"sync"
@@ -73,6 +74,31 @@ type VideoTaskPollUpdate struct {
 type VideoTaskPollFunc func(model.VideoTask) (VideoTaskPollUpdate, error)
 
 func CreateVideoTask(input VideoTaskCreateInput) (model.VideoTask, error) {
+	task := buildVideoTask(input)
+	saved, err := repository.SaveVideoTask(task)
+	if err == nil && (IsCompletedVideoTaskStatus(saved.Status) || IsFailedVideoTaskStatus(saved.Status)) {
+		if err = finalizeVideoTaskBilling(&saved); err == nil {
+			saved, err = repository.SaveVideoTask(saved)
+		}
+	}
+	if err == nil && !IsCompletedVideoTaskStatus(saved.Status) && !IsFailedVideoTaskStatus(saved.Status) {
+		WakeVideoTaskPoller()
+	}
+	return saved, err
+}
+
+// ClaimVideoTask atomically elects the single request allowed to contact the
+// paid provider for a client task ID.
+func ClaimVideoTask(input VideoTaskCreateInput) (model.VideoTask, bool, error) {
+	task := buildVideoTask(input)
+	saved, claimed, err := repository.CreateVideoTaskIfAbsent(task)
+	if err == nil && claimed {
+		WakeVideoTaskPoller()
+	}
+	return saved, claimed, err
+}
+
+func buildVideoTask(input VideoTaskCreateInput) model.VideoTask {
 	current := now()
 	status := NormalizeVideoTaskStatus(input.Status)
 	if status == "" {
@@ -119,6 +145,40 @@ func CreateVideoTask(input VideoTaskCreateInput) (model.VideoTask, error) {
 		task.Status = "failed"
 		task.CompletedAt = current
 	}
+	return task
+}
+
+// CompleteVideoTaskSubmission updates the durable task created before an
+// upstream request. Keeping the same local record closes the window where the
+// provider accepted (and may have charged for) a task but the application had
+// no task to reconcile after a database write failure.
+func CompleteVideoTaskSubmission(task model.VideoTask, input VideoTaskCreateInput) (model.VideoTask, error) {
+	task.UpstreamModel = strings.TrimSpace(input.UpstreamModel)
+	task.ChannelID = strings.TrimSpace(input.ChannelID)
+	task.UserChannelID = strings.TrimSpace(input.UserChannelID)
+	task.ChannelName = strings.TrimSpace(input.ChannelName)
+	task.UpstreamTaskID = strings.TrimSpace(input.UpstreamTaskID)
+	task.UpstreamVideoID = strings.TrimSpace(input.UpstreamVideoID)
+	task.Status = NormalizeVideoTaskStatus(input.Status)
+	task.Progress = clampProgress(input.Progress)
+	task.Seconds = strings.TrimSpace(input.Seconds)
+	task.Size = strings.TrimSpace(input.Size)
+	task.VideoURL = strings.TrimSpace(input.VideoURL)
+	task.Error = strings.TrimSpace(input.Error)
+	task.ErrorDetail = strings.TrimSpace(input.ErrorDetail)
+	task.RequestBody = input.RequestBody
+	task.ResponseBody = input.ResponseBody
+	task.LastResponse = input.ResponseBody
+	task.BillingPath = strings.TrimSpace(input.BillingPath)
+	task.UpdatedAt = now()
+	if task.VideoURL != "" || IsCompletedVideoTaskStatus(task.Status) {
+		task.Status = "completed"
+		task.Progress = 100
+		task.CompletedAt = task.UpdatedAt
+	} else if task.Error != "" || IsFailedVideoTaskStatus(task.Status) {
+		task.Status = "failed"
+		task.CompletedAt = task.UpdatedAt
+	}
 	saved, err := repository.SaveVideoTask(task)
 	if err == nil && (IsCompletedVideoTaskStatus(saved.Status) || IsFailedVideoTaskStatus(saved.Status)) {
 		if err = finalizeVideoTaskBilling(&saved); err == nil {
@@ -152,7 +212,18 @@ func ListUserVideoTasks(userID string, source string, limit int) ([]map[string]a
 }
 
 func DeleteUserVideoTask(userID string, id string) error {
-	return repository.DeleteUserVideoTask(strings.TrimSpace(userID), strings.TrimSpace(id))
+	userID, id = strings.TrimSpace(userID), strings.TrimSpace(id)
+	task, found, err := repository.GetUserVideoTask(userID, id)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return nil
+	}
+	if !IsCompletedVideoTaskStatus(task.Status) && !IsFailedVideoTaskStatus(task.Status) {
+		return errors.New("生成中的任务不能删除，请等待完成或失败")
+	}
+	return repository.DeleteUserVideoTask(userID, id)
 }
 
 func VideoTaskResponse(task model.VideoTask) map[string]any {
@@ -164,8 +235,7 @@ func VideoTaskResponse(task model.VideoTask) map[string]any {
 		"source_id":     task.SourceID,
 		"status":        task.Status,
 		"progress":      task.Progress,
-		"task_id":       firstVideoTaskValue(task.UpstreamTaskID, task.ID),
-		"video_id":      task.UpstreamVideoID,
+		"task_id":       task.ID,
 		"seconds":       task.Seconds,
 		"size":          task.Size,
 		"created_at":    task.CreatedAt,
@@ -176,20 +246,13 @@ func VideoTaskResponse(task model.VideoTask) map[string]any {
 		"createdAt":     task.CreatedAt,
 		"updatedAt":     task.UpdatedAt,
 	}
-	if strings.TrimSpace(task.UpstreamModel) == "" {
-		result["channelId"] = task.ChannelID
-		result["userChannelId"] = task.UserChannelID
-		result["channelName"] = task.ChannelName
-		result["request_body"] = task.RequestBody
-	}
 	if task.VideoURL != "" {
 		result["url"] = task.VideoURL
 		result["video_url"] = task.VideoURL
 		result["data"] = []map[string]any{{"url": task.VideoURL}}
 	}
 	if IsFailedVideoTaskStatus(task.Status) && (task.Error != "" || task.ErrorDetail != "") {
-		result["error"] = map[string]any{"message": firstVideoTaskValue(task.Error, task.ErrorDetail)}
-		result["error_detail"] = task.ErrorDetail
+		result["error"] = map[string]any{"message": userFriendlyTaskError(firstVideoTaskValue(task.Error, task.ErrorDetail), "当前模型生成失败，请稍后重试")}
 	}
 	return result
 }
@@ -336,7 +399,7 @@ func UpdateVideoTaskFromPoll(task model.VideoTask, update VideoTaskPollUpdate) e
 	}
 	task.UpdatedAt = current
 	task.LastPolledAt = videoTaskTime(time.Now())
-	if !IsFailedVideoTaskStatus(task.Status) {
+	if IsCompletedVideoTaskStatus(task.Status) || (task.Status == "processing" && update.ResponseBody != "" && strings.TrimSpace(update.ErrorDetail) == "") {
 		task.Error = ""
 		task.ErrorDetail = ""
 	}
@@ -402,8 +465,24 @@ func NormalizeVideoTaskStatus(status string) string {
 	case "queued", "queue", "pending", "":
 		return "queued"
 	default:
-		return strings.ToLower(strings.TrimSpace(status))
+		// Unknown upstream statuses must stay pollable. Persisting the raw value
+		// would make the task disappear from ListDueVideoTasks forever.
+		return "reconciling"
 	}
+}
+
+func userFriendlyTaskError(value string, fallback string) string {
+	message := strings.TrimSpace(value)
+	if message == "" {
+		return fallback
+	}
+	lower := strings.ToLower(message)
+	for _, marker := range []string{"http ", "status code", "provider", "upstream", "request_invalid", "internal", "api key", "timeout", "502", "503", "504"} {
+		if strings.Contains(lower, marker) {
+			return fallback
+		}
+	}
+	return message
 }
 
 func IsCompletedVideoTaskStatus(status string) bool {

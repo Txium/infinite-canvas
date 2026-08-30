@@ -147,6 +147,21 @@ func StorageObjectInfo(id string) (model.StorageObject, error) {
 	return repository.GetStorageObject(id)
 }
 
+func CurrentUserStorageObjectInfo(ctx context.Context, id string) (model.StorageObject, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok || strings.TrimSpace(user.ID) == "" {
+		return model.StorageObject{}, errors.New("请先登录")
+	}
+	object, err := repository.GetStorageObject(strings.TrimSpace(id))
+	if err != nil {
+		return model.StorageObject{}, err
+	}
+	if object.CreatedBy != user.ID {
+		return model.StorageObject{}, errors.New("无权读取该对象信息")
+	}
+	return object, nil
+}
+
 // SaveCurrentUserStorageProvider 保存用户配置的存储提供商。
 func SaveCurrentUserStorageProvider(ctx context.Context, incoming UserStorageProviders) (UserConfigPayload, error) {
 	user, ok := UserFromContext(ctx)

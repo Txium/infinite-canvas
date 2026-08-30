@@ -1,10 +1,28 @@
 package handler
 
 import (
+	"bytes"
+	"mime/multipart"
 	"testing"
 
 	"github.com/tigerowo/infinite-canvas/model"
 )
+
+func TestRequiredLECVideoReferenceRejectedBeforeProvider(t *testing.T) {
+	if err := validateRequiredVideoReferences("seedance_2__01", []byte(`{"prompt":"scene"}`), "application/json"); err == nil {
+		t.Fatal("missing reference should be rejected")
+	}
+	if err := validateRequiredVideoReferences("seedance_2__01", []byte(`{"images":["https://example.com/a.png"]}`), "application/json"); err != nil {
+		t.Fatal(err)
+	}
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	_ = writer.WriteField("input_reference[]", "https://example.com/a.png")
+	_ = writer.Close()
+	if err := validateRequiredVideoReferences("seedance_2__01", body.Bytes(), writer.FormDataContentType()); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestValidateFixedMarketVideoResolution(t *testing.T) {
 	if err := validateFixedMarketVideoResolution("lec_seedance_2_0_full_933_480p", []byte(`{"resolution":"720p"}`), "application/json"); err == nil {

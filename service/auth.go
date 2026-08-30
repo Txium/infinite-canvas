@@ -420,7 +420,7 @@ func ReleaseUserCredits(userID string, modelName string, credits int, path strin
 }
 
 func ReleaseTaskFrozenCredits(userID string, modelName string, path string, billingID string) error {
-	logs, err := repository.ListTaskCreditLogs([]string{strings.TrimSpace(billingID)})
+	logs, err := repository.ListUserTaskCreditLogs(strings.TrimSpace(userID), []string{strings.TrimSpace(billingID)})
 	if err != nil {
 		return err
 	}

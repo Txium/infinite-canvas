@@ -3,9 +3,9 @@ package service
 import (
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/repository"
-	"github.com/google/uuid"
 )
 
 type CanvasAudioTaskCreateInput struct {
@@ -24,7 +24,7 @@ type CanvasAudioTaskCreateInput struct {
 	RequestBody     string
 }
 
-func CreateCanvasAudioTask(input CanvasAudioTaskCreateInput) (model.CanvasAudioTask, error) {
+func CreateCanvasAudioTask(input CanvasAudioTaskCreateInput) (model.CanvasAudioTask, bool, error) {
 	current := now()
 	task := model.CanvasAudioTask{
 		ID:              firstVideoTaskValue(input.ClientTaskID, "canvas_audio_task_"+uuid.NewString()),
@@ -46,7 +46,7 @@ func CreateCanvasAudioTask(input CanvasAudioTaskCreateInput) (model.CanvasAudioT
 		CreatedAt:       current,
 		UpdatedAt:       current,
 	}
-	return repository.SaveCanvasAudioTask(task)
+	return repository.CreateCanvasAudioTaskIfAbsent(task)
 }
 
 func GetUserCanvasAudioTask(userID string, id string) (model.CanvasAudioTask, bool, error) {
@@ -84,8 +84,7 @@ func CanvasAudioTaskResponse(task model.CanvasAudioTask) map[string]any {
 		result["bytes"] = task.Bytes
 	}
 	if task.Error != "" || task.ErrorDetail != "" {
-		result["error"] = map[string]any{"message": firstVideoTaskValue(task.Error, task.ErrorDetail)}
-		result["error_detail"] = task.ErrorDetail
+		result["error"] = map[string]any{"message": userFriendlyTaskError(firstVideoTaskValue(task.Error, task.ErrorDetail), "当前音频生成失败，请稍后重试")}
 	}
 	return result
 }
