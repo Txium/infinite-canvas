@@ -68,7 +68,7 @@ export function VideoSettingsPanel({ config, modelName, onConfigChange, theme, s
 
     const model = modelName || config.model || config.videoModel;
     const normalizedModel = modelKey(model);
-    const durationOptions = normalizedModel === "seedance_2__01" || normalizedModel === "lec_seed_2_0_900" ? [10, 15] : secondOptions;
+    const durationOptions = normalizedModel === "seedance-2-01" || normalizedModel === "lec-seed-2-0-900" ? [10, 15] : secondOptions;
     const grokMode = config.videoMode === "fun" || config.videoMode === "spicy" ? config.videoMode : "normal";
     const cogVideoX3 = isCogVideoX3Model(model);
     const seconds = cogVideoX3 ? normalizeCogVideoX3Duration(config.videoSeconds) : config.videoSeconds || "6";
