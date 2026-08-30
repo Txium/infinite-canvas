@@ -10,7 +10,7 @@ import { saveAs } from "file-saver";
 import { deleteCanvasProjects, deleteCanvasTasks } from "@/services/api/canvas-tasks";
 import { createCanvasImageTask, pollCanvasImageTaskStatus, requestImageQuestion, type CanvasImageTask } from "@/services/api/image";
 import { createCanvasAudioTask, pollCanvasAudioTaskStatus, type CanvasAudioTask } from "@/services/api/audio";
-import { createVideoGenerationTask, listVideoGenerationTasks, pollAccountVideoGenerationTaskStatus, VIDEO_POLL_INTERVAL_MS, type VideoResponse } from "@/services/api/video";
+import { createVideoGenerationTask, listVideoGenerationTasks, pollAccountVideoGenerationTaskStatus, VIDEO_CREATE_TIMEOUT_MS, VIDEO_POLL_INTERVAL_MS, type VideoResponse } from "@/services/api/video";
 import { channelProtocolForConfig, defaultConfig, modelMatchesCapability, normalizeLocalChannels, type AiConfig, type ModelCapability, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import { collectImageStorageKeys, deleteStoredImages, resolveImageUrl, uploadImage, uploadRemoteImageToServer, type UploadedImage } from "@/services/image-storage";
 import { resolveMediaUrl, uploadMediaFile, uploadRemoteMediaToServer, type UploadedFile } from "@/services/file-storage";
@@ -582,7 +582,11 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     .then((task) => {
                         setNodes((prev) => applyCanvasVideoTaskUpdate(prev, node.id, task, generationConfig, node.metadata?.startedAt || Date.now(), { width: node.width, height: node.height }));
                     })
-                    .catch(() => undefined)
+                    .catch((error) => {
+                        if (!shouldFailMissingClientTask(taskId, node.metadata?.startedAt)) return;
+                        const errorDetails = taskPollingErrorMessage(error, "视频任务未提交成功或已丢失，请重新生成");
+                        setNodes((prev) => markCanvasTaskMissing(prev, node.id, errorDetails));
+                    })
                     .finally(() => {
                         pollingVideoNodeIdsRef.current.delete(node.id);
                     });
@@ -596,7 +600,11 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                         setNodes((prev) => applyCanvasImageTaskUpdate(prev, node.id, task, node.metadata?.startedAt || Date.now(), { width: node.width, height: node.height }));
                         setConnections((prev) => applyCanvasImageTaskConnections(prev, node.id, task));
                     })
-                    .catch(() => undefined)
+                    .catch((error) => {
+                        if (!shouldFailMissingClientTask(node.metadata?.imageTaskId, node.metadata?.startedAt)) return;
+                        const errorDetails = taskPollingErrorMessage(error, "图片任务未提交成功或已丢失，请重新生成");
+                        setNodes((prev) => markCanvasTaskMissing(prev, node.id, errorDetails));
+                    })
                     .finally(() => {
                         pollingImageNodeIdsRef.current.delete(node.id);
                     });
@@ -609,7 +617,11 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     .then((task) => {
                         setNodes((prev) => applyCanvasAudioTaskUpdate(prev, node.id, task, node.metadata?.startedAt || Date.now()));
                     })
-                    .catch(() => undefined)
+                    .catch((error) => {
+                        if (!shouldFailMissingClientTask(node.metadata?.audioTaskId, node.metadata?.startedAt)) return;
+                        const errorDetails = taskPollingErrorMessage(error, "音频任务未提交成功或已丢失，请重新生成");
+                        setNodes((prev) => markCanvasTaskMissing(prev, node.id, errorDetails));
+                    })
                     .finally(() => {
                         pollingAudioNodeIdsRef.current.delete(node.id);
                     });
@@ -4866,6 +4878,35 @@ function canvasVideoTaskFromMetadata(metadata?: CanvasNodeMetadata): VideoRespon
 
 function canvasVideoTaskId(metadata?: CanvasNodeMetadata) {
     return metadata?.videoTaskVideoId || metadata?.videoTaskId || "";
+}
+
+const CLIENT_TASK_STALE_AFTER_MS = VIDEO_CREATE_TIMEOUT_MS + 15_000;
+
+function shouldFailMissingClientTask(taskId: string | undefined, startedAt: number | undefined, now = Date.now()) {
+    if (!taskId || !/^client_(?:video|image|audio)_task_/.test(taskId)) return false;
+    return !startedAt || now - startedAt >= CLIENT_TASK_STALE_AFTER_MS;
+}
+
+function taskPollingErrorMessage(error: unknown, fallback: string) {
+    if (error instanceof Error && error.message.trim()) return error.message;
+    return fallback;
+}
+
+function markCanvasTaskMissing(nodes: CanvasNodeData[], nodeId: string, errorDetails: string) {
+    return nodes.map((node) =>
+        node.id === nodeId
+            ? {
+                  ...node,
+                  metadata: {
+                      ...node.metadata,
+                      status: NODE_STATUS_ERROR,
+                      progress: 100,
+                      durationMs: node.metadata?.startedAt ? Date.now() - node.metadata.startedAt : node.metadata?.durationMs,
+                      errorDetails,
+                  },
+              }
+            : node,
+    );
 }
 
 function canvasVideoTaskCompleted(task: VideoResponse) {

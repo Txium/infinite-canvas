@@ -73,7 +73,11 @@ func AIVideo(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 	if isClientVideoTaskID(id) {
-		OK(w, map[string]any{"id": id, "task_id": id, "object": "video", "status": "queued", "progress": 0})
+		// A client id is only an idempotency key used while the create request is
+		// in flight.  If it is not backed by a persisted video_tasks row, there is
+		// nothing to poll.  Returning a synthetic queued task here made stale
+		// canvas nodes spin forever even though no provider request existed.
+		FailWithStatus(w, http.StatusNotFound, "视频任务未提交成功或已丢失，请重新生成")
 		return
 	}
 	proxyAIGetRequest(w, r, "/videos/"+id)

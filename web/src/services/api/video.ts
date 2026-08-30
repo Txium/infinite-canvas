@@ -26,6 +26,7 @@ export type VideoTaskCreateOptions = { clientTaskId?: string; source?: "video-wo
 // interval does not call the paid generation endpoint again; it only reduces
 // the delay between an upstream completion and the result appearing on canvas.
 export const VIDEO_POLL_INTERVAL_MS = 2000;
+export const VIDEO_CREATE_TIMEOUT_MS = 90_000;
 
 export class VideoRequestError extends Error {
     detail?: string;
@@ -116,9 +117,13 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
     const model = config.model || config.videoModel;
     validateMarketVideoVariant(model, config.videoSeconds);
     const systemPrompt = (config.systemPrompts.video || config.systemPrompt).trim();
-    const body = await createVideoRequestBody(config, model, systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt, normalizeVideoReferenceInput(references));
     const startedAt = Date.now();
+    let body: Awaited<ReturnType<typeof createVideoRequestBody>> | undefined;
     try {
+        body = await withVideoCreateTimeout(
+            createVideoRequestBody(config, model, systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt, normalizeVideoReferenceInput(references)),
+            "准备视频参考素材超时，请检查素材后重试",
+        );
         const createOptions = normalizeVideoTaskCreateOptions(options);
         const tmlabSeedance = isTmlabSeedanceConfig(config, model);
         const accountProxy = usesAccountProxy(config) && !tmlabSeedance;
@@ -135,15 +140,29 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
         const requestBody = !accountProxy && isGeminiConfig(config, model) ? withoutVideoModel(body) : body;
         const requestHeaders = tmlabSeedance ? tmlabHeaders(config) : headers;
         const created = directProvider
-            ? await (await import("@/services/api/direct-ai")).createDirectVideoTask(config, directProvider, body)
-            : unwrapVideoResponseForConfig(config, model, (await axios.post<ApiVideoResponse>(createUrl, requestBody, { headers: requestHeaders })).data);
+            ? await withVideoCreateTimeout((await import("@/services/api/direct-ai")).createDirectVideoTask(config, directProvider, body), "视频任务提交超时，请稍后在任务记录中查看")
+            : unwrapVideoResponseForConfig(config, model, (await axios.post<ApiVideoResponse>(createUrl, requestBody, { headers: requestHeaders, timeout: VIDEO_CREATE_TIMEOUT_MS })).data);
         if (!created.id && !created.video_id) throw new Error("视频接口没有返回任务 ID");
         if (typeof created.progress === "number") onProgress?.(created.progress, created);
         return { task: created, pollId: videoPollId(model, created), startedAt, requestBody: body };
     } catch (error) {
         const { message, detail } = readAxiosError(error, "视频生成失败");
-        void writeVideoAICallLog(config, model, "/videos", "POST", startedAt, axios.isAxiosError(error) ? error.response?.status || 0 : 0, stringifyLogPayload(summarizeVideoRequestBody(body)), stringifyLogPayload(detail), message);
+        void writeVideoAICallLog(config, model, "/videos", "POST", startedAt, axios.isAxiosError(error) ? error.response?.status || 0 : 0, stringifyLogPayload(body ? summarizeVideoRequestBody(body) : { stage: "prepare_references" }), stringifyLogPayload(detail), message);
         throw new VideoRequestError(message, detail);
+    }
+}
+
+async function withVideoCreateTimeout<T>(promise: Promise<T>, message: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        return await Promise.race([
+            promise,
+            new Promise<T>((_, reject) => {
+                timer = setTimeout(() => reject(new VideoRequestError(message)), VIDEO_CREATE_TIMEOUT_MS);
+            }),
+        ]);
+    } finally {
+        if (timer) clearTimeout(timer);
     }
 }
 
