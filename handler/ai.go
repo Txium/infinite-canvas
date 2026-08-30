@@ -188,6 +188,13 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 			return
 		}
 	}
+	if is302MidjourneyRequest(channel, modelName, path) {
+		body, contentType, err = normalize302MidjourneyRequest(body, contentType)
+		if err != nil {
+			Fail(w, err.Error())
+			return
+		}
+	}
 	if service.IsMiMoTTSModelName(modelName) && path == "/audio/speech" {
 		body, contentType, err = normalizeMiMoTTSBody(body, contentType, modelName)
 		if err != nil {
@@ -217,13 +224,14 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 			return
 		}
 	}
-	request, err := http.NewRequest(http.MethodPost, service.BuildModelChannelURL(channel, upstreamPath), bytes.NewReader(body))
+	request, err := http.NewRequest(http.MethodPost, resolveAIProxyURL(channel, modelName, upstreamPath), bytes.NewReader(body))
 	if err != nil {
 		log.Printf("AI proxy build request failed: url=%s err=%v", service.BuildModelChannelURL(channel, upstreamPath), err)
 		Fail(w, "AI 接口请求失败")
 		return
 	}
 	service.SetModelChannelAuthHeader(request, channel)
+	set302MidjourneyAuthHeader(request, channel, modelName)
 	if contentType != "" {
 		request.Header.Set("Content-Type", contentType)
 	}
@@ -235,6 +243,26 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		}
 	}
 	deferFailureRelease := strings.TrimSpace(r.Header.Get(deferredBillingReleaseHeader)) == "1"
+	if is302MidjourneyRequest(channel, modelName, path) {
+		copy302MidjourneyImageResponse(w, request, channel, aiLogContext{
+			StartedAt: startedAt, Endpoint: path, Method: http.MethodPost, Model: requestedModel,
+			Channel: channel, UserID: user.ID, UserDisplayName: firstNonEmpty(user.DisplayName, user.Username),
+			Credits: credits, RequestBody: summarizeAIRequest(body, contentType),
+		}, func() {
+			if credits > 0 {
+				if err := service.SettleUserCredits(user.ID, requestedModel, credits, upstreamPath, billingID); err != nil {
+					log.Printf("302 MJ settle credits failed: user=%s model=%s err=%v", user.ID, requestedModel, err)
+				}
+			}
+		}, func() {
+			if credits > 0 && !deferFailureRelease {
+				if err := service.ReleaseUserCredits(user.ID, requestedModel, credits, upstreamPath, billingID); err != nil {
+					log.Printf("302 MJ release credits failed: user=%s model=%s err=%v", user.ID, requestedModel, err)
+				}
+			}
+		})
+		return
+	}
 	copyAIResponse(w, request, channel, aiLogContext{
 		StartedAt:       startedAt,
 		Endpoint:        path,
@@ -595,6 +623,9 @@ func readAIRequestCount(body []byte, contentType string) int {
 }
 
 func resolveAIProxyURL(channel model.ModelChannel, modelName string, path string) string {
+	if is302MidjourneyModel(modelName) {
+		return strings.TrimRight(strings.TrimSpace(channel.BaseURL), "/") + "/" + strings.TrimLeft(path, "/")
+	}
 	if videoID, ok := agnesVideoQueryID(modelName, path); ok {
 		baseURL := strings.TrimRight(strings.TrimSpace(channel.BaseURL), "/")
 		if strings.HasSuffix(strings.ToLower(baseURL), "/v1") {

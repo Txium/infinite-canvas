@@ -582,7 +582,20 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     .then((task) => {
                         setNodes((prev) => applyCanvasVideoTaskUpdate(prev, node.id, task, generationConfig, node.metadata?.startedAt || Date.now(), { width: node.width, height: node.height }));
                     })
-                    .catch(() => undefined)
+                    .catch(() => {
+                        const elapsed = Date.now() - (node.metadata?.startedAt || Date.now());
+                        if (elapsed < 20 * 60 * 1000) return;
+                        setNodes((prev) => prev.map((item) => item.id === node.id ? {
+                            ...item,
+                            metadata: {
+                                ...item.metadata,
+                                status: NODE_STATUS_ERROR,
+                                progress: 0,
+                                durationMs: elapsed,
+                                errorDetails: "任务状态已失效或上游超时，请在生成记录中确认退款后重试",
+                            },
+                        } : item));
+                    })
                     .finally(() => {
                         pollingVideoNodeIdsRef.current.delete(node.id);
                     });

@@ -12,7 +12,11 @@ import (
 )
 
 const videoTaskPollInterval = 5 * time.Second
-const videoTaskMaxAge = 2 * time.Hour
+
+// A paid canvas task must not stay frozen indefinitely when an upstream stops
+// returning a terminal state. Twenty minutes is already well beyond the usual
+// Seedance generation window and keeps the user's balance recoverable.
+const videoTaskMaxAge = 20 * time.Minute
 const videoTaskRecoveryAge = 48 * time.Hour
 const videoTaskFinishedRetention = 30 * 24 * time.Hour
 const videoTaskCleanupInterval = 10 * time.Minute
@@ -257,12 +261,14 @@ func runVideoTaskPoller() {
 				lastCleanupAt = current
 			}
 			for _, task := range tasks {
-				if videoTaskExpired(task, current) && !recoverableVideoTask(task) && NormalizeVideoTaskStatus(task.Status) != "reconciling" {
-					// A long-running asynchronous generation is not proof of upstream
-					// failure. Keep credits frozen and continue reconciliation until the
-					// provider explicitly reports completed or failed.
-					if err := UpdateVideoTaskFromPoll(task, VideoTaskPollUpdate{Status: "reconciling", ResponseBody: task.LastResponse}); err != nil {
-						log.Printf("mark video task reconciling failed id=%s err=%v", task.ID, err)
+				if videoTaskExpired(task, current) && !recoverableVideoTask(task) {
+					if err := UpdateVideoTaskFromPoll(task, VideoTaskPollUpdate{
+						Status:       "failed",
+						Error:        "上游超过 20 分钟仍未返回结果，本次费用已自动退回",
+						ErrorDetail:  "upstream task exceeded the 20 minute reconciliation deadline",
+						ResponseBody: task.LastResponse,
+					}); err != nil {
+						log.Printf("expire video task failed id=%s err=%v", task.ID, err)
 					}
 					continue
 				}
@@ -353,7 +359,8 @@ func UpdateVideoTaskFromPoll(task model.VideoTask, update VideoTaskPollUpdate) e
 }
 
 func recoverableVideoTask(task model.VideoTask) bool {
-	return task.Status == "failed" && task.BillingStatus == "released" && task.Error == "任务处理超时，已自动解冻" && task.ErrorDetail == "任务超过 30 分钟仍未完成"
+	return task.Status == "failed" && task.BillingStatus == "released" &&
+		(strings.Contains(task.Error, "已自动退回") || task.Error == "任务处理超时，已自动解冻")
 }
 
 func videoTaskExpired(task model.VideoTask, current time.Time) bool {

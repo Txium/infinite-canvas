@@ -1,5 +1,5 @@
 {
-  "version": 14,
+  "version": 15,
   "sourceFile": "模型广场V1最终模型数据库_最终接入定价版.xlsx",
   "sourceSheet": "最终接入定价",
   "providerWhitelist": [
@@ -2382,9 +2382,9 @@
       "variantId": "midjourney__01",
       "providerId": "provider_302",
       "upstreamModelId": "/mj/submit/imagine",
-      "protocol": "custom",
+      "protocol": "302_mj",
       "priority": 1,
-      "enabled": false
+      "enabled": true
     },
     {
       "id": "route_midjourney__02",
@@ -2392,9 +2392,9 @@
       "variantId": "midjourney__02",
       "providerId": "provider_302",
       "upstreamModelId": "/mj-turbo/submit/imagine",
-      "protocol": "custom",
+      "protocol": "302_mj",
       "priority": 1,
-      "enabled": false
+      "enabled": true
     },
     {
       "id": "route_nano_banana__01",
