@@ -1,10 +1,10 @@
 "use client";
 
-import { Alert, App, Button, Card, Col, DatePicker, Form, Input, InputNumber, Modal, Row, Select, Space, Statistic, Table, Typography } from "antd";
+import { Alert, App, Button, Card, Col, DatePicker, Form, Input, InputNumber, Modal, Row, Segmented, Select, Space, Statistic, Table, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 
 import { formatCNY } from "@/constant/credits";
-import { fetchAdminFinanceSummary, fetchAdminOperatingExpenses, fetchAdminRuntimeReadiness, recordAdminOperatingExpense, type AdminFinanceSummary, type AdminOperatingExpense, type AdminRuntimeReadiness } from "@/services/api/admin";
+import { fetchAdminFinanceSummary, fetchAdminOperatingExpenses, fetchAdminRuntimeReadiness, recordAdminOperatingExpense, type AdminFinanceSummary, type AdminOperatingExpense, type AdminRuntimeReadiness, type ModelProfitSummary, type ProviderCostSummary } from "@/services/api/admin";
 import { useUserStore } from "@/stores/use-user-store";
 
 export default function AdminFinancePage() {
@@ -14,22 +14,32 @@ export default function AdminFinancePage() {
 	const [readiness, setReadiness] = useState<AdminRuntimeReadiness | null>(null);
     const [expenses, setExpenses] = useState<AdminOperatingExpense[]>([]);
     const [expenseOpen, setExpenseOpen] = useState(false);
+	const [period, setPeriod] = useState("all");
     const [expenseForm] = Form.useForm();
-    const load = async () => { if (token) { const [finance, runtime, expenseItems] = await Promise.all([fetchAdminFinanceSummary(token), fetchAdminRuntimeReadiness(token), fetchAdminOperatingExpenses(token)]); setSummary(finance); setReadiness(runtime); setExpenses(expenseItems); } };
-    useEffect(() => { void load(); }, [token]);
-    const today = summary?.today;
+    const load = async () => { if (token) { const [finance, runtime, expenseItems] = await Promise.all([fetchAdminFinanceSummary(token, period), fetchAdminRuntimeReadiness(token), fetchAdminOperatingExpenses(token)]); setSummary(finance); setReadiness(runtime); setExpenses(expenseItems); } };
+    useEffect(() => { void load(); }, [token, period]);
     const allTime = summary?.allTime;
     return <main className="p-6"><Space direction="vertical" size={16} className="w-full">
 		{readiness && !readiness.ready ? <Alert type="warning" showIcon message="平台尚未达到正式收款条件" description={<ul className="mb-0 pl-5">{readiness.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>} /> : null}
         <Alert type="info" showIcon message="预付资金、上游准备金和利润分开核算" description="未消费预付余额不计入利润；实际成本缺失的任务先按配置成本标记为 estimated，后续只能通过调整流水校正。" />
         <Alert type="info" showIcon message="提现不在画布里执行" description="用户付款会进入你配置的微信或支付宝商户账户；可提现金额、手续费和结算时间以对应商户后台为准。画布后台负责记录充值、消费、退款和用户未消费余额，不能把累计消费直接当作可提现利润。" action={<Button href="/admin/model-routing">调整模型售价</Button>} />
-        <Typography.Title level={4} className="!mb-0">今日</Typography.Title>
+        <Space className="w-full justify-between"><Typography.Title level={4} className="!mb-0">资金总览</Typography.Title><Segmented value={period} onChange={(value) => setPeriod(String(value))} options={[{label:"今日",value:"today"},{label:"昨日",value:"yesterday"},{label:"7天",value:"7d"},{label:"30天",value:"30d"},{label:"累计",value:"all"}]} /></Space>
         <Row gutter={[16,16]}>
-            <Col xs={24} md={12} xl={6}><Card><Statistic title="充值到账" value={formatCNY(today?.rechargeCents || 0)} /></Card></Col>
-            <Col xs={24} md={12} xl={6}><Card><Statistic title="生成结算收入" value={formatCNY(today?.revenueCents || 0)} /></Card></Col>
-            <Col xs={24} md={12} xl={6}><Card><Statistic title="失败解冻" value={formatCNY(today?.releasedCents || 0)} /></Card></Col>
-            <Col xs={24} md={12} xl={6}><Card><Statistic title="成功 / 失败任务" value={`${today?.settledTasks || 0} / ${today?.releasedTasks || 0}`} /></Card></Col>
+            <Col xs={24} md={12} xl={6}><Card><Statistic title="累计实际充值" value={formatCNY(summary?.selected?.rechargeCents || 0)} /></Card></Col>
+            <Col xs={24} md={12} xl={6}><Card><Statistic title="用户未消费余额" value={formatCNY(summary?.unconsumedBalanceCents || 0)} /></Card></Col>
+            <Col xs={24} md={12} xl={6}><Card><Statistic title="冻结余额" value={formatCNY(summary?.frozenBalanceCents || 0)} /></Card></Col>
+            <Col xs={24} md={12} xl={6}><Card><Statistic title="累计生成收入" value={formatCNY(summary?.selected?.revenueCents || 0)} /></Card></Col>
+            <Col xs={24} md={12} xl={6}><Card><Statistic title="实际上游成本" value={formatCNY(summary?.selectedProviderCostCents || 0)} /></Card></Col>
+            <Col xs={24} md={12} xl={6}><Card><Statistic title="Provider Reserve" value={formatCNY(summary?.providerReserveCents || 0)} /></Card></Col>
+            <Col xs={24} md={12} xl={6}><Card><Statistic title="已实现毛差" value={formatCNY(summary?.selectedGrossProfitCents || 0)} /></Card></Col>
+            <Col xs={24} md={12} xl={6}><Card><Statistic title="支付手续费" value={formatCNY(summary?.selectedPaymentFeeCents || 0)} /></Card></Col>
+            <Col xs={24} md={12} xl={6}><Card><Statistic title="补偿 / 退款成本" value={formatCNY(summary?.selectedCompensationCents || 0)} /></Card></Col>
+            <Col xs={24} md={12} xl={6}><Card><Statistic title="运营费用" value={formatCNY(summary?.selectedOperatingCostCents || 0)} /></Card></Col>
+            <Col xs={24} md={12} xl={6}><Card><Statistic title="估算净收益" value={formatCNY(summary?.selectedNetProfitCents || 0)} /></Card></Col>
+            <Col xs={24} md={12} xl={6}><Card><Statistic title="失败解冻" value={formatCNY(summary?.selected?.releasedCents || 0)} /></Card></Col>
         </Row>
+		<Card title="模型利润排行"><Table rowKey="model" size="small" pagination={false} dataSource={summary?.modelProfits || []} columns={[{title:"模型 / 档位",dataIndex:"model"},{title:"生成次数",dataIndex:"taskCount"},{title:"生成收入",render:(_:unknown,item:ModelProfitSummary)=>formatCNY(item.revenueCents)},{title:"上游成本",render:(_:unknown,item:ModelProfitSummary)=><Space>{formatCNY(item.providerCostCents)}{item.estimatedCostTaskCount>0?<Tag color="orange">含预估</Tag>:<Tag color="green">实际</Tag>}</Space>},{title:"毛差",render:(_:unknown,item:ModelProfitSummary)=>formatCNY(item.grossProfitCents)},{title:"毛利率",render:(_:unknown,item:ModelProfitSummary)=>item.revenueCents?`${Math.round(item.grossProfitCents*10000/item.revenueCents)/100}%`:"-"}]} /></Card>
+		<Card title="Provider 成本统计"><Table rowKey="provider" size="small" pagination={false} dataSource={summary?.providerCosts || []} columns={[{title:"中转站",dataIndex:"provider",render:(value:string)=>({"302":"302.AI",wavespeed:"WaveSpeed",lec:"LEC",seedance_nz:"seedance.nz"}[value]||value)},{title:"今日实际成本",render:(_:unknown,item:ProviderCostSummary)=>formatCNY(item.todayCents)},{title:"近7日实际成本",render:(_:unknown,item:ProviderCostSummary)=>formatCNY(item.last7DaysCents)},{title:"累计实际成本",render:(_:unknown,item:ProviderCostSummary)=>formatCNY(item.allTimeCents)}]} /></Card>
 		<Card title="运营费用" extra={<Button type="primary" onClick={() => setExpenseOpen(true)}>登记费用</Button>}>
 			<Table rowKey="id" size="small" dataSource={expenses} pagination={{ pageSize: 10 }} columns={[
 				{ title: "日期", dataIndex: "date" }, { title: "类别", dataIndex: "category" },

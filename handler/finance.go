@@ -8,7 +8,7 @@ import (
 )
 
 func AdminFinanceSummary(w http.ResponseWriter, r *http.Request) {
-	result, err := service.AdminFinanceSummary()
+	result, err := service.AdminFinanceSummary(r.URL.Query().Get("period"))
 	if err != nil {
 		FailError(w, err)
 		return

@@ -203,3 +203,60 @@ func TestProviderTopupLedgerFailureRollsBack(t *testing.T) {
 		t.Fatalf("balance changed after rollback")
 	}
 }
+
+// User generation history repositories must never return another user's tasks.
+func TestUserGenerationHistoryIsIsolatedByUser(t *testing.T) {
+	useFinanceTestDB(t)
+	database, _ := DB()
+	tasks := []model.VideoTask{
+		{ID: "task-user-a", UserID: "user-a", Model: "seedance", Status: "completed", CreatedAt: "2026-08-30T08:00:00Z"},
+		{ID: "task-user-b", UserID: "user-b", Model: "hailuo", Status: "failed", CreatedAt: "2026-08-30T09:00:00Z"},
+	}
+	if err := database.Create(&tasks).Error; err != nil {
+		t.Fatal(err)
+	}
+	items, err := ListUserVideoTasksForHistory("user-a", 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].ID != "task-user-a" {
+		t.Fatalf("user-a received unexpected tasks: %#v", items)
+	}
+}
+
+// Time-scoped finance cards must not subtract all-time expenses from a selected period.
+func TestFinanceSummaryScopesExpensesToSelectedPeriod(t *testing.T) {
+	useFinanceTestDB(t)
+	database, _ := DB()
+	expenses := []model.OperatingExpense{
+		{ID: "expense-old", Category: "server", AmountCNY: 1000, CreatedAt: "2026-08-01T00:00:00Z"},
+		{ID: "expense-current", Category: "server", AmountCNY: 200, CreatedAt: "2026-08-30T00:00:00Z"},
+	}
+	if err := database.Create(&expenses).Error; err != nil {
+		t.Fatal(err)
+	}
+	summary, err := AdminFinanceSummary("2026-08-30T00:00:00Z", "today", "2026-08-30T00:00:00Z", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.SelectedOperatingCostCents != 200 {
+		t.Fatalf("selected operating cost=%d, want 200", summary.SelectedOperatingCostCents)
+	}
+	if summary.OperatingCostCents != 1200 {
+		t.Fatalf("all-time operating cost=%d, want 1200", summary.OperatingCostCents)
+	}
+}
+
+func TestCanonicalFinanceProviderAcceptsRouteIDs(t *testing.T) {
+	cases := map[string]string{
+		"provider_302":         "302",
+		"provider_wavespeed":   "wavespeed",
+		"provider_lec":         "lec",
+		"provider_seedance_nz": "seedance_nz",
+	}
+	for input, want := range cases {
+		if got := canonicalFinanceProvider(input); got != want {
+			t.Fatalf("canonicalFinanceProvider(%q)=%q, want %q", input, got, want)
+		}
+	}
+}

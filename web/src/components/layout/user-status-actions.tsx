@@ -2,7 +2,7 @@
 
 import type { CSSProperties, RefObject } from "react";
 import { Avatar, Dropdown, Tooltip } from "antd";
-import { Keyboard, LogOut, Settings2, Shield, Wallet } from "lucide-react";
+import { History, Keyboard, LogOut, Settings2, Shield, Wallet } from "lucide-react";
 import type { ItemType } from "antd/es/menu/interface";
 import Link from "next/link";
 
@@ -47,6 +47,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
     const menuItems: ItemType[] = [
         { key: "user", disabled: true, label: <span className="font-medium text-current">{userName}</span> },
         { key: "wallet", icon: <Wallet className="size-4" />, label: <Link href="/wallet">我的钱包</Link> },
+        { key: "generation-history", icon: <History className="size-4" />, label: <Link href="/generation-history">生成记录</Link> },
         ...(isAdminRole(user?.role) ? [{ key: "admin", icon: <Shield className="size-4" />, label: <Link href="/admin">管理后台</Link> }] : []),
         ...(onOpenShortcuts ? [{ key: "shortcuts", icon: <Keyboard className="size-4" />, label: "快捷键", onClick: onOpenShortcuts }] : []),
         { type: "divider" },

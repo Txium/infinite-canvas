@@ -8,10 +8,23 @@ import (
 	"github.com/tigerowo/infinite-canvas/repository"
 )
 
-func AdminFinanceSummary() (model.AdminFinanceSummary, error) {
+func AdminFinanceSummary(period string) (model.AdminFinanceSummary, error) {
 	current := time.Now()
-	start := time.Date(current.Year(), current.Month(), current.Day(), 0, 0, 0, 0, current.Location()).Format(time.RFC3339)
-	return repository.AdminFinanceSummary(start)
+	today := time.Date(current.Year(), current.Month(), current.Day(), 0, 0, 0, 0, current.Location())
+	start, end := "", ""
+	switch period {
+	case "today":
+		start = today.Format(time.RFC3339)
+	case "yesterday":
+		start, end = today.AddDate(0, 0, -1).Format(time.RFC3339), today.Format(time.RFC3339)
+	case "7d":
+		start = today.AddDate(0, 0, -6).Format(time.RFC3339)
+	case "30d":
+		start = today.AddDate(0, 0, -29).Format(time.RFC3339)
+	default:
+		period = "all"
+	}
+	return repository.AdminFinanceSummary(today.Format(time.RFC3339), period, start, end)
 }
 
 func AdminProviderLedgers(admin model.AuthUser) ([]model.ProviderLedger, error) {

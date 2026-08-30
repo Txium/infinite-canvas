@@ -18,6 +18,7 @@ import { nanoid } from "nanoid";
 import { getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
 import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
+import { RecentGenerationTasksPanel } from "@/components/generation/recent-generation-tasks-panel";
 import { isKIEKlingV3Config, kieKlingOmniVariant } from "@/components/video-settings-panel";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -4144,6 +4145,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     onInitialRequestConsumed={() => setInitialAgentRequest(null)}
                 />
             ) : null}
+            <RecentGenerationTasksPanel />
         </main>
     );
 }
