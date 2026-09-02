@@ -206,6 +206,27 @@ func SyncDefaultModelCatalog(version int, models []model.MarketModel, variants [
 			var saved model.ModelRoute
 			findErr := tx.Where("id = ?", item.ID).First(&saved).Error
 			if findErr == nil {
+				waveSpeedAsyncRoutes := map[string]bool{
+					"route_infinitetalk__01": true,
+					"route_infinitetalk__02": true,
+					"route_speech_26_hd__01": true,
+					"route_seed3d_20__01":    true,
+				}
+				// Catalog v18 restores the dedicated WaveSpeed async endpoints after
+				// the incomplete OpenAI-compatible /models list had marked them stale.
+				if version >= 18 && waveSpeedAsyncRoutes[saved.ID] {
+					saved.ProviderID = item.ProviderID
+					saved.Protocol = item.Protocol
+					saved.UpstreamModelID = item.UpstreamModelID
+					saved.Priority = item.Priority
+					saved.Enabled = true
+					saved.CatalogStatus = ""
+					saved.CatalogAutoDisabled = false
+					if err := tx.Save(&saved).Error; err != nil {
+						return err
+					}
+					continue
+				}
 				// Catalog v16 replaces the unavailable LEC AC alias used by the
 				// public Seedance 900 tier. This is a catalog-owned route, so the
 				// corrected upstream model must also update existing databases.
