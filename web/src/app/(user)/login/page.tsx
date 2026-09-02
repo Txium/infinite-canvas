@@ -43,7 +43,8 @@ function LoginContent() {
     const isLoading = useUserStore((state) => state.isLoading);
     const linuxDoEnabled = useConfigStore((state) => state.publicSettings?.auth?.linuxDo?.enabled === true);
     const allowRegister = useConfigStore((state) => state.publicSettings?.auth?.allowRegister !== false);
-    const [mode, setMode] = useState<"login" | "register">("login");
+    const requestedMode = searchParams.get("mode");
+    const [mode, setMode] = useState<"login" | "register">(requestedMode === "register" ? "register" : "login");
     const redirect = safeRedirect(searchParams.get("redirect"));
 
     useEffect(() => {
@@ -62,6 +63,10 @@ function LoginContent() {
     useEffect(() => {
         if (!allowRegister && mode === "register") setMode("login");
     }, [allowRegister, mode]);
+
+    useEffect(() => {
+        if (requestedMode === "register" && allowRegister) setMode("register");
+    }, [allowRegister, requestedMode]);
 
     const submit = async (values: LoginFormValues) => {
         try {
