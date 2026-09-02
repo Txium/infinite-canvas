@@ -1,5 +1,5 @@
 {
-  "version": 22,
+  "version": 23,
   "sourceFile": "模型广场V1最终模型数据库_最终接入定价版.xlsx",
   "sourceSheet": "最终接入定价",
   "providerWhitelist": [
@@ -1119,12 +1119,12 @@
           "upstreamModelId": "lec-seedance-2-5-ht-30s",
           "costCents": 300,
           "costText": "3",
-          "priceCents": 329,
-          "priceText": "3.29",
+          "priceCents": 389,
+          "priceText": "3.89",
           "billingUnit": "/次",
           "pricingMode": "fixed",
           "priceFormula": "",
-          "marginText": "0.29",
+          "marginText": "0.89（未扣充值手续费）",
           "personNote": "Seedance 2.5 30s（渠道1）固定 720p 和 30 秒，必须提供 1-9 张图片参考，不支持纯文本、视频或音频参考，卡人脸，固定 ¥3.00/次。",
           "refundPolicy": "按 LEC 任务规则，失败后核对上游退款状态",
           "sourceUrl": "https://api.paipu.net/pricing",

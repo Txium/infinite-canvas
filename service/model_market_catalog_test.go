@@ -91,6 +91,7 @@ func TestFeeAdjustedPricesKeepTwentyPercentCostMargin(t *testing.T) {
 		"lec_seed_2_0_900":             169,
 		"lec_md_seedance_2_0_900_720p": 159,
 		"lec_seed_2_5_900":             389,
+		"lec_seedance_2_5_ht_30s":      389,
 		"lec_ac_seedance_2_5_480p":     59,
 		"lec_ac_seedance_2_5_900":      389,
 		"lec_ac_seedance_2_5":          109,
