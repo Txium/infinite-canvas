@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: infinite-canvas
+    name: infinite-canvas-staging
     runtime: docker
     plan: free
     autoDeployTrigger: off
@@ -25,12 +25,19 @@ services:
       - key: PORT
         value: 3000
       - key: STORAGE_DRIVER
-        value: sqlite
+        value: postgresql
       - key: DATABASE_DSN
-        value: data/infinite-canvas.db
+        fromDatabase:
+          name: infinite-canvas-staging-db
+          property: connectionString
       - key: PUBLIC_BASE_URL
-        value: https://infinite-canvas-9353.onrender.com
+        value: https://infinite-canvas-staging.onrender.com
       - key: MANAGED_PLATFORM_MODE
         value: true
       - key: GENERATION_REQUESTS_PER_MINUTE
         value: 30
+databases:
+  - name: infinite-canvas-staging-db
+    plan: free
+    databaseName: infinite_canvas
+    user: infinite_canvas
