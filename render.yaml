@@ -28,7 +28,7 @@ services:
         value: postgresql
       - key: DATABASE_DSN
         fromDatabase:
-          name: infinite-canvas-staging-db
+          name: infinite-canvas-db
           property: connectionString
       - key: PUBLIC_BASE_URL
         value: https://infinite-canvas-staging.onrender.com
@@ -36,8 +36,3 @@ services:
         value: true
       - key: GENERATION_REQUESTS_PER_MINUTE
         value: 30
-databases:
-  - name: infinite-canvas-staging-db
-    plan: free
-    databaseName: infinite_canvas
-    user: infinite_canvas
