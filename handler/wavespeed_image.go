@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -38,18 +39,9 @@ func normalizeWaveSpeedImageBody(body []byte, contentType string, variantID stri
 	}
 	delete(payload, "size")
 	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(variantID)), "krea_v2__") {
-		// Krea V2 uses `image` for image-to-image.  The canvas accepts the
-		// common OpenAI `image_url`/`images` names, so normalize them here
-		// while retaining the prompt and aspect ratio fields.
-		if image := firstWaveSpeedImage(payload, "image", "image_url"); image != "" {
-			payload["image"] = image
-		} else if values, ok := payload["images"].([]any); ok && len(values) > 0 {
-			if image := strings.TrimSpace(fmt.Sprint(values[0])); image != "" && image != "<nil>" {
-				payload["image"] = image
-			}
+		if err := normalizeWaveSpeedKreaReferences(payload, variantID); err != nil {
+			return nil, contentType, err
 		}
-		delete(payload, "image_url")
-		delete(payload, "images")
 	}
 	if quality, resolution, ok := waveSpeedGPTImageTier(variantID); ok {
 		// GPT Image 2 currently accepts only these documented inputs. Strip
@@ -69,15 +61,76 @@ func normalizeWaveSpeedImageBody(body []byte, contentType string, variantID stri
 	return encoded, "application/json", err
 }
 
-func firstWaveSpeedImage(payload map[string]any, names ...string) string {
-	for _, name := range names {
+func normalizeWaveSpeedKreaReferences(payload map[string]any, variantID string) error {
+	variantID = strings.ToLower(strings.TrimSpace(variantID))
+	images := waveSpeedImageReferences(payload)
+	delete(payload, "image")
+	delete(payload, "image_url")
+	delete(payload, "images")
+	delete(payload, "reference")
+
+	switch variantID {
+	case "krea_v2__01":
+		// Turbo accepts one optional source image under `image`.
+		if len(images) > 0 {
+			payload["image"] = images[0]
+		}
+	case "krea_v2__02":
+		// The current Medium text-to-image endpoint documents prompt and
+		// aspect ratio only. Reject references before a paid upstream task.
+		if len(images) > 0 {
+			return errors.New("Krea 2 Medium 当前不支持参考图，请选择 Turbo 或 Large")
+		}
+	case "krea_v2__03":
+		// Large accepts up to ten style references as objects.
+		if len(images) > 10 {
+			images = images[:10]
+		}
+		if len(images) > 0 {
+			references := make([]map[string]any, 0, len(images))
+			for _, image := range images {
+				references = append(references, map[string]any{"image_url": image, "strength": 1})
+			}
+			payload["reference"] = references
+		}
+	}
+	return nil
+}
+
+func waveSpeedImageReferences(payload map[string]any) []string {
+	result := make([]string, 0, 10)
+	appendImage := func(value any) {
+		image := strings.TrimSpace(fmt.Sprint(value))
+		if image == "" || image == "<nil>" {
+			return
+		}
+		for _, saved := range result {
+			if saved == image {
+				return
+			}
+		}
+		result = append(result, image)
+	}
+	for _, name := range []string{"image", "image_url"} {
 		if value, ok := payload[name]; ok {
-			if text := strings.TrimSpace(fmt.Sprint(value)); text != "" && text != "<nil>" {
-				return text
+			appendImage(value)
+		}
+	}
+	if values, ok := payload["images"].([]any); ok {
+		for _, value := range values {
+			appendImage(value)
+		}
+	}
+	if values, ok := payload["reference"].([]any); ok {
+		for _, value := range values {
+			if item, ok := value.(map[string]any); ok {
+				appendImage(item["image_url"])
+			} else {
+				appendImage(value)
 			}
 		}
 	}
-	return ""
+	return result
 }
 
 func waveSpeedAspectRatio(size string) string {

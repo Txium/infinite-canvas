@@ -50,3 +50,17 @@ func TestWaveSpeedGPTImageTier(t *testing.T) {
 		t.Fatalf("unexpected tier: %q %q %v", quality, resolution, ok)
 	}
 }
+
+func TestNormalizeWaveSpeedKreaReferences(t *testing.T) {
+	turbo, _, err := normalizeWaveSpeedImageBody([]byte(`{"model":"krea_v2__01","prompt":"hi","images":["https://example.com/a.png","https://example.com/b.png"],"resolution":"2k"}`), "application/json", "krea_v2__01")
+	if err != nil || string(turbo) != `{"image":"https://example.com/a.png","prompt":"hi","resolution":"2k"}` {
+		t.Fatalf("turbo body = %s err=%v", turbo, err)
+	}
+	if _, _, err := normalizeWaveSpeedImageBody([]byte(`{"prompt":"hi","image_url":"https://example.com/a.png"}`), "application/json", "krea_v2__02"); err == nil {
+		t.Fatal("medium should reject unsupported references")
+	}
+	large, _, err := normalizeWaveSpeedImageBody([]byte(`{"prompt":"hi","images":["https://example.com/a.png","https://example.com/b.png"]}`), "application/json", "krea_v2__03")
+	if err != nil || string(large) != `{"prompt":"hi","reference":[{"image_url":"https://example.com/a.png","strength":1},{"image_url":"https://example.com/b.png","strength":1}]}` {
+		t.Fatalf("large body = %s err=%v", large, err)
+	}
+}

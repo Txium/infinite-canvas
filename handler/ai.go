@@ -188,7 +188,11 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		body, contentType, err = normalizeWaveSpeedImageBody(body, contentType, requestedModel)
 		if err != nil {
 			log.Printf("AI proxy normalize WaveSpeed image request failed: model=%s err=%v", modelName, err)
-			Fail(w, "AI 接口请求失败")
+			if strings.Contains(err.Error(), "Krea 2") {
+				Fail(w, err.Error())
+			} else {
+				Fail(w, "AI 接口请求失败")
+			}
 			return
 		}
 	}
