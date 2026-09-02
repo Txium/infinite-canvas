@@ -136,3 +136,9 @@ description: 当前版本已实现但仍需人工验证的变更项
 - Nano Banana 2 改为 `google/nano-banana-2/text-to-image` 并固定 1K，售价保持 ¥0.52/张；Nano Banana Pro 改为 `google/nano-banana-pro/text-to-image` 并固定 2K，售价保持 ¥1.05/张。
 - FLUX 2 Klein 改为 `wavespeed-ai/flux-2-klein-4b/text-to-image`，售价保持 ¥0.06/张；目录升级后重新启用三条线路。
 - 后端不再把前端 `quality` 原样传给 Nano Banana，防止用户请求 4K 时仍按固定低档售价扣费；本轮未发起任何付费图片生成。
+
+# 2026-09-02 充值手续费后的模型售价保护
+
+- 对本轮核价的 10 个固定成本档位按 `售价 × 94% >= 上游成本 × 120%` 设置价格下限，覆盖 6% 充值手续费后仍保留至少约 20% 的成本毛利。
+- Seedance 2.0 900/MD 调为 ¥1.69/次、¥1.59/次；Seedance 2.5 900 与 AC 900 调为 ¥3.89/次，AC 480P 与满血 AC 调为 ¥0.59/秒、¥1.09/秒。
+- Nano Banana、Nano Banana Pro、FLUX 2 Klein 调为 ¥0.65、¥1.29、¥0.09/张；本轮仅修改目录售价，不发起付费生成。

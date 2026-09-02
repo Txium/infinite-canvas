@@ -50,13 +50,13 @@ func TestLECLatestPricesAndBillingUnits(t *testing.T) {
 		priceCents  int64
 		billingUnit string
 	}{
-		"seedance_2__01":               {130, 149, "/次"},
-		"lec_seed_2_0_900":             {130, 149, "/次"},
-		"lec_md_seedance_2_0_900_720p": {120, 139, "/次"},
-		"lec_seed_2_5_900":             {300, 329, "/次"},
-		"lec_ac_seedance_2_5_480p":     {45, 51, "/秒"},
-		"lec_ac_seedance_2_5_900":      {300, 339, "/次"},
-		"lec_ac_seedance_2_5":          {82, 92, "/秒"},
+		"seedance_2__01":               {130, 169, "/次"},
+		"lec_seed_2_0_900":             {130, 169, "/次"},
+		"lec_md_seedance_2_0_900_720p": {120, 159, "/次"},
+		"lec_seed_2_5_900":             {300, 389, "/次"},
+		"lec_ac_seedance_2_5_480p":     {45, 59, "/秒"},
+		"lec_ac_seedance_2_5_900":      {300, 389, "/次"},
+		"lec_ac_seedance_2_5":          {82, 109, "/秒"},
 	}
 
 	for _, variant := range variants {
@@ -76,6 +76,48 @@ func TestLECLatestPricesAndBillingUnits(t *testing.T) {
 		delete(tests, variant.ID)
 	}
 	for id := range tests {
+		t.Errorf("variant %s not found", id)
+	}
+}
+
+func TestFeeAdjustedPricesKeepTwentyPercentCostMargin(t *testing.T) {
+	_, variants, _, _, _, err := defaultModelCatalog()
+	if err != nil {
+		t.Fatalf("load default model catalog: %v", err)
+	}
+
+	want := map[string]int64{
+		"seedance_2__01":               169,
+		"lec_seed_2_0_900":             169,
+		"lec_md_seedance_2_0_900_720p": 159,
+		"lec_seed_2_5_900":             389,
+		"lec_ac_seedance_2_5_480p":     59,
+		"lec_ac_seedance_2_5_900":      389,
+		"lec_ac_seedance_2_5":          109,
+		"nano_banana__01":              65,
+		"nano_banana__02":              129,
+		"flux_2_klein__01":             9,
+	}
+	for _, variant := range variants {
+		expectedPrice, ok := want[variant.ID]
+		if !ok {
+			continue
+		}
+		if variant.CostCents == nil || variant.PriceCents == nil {
+			t.Errorf("%s is missing fixed cost or price", variant.ID)
+			continue
+		}
+		if *variant.PriceCents != expectedPrice {
+			t.Errorf("%s price = %d, want %d", variant.ID, *variant.PriceCents, expectedPrice)
+		}
+		// A 6%% recharge fee leaves 94%% of the sale price. Require the
+		// remaining revenue to cover cost plus at least 20%% of cost.
+		if *variant.PriceCents*94 < *variant.CostCents*120 {
+			t.Errorf("%s price does not preserve 20%% cost margin after 6%% fee", variant.ID)
+		}
+		delete(want, variant.ID)
+	}
+	for id := range want {
 		t.Errorf("variant %s not found", id)
 	}
 }
