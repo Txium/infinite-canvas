@@ -93,3 +93,10 @@ description: 当前版本已实现但仍需人工验证的变更项
 
 - 302.AI、LEC 和 WaveSpeed 启动后自动读取权威模型目录，停用目录中已经不存在的精确上游线路；历史任务和模型记录不删除。
 - 管理后台允许 super_admin 手动触发三家目录同步；seedance.nz 未确认权威目录接口前保持不支持自动同步。
+# Render 持久化与公开入口
+
+- Render Blueprint 已改为连接托管 PostgreSQL，不再把账号、钱包、订单和画布写入临时 SQLite 文件。
+- `PUBLIC_BASE_URL` 已修正为当前 staging 域名，支付回调和媒体引用不再指向旧地址。
+- `/register` 现在会进入登录页的注册模式，直接访问注册链接不再显示 404。
+- 页面 GitHub 入口已改为当前维护仓库 `Txium/infinite-canvas`。
+- 部署前仍需在 Render 创建或同步 Blueprint 数据库；数据库连接成功后验证注册、登录、跨设备画布同步和钱包流水。
