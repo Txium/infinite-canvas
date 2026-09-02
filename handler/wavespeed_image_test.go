@@ -51,6 +51,22 @@ func TestWaveSpeedGPTImageTier(t *testing.T) {
 	}
 }
 
+func TestNormalizeWaveSpeedNanoBananaUsesCatalogResolution(t *testing.T) {
+	tests := map[string]string{
+		"nano_banana__01": `{"aspect_ratio":"16:9","prompt":"standard","resolution":"1k"}`,
+		"nano_banana__02": `{"aspect_ratio":"1:1","prompt":"pro","resolution":"2k"}`,
+	}
+	for variantID, expected := range tests {
+		body, _, err := normalizeWaveSpeedImageBody([]byte(`{"model":"ignored","prompt":"`+map[string]string{"nano_banana__01": "standard", "nano_banana__02": "pro"}[variantID]+`","size":"`+map[string]string{"nano_banana__01": "1280x720", "nano_banana__02": "1024x1024"}[variantID]+`","quality":"4k"}`), "application/json", variantID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(body) != expected {
+			t.Errorf("%s body = %s, want %s", variantID, body, expected)
+		}
+	}
+}
+
 func TestNormalizeWaveSpeedKreaReferences(t *testing.T) {
 	turbo, _, err := normalizeWaveSpeedImageBody([]byte(`{"model":"krea_v2__01","prompt":"hi","images":["https://example.com/a.png","https://example.com/b.png"],"resolution":"2k"}`), "application/json", "krea_v2__01")
 	if err != nil || string(turbo) != `{"image":"https://example.com/a.png","prompt":"hi","resolution":"2k"}` {

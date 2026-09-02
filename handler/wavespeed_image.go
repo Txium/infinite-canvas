@@ -38,6 +38,13 @@ func normalizeWaveSpeedImageBody(body []byte, contentType string, variantID stri
 		}
 	}
 	delete(payload, "size")
+	if resolution, ok := waveSpeedFixedImageResolution(variantID); ok {
+		// Nano Banana pricing is resolution-dependent. The public catalog has
+		// one fixed-price tier for each model, so pin its matching resolution
+		// instead of forwarding a client quality value that could select 4K.
+		payload["resolution"] = resolution
+		delete(payload, "quality")
+	}
 	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(variantID)), "krea_v2__") {
 		if err := normalizeWaveSpeedKreaReferences(payload, variantID); err != nil {
 			return nil, contentType, err
@@ -59,6 +66,15 @@ func normalizeWaveSpeedImageBody(body []byte, contentType string, variantID stri
 	}
 	encoded, err := json.Marshal(payload)
 	return encoded, "application/json", err
+}
+
+func waveSpeedFixedImageResolution(variantID string) (string, bool) {
+	resolutions := map[string]string{
+		"nano_banana__01": "1k",
+		"nano_banana__02": "2k",
+	}
+	resolution, ok := resolutions[strings.ToLower(strings.TrimSpace(variantID))]
+	return resolution, ok
 }
 
 func normalizeWaveSpeedKreaReferences(payload map[string]any, variantID string) error {

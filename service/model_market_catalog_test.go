@@ -79,3 +79,32 @@ func TestLECLatestPricesAndBillingUnits(t *testing.T) {
 		t.Errorf("variant %s not found", id)
 	}
 }
+
+func TestWaveSpeedCurrentImageEndpointIDs(t *testing.T) {
+	_, variants, _, routes, _, err := defaultModelCatalog()
+	if err != nil {
+		t.Fatalf("load default model catalog: %v", err)
+	}
+
+	want := map[string]string{
+		"nano_banana__01":  "google/nano-banana-2/text-to-image",
+		"nano_banana__02":  "google/nano-banana-pro/text-to-image",
+		"flux_2_klein__01": "wavespeed-ai/flux-2-klein-4b/text-to-image",
+	}
+	for _, variant := range variants {
+		if endpoint, ok := want[variant.ID]; ok && variant.UpstreamModelID != endpoint {
+			t.Errorf("variant %s endpoint = %q, want %q", variant.ID, variant.UpstreamModelID, endpoint)
+		}
+	}
+	for _, route := range routes {
+		if endpoint, ok := want[route.VariantID]; ok {
+			if route.UpstreamModelID != endpoint {
+				t.Errorf("route %s endpoint = %q, want %q", route.ID, route.UpstreamModelID, endpoint)
+			}
+			delete(want, route.VariantID)
+		}
+	}
+	for variantID := range want {
+		t.Errorf("route for %s not found", variantID)
+	}
+}

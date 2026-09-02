@@ -129,3 +129,10 @@ description: 当前版本已实现但仍需人工验证的变更项
 - Krea 2 Turbo 只向上游发送第一张 `image`；Medium 参考图在提交付费任务前明确拒绝；Large 将最多 10 张图片转换为官方 `reference[{image_url,strength}]` 格式。
 - GPT Image 2 九档质量/分辨率与当前官方 $0.01–$0.72 价格表一致，本轮不调整。
 - 本地测试通过后仍需分别做一次 Krea Turbo 2K、Medium 文生图和 Large 参考图小额实付验证，本轮未产生付费调用。
+
+# 2026-09-02 WaveSpeed 图片端点纠正
+
+- Nano Banana 2、Nano Banana Pro 和 FLUX 2 Klein 并未下架；此前同步停用是因为画布保存的上游 ID 缺少当前官方端点后缀或仍使用旧别名。
+- Nano Banana 2 改为 `google/nano-banana-2/text-to-image` 并固定 1K，售价保持 ¥0.52/张；Nano Banana Pro 改为 `google/nano-banana-pro/text-to-image` 并固定 2K，售价保持 ¥1.05/张。
+- FLUX 2 Klein 改为 `wavespeed-ai/flux-2-klein-4b/text-to-image`，售价保持 ¥0.06/张；目录升级后重新启用三条线路。
+- 后端不再把前端 `quality` 原样传给 Nano Banana，防止用户请求 4K 时仍按固定低档售价扣费；本轮未发起任何付费图片生成。

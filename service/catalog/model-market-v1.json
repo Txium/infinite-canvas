@@ -1,5 +1,5 @@
 {
-  "version": 20,
+  "version": 21,
   "sourceFile": "模型广场V1最终模型数据库_最终接入定价版.xlsx",
   "sourceSheet": "最终接入定价",
   "providerWhitelist": [
@@ -324,7 +324,7 @@
           "modelId": "nano_banana",
           "name": "Standard",
           "providerCode": "wavespeed",
-          "upstreamModelId": "google/nano-banana-2",
+          "upstreamModelId": "google/nano-banana-2/text-to-image",
           "costCents": 47,
           "costText": "0.47",
           "priceCents": 52,
@@ -335,8 +335,8 @@
           "marginText": "0.05",
           "personNote": "按模型规则",
           "refundPolicy": "按WaveSpeed失败规则",
-          "sourceUrl": "https://wavespeed.ai/models",
-          "remark": "低毛差",
+          "sourceUrl": "https://wavespeed.ai/models/google/nano-banana-2/text-to-image",
+          "remark": "固定 1K，防止 4K 请求按低档价格计费",
           "enabled": true,
           "sort": 10
         },
@@ -345,7 +345,7 @@
           "modelId": "nano_banana",
           "name": "Pro",
           "providerCode": "wavespeed",
-          "upstreamModelId": "google/nano-banana-pro",
+          "upstreamModelId": "google/nano-banana-pro/text-to-image",
           "costCents": 94,
           "costText": "0.94",
           "priceCents": 105,
@@ -356,8 +356,8 @@
           "marginText": "0.11",
           "personNote": "按模型规则",
           "refundPolicy": "按WaveSpeed失败规则",
-          "sourceUrl": "https://wavespeed.ai/models",
-          "remark": "低毛差",
+          "sourceUrl": "https://wavespeed.ai/models/google/nano-banana-pro/text-to-image",
+          "remark": "固定 2K，防止 4K 请求按低档价格计费",
           "enabled": true,
           "sort": 20
         }
@@ -413,7 +413,7 @@
           "modelId": "flux_2_klein",
           "name": "Standard",
           "providerCode": "wavespeed",
-          "upstreamModelId": "black-forest-labs/flux-2-klein",
+          "upstreamModelId": "wavespeed-ai/flux-2-klein-4b/text-to-image",
           "costCents": 5,
           "costText": "0.05",
           "priceCents": 6,
@@ -424,8 +424,8 @@
           "marginText": "0.01",
           "personNote": "按模型规则",
           "refundPolicy": "按WaveSpeed失败规则",
-          "sourceUrl": "https://wavespeed.ai/models",
-          "remark": "低毛差",
+          "sourceUrl": "https://wavespeed.ai/flux-2-klein-api",
+          "remark": "WaveSpeed 4B 文生图端点",
           "enabled": true,
           "sort": 10
         }
@@ -2502,7 +2502,7 @@
       "modelId": "nano_banana",
       "variantId": "nano_banana__01",
       "providerId": "provider_wavespeed",
-      "upstreamModelId": "google/nano-banana-2",
+      "upstreamModelId": "google/nano-banana-2/text-to-image",
       "protocol": "custom",
       "priority": 1,
       "enabled": false
@@ -2512,7 +2512,7 @@
       "modelId": "nano_banana",
       "variantId": "nano_banana__02",
       "providerId": "provider_wavespeed",
-      "upstreamModelId": "google/nano-banana-pro",
+      "upstreamModelId": "google/nano-banana-pro/text-to-image",
       "protocol": "custom",
       "priority": 1,
       "enabled": false
@@ -2532,7 +2532,7 @@
       "modelId": "flux_2_klein",
       "variantId": "flux_2_klein__01",
       "providerId": "provider_wavespeed",
-      "upstreamModelId": "black-forest-labs/flux-2-klein",
+      "upstreamModelId": "wavespeed-ai/flux-2-klein-4b/text-to-image",
       "protocol": "custom",
       "priority": 1,
       "enabled": false
