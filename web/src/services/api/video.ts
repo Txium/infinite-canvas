@@ -315,6 +315,9 @@ async function createAgnesVideoV25RequestBody(config: AiConfig, model: string, p
 
 async function createVideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
     const size = normalizeVideoSize(config.size);
+    if (model.trim().toLowerCase() === "infinitetalk__01") return createInfiniteTalkRequestBody(config, model, prompt, input);
+    if (model.trim().toLowerCase() === "infinitetalk__02") return createInfiniteTalkRequestBody(config, model, prompt, input);
+    if (model.trim().toLowerCase() === "seed3d_20__01") return createSeed3DRequestBody(model, prompt, input);
     if (isSeedanceNZMarketVariant(model)) return createSeedanceNZMarketRequestBody(config, model, prompt, input);
     if (isTmlabSeedanceConfig(config, model)) return createTmlabSeedanceRequestBody(config, model, prompt, input);
     if (isPaisioConfig(config)) return createPaisioVideoRequestBody(config, model, prompt, input);
@@ -400,6 +403,33 @@ async function createVideoRequestBody(config: AiConfig, model: string, prompt: s
     const audioFiles = kling ? [] : await Promise.all(input.audioReferences.map(mediaReferenceToFormValue));
     audioFiles.forEach((file) => body.append("audio_reference[]", file));
     return body;
+}
+
+async function createSeed3DRequestBody(model: string, prompt: string, input: Required<VideoReferenceInput>) {
+    const image = input.firstFrame || input.references[0];
+    if (!image) throw new VideoRequestError("Seed3D 2.0 需要上传一张物体参考图");
+    return {
+        model,
+        image: await ensureDurableImageReference(image),
+        prompt: prompt.trim(),
+        subdivision_level: "medium",
+    };
+}
+
+async function createInfiniteTalkRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
+    const image = input.firstFrame || input.references[0];
+    const audio = input.audioReferences[0];
+    if (!image) throw new VideoRequestError("InfiniteTalk 需要连接一张人物图片");
+    if (!audio) throw new VideoRequestError("InfiniteTalk 需要连接一段口播音频");
+    return {
+        model,
+        prompt: prompt.trim(),
+        image: await ensureDurableImageReference(image),
+        audio: await ensurePublicReference(await mediaReferenceToFormValue(audio), "音频"),
+        resolution: model.trim().toLowerCase() === "infinitetalk__02" ? "720p" : "480p",
+        seconds: normalizeVideoSeconds(config.videoSeconds),
+        seed: -1,
+    };
 }
 
 function isSeedanceNZMarketVariant(model: string) {

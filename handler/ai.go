@@ -192,6 +192,28 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 			return
 		}
 	}
+	if isWaveSpeedChannel(channel) && path == "/videos" && strings.HasPrefix(requestedModel, "infinitetalk__") {
+		body, contentType, err = normalizeWaveSpeedInfiniteTalkBody(body, contentType)
+		if err != nil {
+			log.Printf("AI proxy normalize WaveSpeed InfiniteTalk request failed: model=%s err=%v", modelName, err)
+			Fail(w, "InfiniteTalk 请求格式错误")
+			return
+		}
+	}
+	if isWaveSpeedChannel(channel) && path == "/videos" && strings.HasPrefix(requestedModel, "seed3d_20__") {
+		body, contentType, err = normalizeWaveSpeedSeed3DBody(body, contentType)
+		if err != nil {
+			Fail(w, err.Error())
+			return
+		}
+	}
+	if isWaveSpeedChannel(channel) && path == "/audio/speech" && strings.HasPrefix(requestedModel, "speech_26_hd__") {
+		body, contentType, err = normalizeWaveSpeedSpeechBody(body, contentType)
+		if err != nil {
+			Fail(w, err.Error())
+			return
+		}
+	}
 	if is302MidjourneyRequest(channel, modelName, path) {
 		body, contentType, err = normalize302MidjourneyRequest(body, contentType)
 		if err != nil {
@@ -380,6 +402,12 @@ func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.
 		}
 	}
 	if copyWaveSpeedImageResponse(w, response, request, channel, logContext, fail) {
+		if !failed && onSuccess != nil {
+			onSuccess()
+		}
+		return
+	}
+	if copyWaveSpeedAudioResponse(w, response, request, channel, logContext, fail) {
 		if !failed && onSuccess != nil {
 			onSuccess()
 		}
@@ -656,7 +684,7 @@ func agnesVideoQueryID(modelName string, path string) (string, bool) {
 
 func resolveAIProxyPath(channel model.ModelChannel, modelName string, path string) string {
 	if isWaveSpeedChannel(channel) {
-		if path == "/images/generations" || path == "/images/edits" || path == "/videos" {
+		if path == "/images/generations" || path == "/images/edits" || path == "/videos" || path == "/audio/speech" {
 			return "/" + strings.TrimLeft(strings.TrimSpace(modelName), "/")
 		}
 		if strings.HasPrefix(path, "/videos/") && !strings.HasSuffix(path, "/content") {

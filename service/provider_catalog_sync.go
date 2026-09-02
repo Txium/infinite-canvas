@@ -118,8 +118,15 @@ func SyncModelProviderCatalog(id string) (ProviderCatalogSyncResult, error) {
 		if upstream == "" || strings.ContainsAny(upstream, "* ") || strings.HasPrefix(upstream, "/") {
 			return false
 		}
-		if provider.Code == "wavespeed" && categories[route.ModelID] == "llm" {
-			return false
+		if provider.Code == "wavespeed" {
+			// WaveSpeed's OpenAI-compatible /models response is not a complete
+			// catalogue for its asynchronous generation endpoints. Those models
+			// are verified against their dedicated API pages instead of being
+			// disabled just because they are absent from /models.
+			switch categories[route.ModelID] {
+			case "llm", "person", "music", "voice", "3d", "tool":
+				return false
+			}
 		}
 		checked++
 		return true

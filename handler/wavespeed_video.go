@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -60,27 +61,53 @@ func normalizeWaveSpeedH3VideoBody(body []byte, contentType string, upstreamPath
 
 func applyH3ContentReferences(source map[string]any) {
 	items, ok := source["content"].([]any)
-	if !ok { return }
+	if !ok {
+		return
+	}
 	images, videos, audios := []string{}, []string{}, []string{}
 	for _, item := range items {
-		entry, ok := item.(map[string]any); if !ok { continue }
+		entry, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
 		typ, _ := entry["type"].(string)
 		var value string
 		switch typ {
 		case "image_url":
-			if nested, ok := entry["image_url"].(map[string]any); ok { value = strings.TrimSpace(fmt.Sprint(nested["url"])) }
-			if value != "" { images = append(images, value) }
+			if nested, ok := entry["image_url"].(map[string]any); ok {
+				value = strings.TrimSpace(fmt.Sprint(nested["url"]))
+			}
+			if value != "" {
+				images = append(images, value)
+			}
 		case "video_url":
-			if nested, ok := entry["video_url"].(map[string]any); ok { value = strings.TrimSpace(fmt.Sprint(nested["url"])) }
-			if value != "" { videos = append(videos, value) }
+			if nested, ok := entry["video_url"].(map[string]any); ok {
+				value = strings.TrimSpace(fmt.Sprint(nested["url"]))
+			}
+			if value != "" {
+				videos = append(videos, value)
+			}
 		case "audio_url":
-			if nested, ok := entry["audio_url"].(map[string]any); ok { value = strings.TrimSpace(fmt.Sprint(nested["url"])) }
-			if value != "" { audios = append(audios, value) }
+			if nested, ok := entry["audio_url"].(map[string]any); ok {
+				value = strings.TrimSpace(fmt.Sprint(nested["url"]))
+			}
+			if value != "" {
+				audios = append(audios, value)
+			}
 		}
 	}
-	if len(images) > 0 { source["image_urls"] = images; source["reference_images"] = images }
-	if len(videos) > 0 { source["video_urls"] = videos; source["reference_videos"] = videos }
-	if len(audios) > 0 { source["audio_urls"] = audios; source["reference_audios"] = audios }
+	if len(images) > 0 {
+		source["image_urls"] = images
+		source["reference_images"] = images
+	}
+	if len(videos) > 0 {
+		source["video_urls"] = videos
+		source["reference_videos"] = videos
+	}
+	if len(audios) > 0 {
+		source["audio_urls"] = audios
+		source["reference_audios"] = audios
+	}
 }
 
 func firstString(source map[string]any, names ...string) string {
@@ -158,4 +185,42 @@ func normalizeWaveSpeedH3Ratio(value string) string {
 	default:
 		return "16:9"
 	}
+}
+
+func normalizeWaveSpeedInfiniteTalkBody(body []byte, contentType string) ([]byte, string, error) {
+	if !strings.Contains(strings.ToLower(contentType), "application/json") {
+		return nil, contentType, errors.New("InfiniteTalk 仅支持 JSON 请求")
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, contentType, err
+	}
+	delete(payload, "model")
+	delete(payload, "seconds")
+	if strings.TrimSpace(waveSpeedString(payload["image"])) == "" || strings.TrimSpace(waveSpeedString(payload["audio"])) == "" {
+		return nil, contentType, errors.New("InfiniteTalk 需要人物图片和口播音频")
+	}
+	normalized, err := json.Marshal(payload)
+	return normalized, "application/json", err
+}
+
+func normalizeWaveSpeedSeed3DBody(body []byte, contentType string) ([]byte, string, error) {
+	if !strings.Contains(strings.ToLower(contentType), "application/json") {
+		return nil, contentType, errors.New("Seed3D 2.0 仅支持 JSON 请求")
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, contentType, err
+	}
+	delete(payload, "model")
+	if strings.TrimSpace(waveSpeedString(payload["image"])) == "" {
+		return nil, contentType, errors.New("Seed3D 2.0 需要物体参考图")
+	}
+	normalized, err := json.Marshal(payload)
+	return normalized, "application/json", err
+}
+
+func waveSpeedString(value any) string {
+	text, _ := value.(string)
+	return text
 }

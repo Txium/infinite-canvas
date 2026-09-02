@@ -648,6 +648,12 @@ func normalizeVideoCreateBody(body []byte, contentType string, modelName string,
 	if isWaveSpeedChannel(channel) && strings.Contains(strings.ToLower(upstreamPath), "/minimax-h3/") {
 		return normalizeWaveSpeedH3VideoBody(body, contentType, upstreamPath)
 	}
+	if isWaveSpeedChannel(channel) && strings.Contains(strings.ToLower(upstreamPath), "/infinitetalk") {
+		return normalizeWaveSpeedInfiniteTalkBody(body, contentType)
+	}
+	if isWaveSpeedChannel(channel) && strings.Contains(strings.ToLower(upstreamPath), "/seed3d-2.0/") {
+		return normalizeWaveSpeedSeed3DBody(body, contentType)
+	}
 	if service.IsGeminiChannel(channel) {
 		normalized, err := service.StripGeminiModelField(body, contentType)
 		return normalized, contentType, err

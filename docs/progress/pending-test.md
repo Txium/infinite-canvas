@@ -100,3 +100,10 @@ description: 当前版本已实现但仍需人工验证的变更项
 - `/register` 现在会进入登录页的注册模式，直接访问注册链接不再显示 404。
 - 页面 GitHub 入口已改为当前维护仓库 `Txium/infinite-canvas`。
 - 部署前仍需在 Render 创建或同步 Blueprint 数据库；数据库连接成功后验证注册、登录、跨设备画布同步和钱包流水。
+
+# WaveSpeed 数字人、语音与 3D
+
+- 模型广场新增 InfiniteTalk 480P/720P 数字人口播、MiniMax Speech 2.6 HD 文字转语音和 Seed3D 2.0 图片转 GLB，线路只使用已核对的 WaveSpeed 官方端点。
+- WaveSpeed `/models` 不再误停用人物、语音、音乐、3D 和工具类异步端点；这些类别必须按专用 API 页面核对。
+- InfiniteTalk 会校验人物图和口播音频并按官方 JSON 字段提交；Speech 2.6 HD 会轮询异步任务后下载音频；Seed3D 生成完成后提供 GLB 下载页。
+- 本地 TypeScript 检查和 Next.js 生产构建已通过；仍需在 staging 分别做一次小额数字人、语音和 3D 实付生成，核对上游结果、钱包冻结/结算和失败解冻。

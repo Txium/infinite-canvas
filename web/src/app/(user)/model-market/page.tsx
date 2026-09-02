@@ -52,7 +52,7 @@ export default function ModelMarketPage() {
         else if (item.category === "llm") updateConfig("textModel", variant.id);
         else updateConfig("videoModel", variant.id);
         updateConfig("model", variant.id);
-        router.push(`/canvas?marketModel=${encodeURIComponent(item.id)}&marketVariant=${encodeURIComponent(variant.id)}`);
+        router.push(item.category === "3d" ? `/3d?marketVariant=${encodeURIComponent(variant.id)}` : `/canvas?marketModel=${encodeURIComponent(item.id)}&marketVariant=${encodeURIComponent(variant.id)}`);
     };
 
     return (

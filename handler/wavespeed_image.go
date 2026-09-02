@@ -144,7 +144,7 @@ func copyWaveSpeedImageResponse(w http.ResponseWriter, response *http.Response, 
 		return true
 	}
 	if len(outputs) == 0 && taskID != "" && !waveSpeedDone(status) {
-		outputs, errorMessage = pollWaveSpeedImageTask(request, channel, taskID)
+		outputs, errorMessage = pollWaveSpeedTask(request, channel, taskID, "图片")
 	}
 	if errorMessage != "" || len(outputs) == 0 {
 		if onFailure != nil {
@@ -157,7 +157,7 @@ func copyWaveSpeedImageResponse(w http.ResponseWriter, response *http.Response, 
 	return true
 }
 
-func pollWaveSpeedImageTask(request *http.Request, channel model.ModelChannel, taskID string) ([]string, string) {
+func pollWaveSpeedTask(request *http.Request, channel model.ModelChannel, taskID string, mediaLabel string) ([]string, string) {
 	pollURL := service.BuildModelChannelURL(channel, "/predictions/"+url.PathEscape(taskID)+"/result")
 	for attempt := 0; attempt < 300; attempt++ {
 		if attempt > 0 {
@@ -189,13 +189,13 @@ func pollWaveSpeedImageTask(request *http.Request, channel model.ModelChannel, t
 			return outputs, ""
 		}
 		if waveSpeedFailed(status) {
-			return nil, "WaveSpeed 图片生成失败"
+			return nil, "WaveSpeed " + mediaLabel + "生成失败"
 		}
 		if waveSpeedDone(status) {
-			return nil, "WaveSpeed 图片任务完成但没有返回图片"
+			return nil, "WaveSpeed " + mediaLabel + "任务完成但没有返回结果"
 		}
 	}
-	return nil, "WaveSpeed 图片任务超时"
+	return nil, "WaveSpeed " + mediaLabel + "任务超时"
 }
 
 func readWaveSpeedTask(payload []byte) (string, []string, string, string) {
