@@ -1,9 +1,9 @@
 "use client";
 
-import { App, Button, Empty, Input, Select, Tag } from "antd";
+import { Alert, App, Button, Empty, Input, Select, Skeleton, Tag } from "antd";
 import { AudioLines, Box, Flame, ImageIcon, MessageSquare, Music2, Search, Settings2, Sparkles, UserRound, Video, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { fetchModelMarket, type MarketModelCard, type MarketModelVariant } from "@/services/api/model-market";
 import { formatCNY } from "@/constant/credits";
@@ -31,13 +31,39 @@ export default function ModelMarketPage() {
     const [category, setCategory] = useState<(typeof categories)[number]["value"]>("all");
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState("");
     const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
     const updateConfig = useConfigStore((state) => state.updateConfig);
     const user = useUserStore((state) => state.user);
 
-    useEffect(() => {
-        void fetchModelMarket().then(setItems).catch((error) => message.error(error instanceof Error ? error.message : "模型广场加载失败")).finally(() => setLoading(false));
+    const loadMarket = useCallback(async (notifyOnFailure = false) => {
+        setLoading(true);
+        setLoadError("");
+        let lastError: unknown;
+        for (const delay of [0, 1500, 3000]) {
+            if (delay) await new Promise((resolve) => window.setTimeout(resolve, delay));
+            try {
+                setItems(await fetchModelMarket());
+                setLoading(false);
+                return;
+            } catch (error) {
+                lastError = error;
+            }
+        }
+        const errorMessage = lastError instanceof Error ? lastError.message : "模型广场加载失败";
+        setLoadError(errorMessage);
+        setLoading(false);
+        if (notifyOnFailure) message.error(errorMessage);
     }, [message]);
+
+    useEffect(() => {
+        void loadMarket();
+    }, [loadMarket]);
+
+    const availableCategories = useMemo(() => {
+        const live = new Set(items.filter((item) => item.available).map((item) => item.category));
+        return categories.filter((item) => item.value === "all" || (item.value === "hot" ? items.some((model) => model.available && model.featured) : live.has(item.value)));
+    }, [items]);
 
     const visible = useMemo(() => {
         const keyword = query.trim().toLowerCase();
@@ -63,10 +89,11 @@ export default function ModelMarketPage() {
                     {isAdminRole(user?.role) ? <Button icon={<Settings2 className="size-4" />} onClick={() => router.push("/admin/model-routing")}>管理模型线路</Button> : null}
                 </section>
                 <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-stone-200 p-4 dark:border-stone-800 md:flex-row md:items-center md:justify-between">
-                    <div className="flex flex-wrap gap-2">{categories.map((item) => <Button key={item.value} type={category === item.value ? "primary" : "default"} icon={item.icon} onClick={() => setCategory(item.value)}>{item.label}</Button>)}</div>
+                    <div className="flex flex-wrap gap-2">{availableCategories.map((item) => <Button key={item.value} type={category === item.value ? "primary" : "default"} icon={item.icon} onClick={() => setCategory(item.value)}>{item.label}</Button>)}</div>
                     <Input allowClear value={query} onChange={(event) => setQuery(event.target.value)} prefix={<Search className="size-4" />} placeholder="搜索模型" className="md:max-w-xs" />
                 </div>
-                {!loading && visible.length === 0 ? <Empty description="暂无模型" /> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{visible.map((item) => {
+                {loadError ? <Alert className="mb-5" type="error" showIcon message="模型线路暂时未连接" description="服务刚启动时可能需要几十秒，请稍后重试。" action={<Button size="small" onClick={() => void loadMarket(true)}>重新加载</Button>} /> : null}
+                {loading && items.length === 0 ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{Array.from({ length: 8 }, (_, index) => <article key={index} className="rounded-2xl border border-stone-200 p-5 dark:border-stone-800"><Skeleton active paragraph={{ rows: 4 }} /></article>)}</div> : !loadError && visible.length === 0 ? <Empty description={query ? "没有匹配的模型" : "当前分类暂无可用模型"} /> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{visible.map((item) => {
                     const variant = selectedVariant(item);
                     const variantAvailable = Boolean(variant && item.availableVariantIds.includes(variant.id));
                     return <article key={item.id} className="rounded-2xl border border-stone-200 p-5 dark:border-stone-800">

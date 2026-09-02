@@ -385,7 +385,6 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const [maskEditChannelId, setMaskEditChannelId] = useState("");
     const [splitNodeId, setSplitNodeId] = useState<string | null>(null);
     const [upscaleNodeId, setUpscaleNodeId] = useState<string | null>(null);
-    const [superResolveNodeId, setSuperResolveNodeId] = useState<string | null>(null);
     const [angleNodeId, setAngleNodeId] = useState<string | null>(null);
     const [previewNodeId, setPreviewNodeId] = useState<string | null>(null);
     const [agentPanel, setAgentPanel] = useState(DEFAULT_CANVAS_AGENT_PANEL);
@@ -840,7 +839,6 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const currentMaskEditChannelId = maskEditChannelId || maskEditConfig?.imageChannelId || "";
     const splitNode = splitNodeId ? nodeById.get(splitNodeId) || null : null;
     const upscaleNode = upscaleNodeId ? nodeById.get(upscaleNodeId) || null : null;
-    const superResolveNode = superResolveNodeId ? nodeById.get(superResolveNodeId) || null : null;
     const angleNode = angleNodeId ? nodeById.get(angleNodeId) || null : null;
     const previewNode = previewNodeId ? nodeById.get(previewNodeId) || null : null;
     const openDirectorNode = openDirectorNodeId ? nodeById.get(openDirectorNodeId) || null : null;
@@ -2341,6 +2339,50 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             hideLoading();
         }
     }, [message]);
+
+    const superResolveImageNode = useCallback(
+        async (node: CanvasNodeData) => {
+            if (!node.metadata?.content) return;
+            const generationConfig = { ...buildGenerationConfig(effectiveConfig, node, "image"), count: "1", quality: "high" };
+            if (!isAiConfigReady(generationConfig, generationConfig.model)) {
+                openConfigDialog(true);
+                return;
+            }
+            const childId = nanoid();
+            const clientTaskId = `client_image_task_${childId}`;
+            const startedAt = Date.now();
+            const prompt = "对参考图进行高保真 AI 超分辨率修复：严格保持原图的主体、人物身份、文字内容、构图、颜色、光影和风格不变；仅提升清晰度与细节，修复压缩噪点、锯齿和轻微模糊，不得新增、删除或改动画面元素。";
+            const referenceImages = [{ id: node.id, name: `image-${node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey }];
+            const generationMetadata = buildImageGenerationMetadata("edit", generationConfig, 1, referenceImages);
+            const childNode: CanvasNodeData = {
+                id: childId,
+                type: CanvasNodeType.Image,
+                title: "AI 超分结果",
+                position: { x: node.position.x + node.width + 96, y: node.position.y },
+                width: node.width,
+                height: node.height,
+                metadata: { prompt, status: NODE_STATUS_LOADING, imageTaskId: clientTaskId, startedAt, progress: 0, ...generationMetadata },
+            };
+            setRunningNodeId(childId);
+            setNodes((prev) => [...prev, childNode]);
+            setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: childId }]);
+            setSelectedNodeIds(new Set([childId]));
+            setSelectedConnectionId(null);
+            setDialogNodeId(childId);
+            try {
+                const task = await createCanvasImageTask(generationConfig, prompt, referenceImages, { nodeId: childId, sourceId: projectId, clientTaskId });
+                setNodes((prev) => applyCanvasImageTaskUpdate(prev, childId, task, startedAt, { width: node.width, height: node.height }));
+                setConnections((prev) => applyCanvasImageTaskConnections(prev, childId, task));
+            } catch (error) {
+                const errorDetails = error instanceof Error ? error.message : "AI 超分失败";
+                message.error(errorDetails);
+                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails } } : item)));
+            } finally {
+                setRunningNodeId(null);
+            }
+        },
+        [effectiveConfig, isAiConfigReady, message, openConfigDialog, projectId],
+    );
 
     const generateAngleNode = useCallback(
         async (node: CanvasNodeData, params: CanvasImageAngleParams) => {
@@ -3980,7 +4022,16 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     onCrop={(node) => setCropNodeId(node.id)}
                     onSplit={(node) => setSplitNodeId(node.id)}
                     onUpscale={(node) => setUpscaleNodeId(node.id)}
-                    onSuperResolve={(node) => setSuperResolveNodeId(node.id)}
+                    onSuperResolve={(node) => {
+                        Modal.confirm({
+                            title: "AI 超分",
+                            content: "将调用当前图片模型生成高保真清晰版，并按该模型价格扣费。原图会保留。",
+                            okText: "确认生成",
+                            cancelText: "取消",
+                            centered: true,
+                            onOk: () => superResolveImageNode(node),
+                        });
+                    }}
                     onAngle={(node) => setAngleNodeId(node.id)}
                     onViewImage={(node) => setPreviewNodeId(node.id)}
                     onReversePrompt={createImageReversePromptNodes}
@@ -4105,10 +4156,6 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 {splitNode?.metadata?.content ? <CanvasNodeSplitDialog dataUrl={splitNode.metadata.content} open={Boolean(splitNode)} onClose={() => setSplitNodeId(null)} onConfirm={(params) => splitImageNode(splitNode!, params)} /> : null}
 
                 {upscaleNode?.metadata?.content ? <CanvasNodeUpscaleDialog dataUrl={upscaleNode.metadata.content} open={Boolean(upscaleNode)} onClose={() => setUpscaleNodeId(null)} onConfirm={(params) => void upscaleImageNode(upscaleNode!, params)} /> : null}
-
-                <Modal title="AI 超分" open={Boolean(superResolveNode?.metadata?.content)} centered footer={null} onCancel={() => setSuperResolveNodeId(null)}>
-                    <div className="py-8 text-center text-base font-medium">暂未实现</div>
-                </Modal>
 
                 {angleNode?.metadata?.content ? <CanvasNodeAngleDialog dataUrl={angleNode.metadata.content} open={Boolean(angleNode)} onClose={() => setAngleNodeId(null)} onConfirm={(params) => void generateAngleNode(angleNode!, params)} /> : null}
 
