@@ -407,6 +407,9 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | `ai_settle` | 生成成功后从冻结余额正式结算 |
 | `ai_release` | 生成失败后从冻结余额退回可用余额 |
 | `recharge` | 管理员审核充值订单后到账 |
+| `payment_refund_hold` | 买家提交原路退款时锁定未消费余额 |
+| `payment_refund_release` | 退款被拒绝或支付宝明确失败时解除锁定 |
+| `payment_refund` | 支付宝原路退款成功确认流水 |
 
 ### recharge_orders
 
@@ -427,6 +430,27 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | `reviewed_at` | string | 审核时间 |
 | `created_at` | string | 创建时间 |
 | `updated_at` | string | 更新时间 |
+
+### refund_orders
+
+买家对已完成的支付宝充值申请原路退款。申请时在同一事务内从可用余额锁定退款金额，且同一充值订单的待审核、处理中和成功退款合计不得超过原充值金额。管理员确认后使用原支付宝交易号与唯一退款请求号调用 `alipay.trade.refund`；网络或响应不明确时保持 `processing`，只能通过退款查询继续核对，避免现金已退而站内余额又恢复。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 唯一退款请求号，也是支付宝 `out_request_no` |
+| `recharge_order_id` | string | 原充值订单 ID |
+| `user_id` | string | 买家用户 ID |
+| `amount_cents` | number | 退款金额，单位为分 |
+| `reason` | string | 买家退款原因 |
+| `status` | string | `pending`、`processing`、`succeeded`、`rejected`、`failed` |
+| `provider_trade_id` | string | 原支付宝交易号，不向普通用户接口返回 |
+| `provider_refund_amount_cents` | number | 支付宝确认的退款金额 |
+| `admin_remark` | string | 管理员备注 |
+| `failure_message` | string | 失败原因或待查询提示 |
+| `reviewed_by` | string | 审核管理员 ID |
+| `reviewed_at` | string | 审核时间 |
+| `created_at` | string | 创建时间 |
+| `updated_at` | string | 更新时间或退款成功确认时间 |
 
 ### model_providers
 

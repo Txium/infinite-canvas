@@ -131,6 +131,9 @@ func signPayment(params map[string]string, key string) string {
 
 func ListUserRechargeOrders(userID string) (model.RechargeOrderList, error) {
 	items, err := repository.ListUserRechargeOrders(userID)
+	if err == nil {
+		err = enrichRefundableRechargeOrders(items, userID)
+	}
 	return model.RechargeOrderList{Items: items, Total: len(items)}, err
 }
 
@@ -144,7 +147,42 @@ func ListRechargeOrders(q model.Query) (model.RechargeOrderList, error) {
 			items[i].Username = user.Username
 		}
 	}
+	if err := enrichRefundableRechargeOrders(items, ""); err != nil {
+		return model.RechargeOrderList{}, err
+	}
 	return model.RechargeOrderList{Items: items, Total: int(total)}, nil
+}
+
+func enrichRefundableRechargeOrders(items []model.RechargeOrder, userID string) error {
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	reserved, err := repository.RefundReservedAmounts(ids)
+	if err != nil {
+		return err
+	}
+	available := int(^uint(0) >> 1)
+	if userID != "" {
+		if user, ok, err := repository.GetUserByID(userID); err != nil {
+			return err
+		} else if ok {
+			available = user.Credits
+		}
+	}
+	for i := range items {
+		if items[i].Status != model.RechargeOrderApproved || items[i].PaymentMethod != "alipay" || items[i].ProviderTradeID == "" {
+			continue
+		}
+		items[i].RefundableCents = items[i].Credits - reserved[items[i].ID]
+		if items[i].RefundableCents > available {
+			items[i].RefundableCents = available
+		}
+		if items[i].RefundableCents < 0 {
+			items[i].RefundableCents = 0
+		}
+	}
+	return nil
 }
 
 func ReviewRechargeOrder(id string, status model.RechargeOrderStatus, adminID, remark string) (model.RechargeOrder, error) {

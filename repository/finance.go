@@ -26,11 +26,21 @@ func AdminFinanceSummary(todayStart, period, periodStart, periodEnd string) (mod
 	result.UserCount = wallet.UserCount
 	result.AvailableBalanceCents = wallet.AvailableBalanceCents
 	result.FrozenBalanceCents = wallet.FrozenBalanceCents
-	result.UnconsumedBalanceCents = wallet.AvailableBalanceCents + wallet.FrozenBalanceCents
+	if err := db.Model(&model.RefundOrder{}).Where("status IN ?", []model.RefundOrderStatus{model.RefundOrderPending, model.RefundOrderProcessing}).
+		Select("COALESCE(SUM(amount_cents), 0)").Scan(&result.RefundReserveCents).Error; err != nil {
+		return result, err
+	}
+	result.UnconsumedBalanceCents = wallet.AvailableBalanceCents + wallet.FrozenBalanceCents + result.RefundReserveCents
 	if err := scanFinancePeriod(db.Model(&model.CreditLog{}), &result.AllTime); err != nil {
 		return result, err
 	}
+	if err := scanRefundPeriod(db, &result.AllTime, "", ""); err != nil {
+		return result, err
+	}
 	if err := scanFinancePeriod(db.Model(&model.CreditLog{}).Where("created_at >= ?", todayStart), &result.Today); err != nil {
+		return result, err
+	}
+	if err := scanRefundPeriod(db, &result.Today, todayStart, ""); err != nil {
 		return result, err
 	}
 	result.RealizedRevenueCents = result.AllTime.RevenueCents
@@ -76,6 +86,9 @@ func AdminFinanceSummary(todayStart, period, periodStart, periodEnd string) (mod
 		periodLogs = periodLogs.Where("created_at < ?", periodEnd)
 	}
 	if err := scanFinancePeriod(periodLogs, &result.Selected); err != nil {
+		return result, err
+	}
+	if err := scanRefundPeriod(db, &result.Selected, periodStart, periodEnd); err != nil {
 		return result, err
 	}
 	providerCosts, selectedProviderCost, err := providerCostSummaries(db, todayStart, periodStart, periodEnd)
@@ -247,4 +260,19 @@ func scanFinancePeriod(query *gorm.DB, result *model.FinancePeriodSummary) error
 		model.CreditLogTypeAISettle,
 		model.CreditLogTypeAIRelease,
 	).Scan(result).Error
+}
+
+func scanRefundPeriod(db *gorm.DB, result *model.FinancePeriodSummary, start, end string) error {
+	query := db.Model(&model.RefundOrder{}).Where("status = ?", model.RefundOrderSucceeded)
+	if start != "" {
+		query = query.Where("updated_at >= ?", start)
+	}
+	if end != "" {
+		query = query.Where("updated_at < ?", end)
+	}
+	if err := query.Select("COALESCE(SUM(amount_cents), 0)").Scan(&result.RefundCents).Error; err != nil {
+		return err
+	}
+	result.NetRechargeCents = result.RechargeCents - result.RefundCents
+	return nil
 }

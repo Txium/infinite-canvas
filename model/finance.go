@@ -1,11 +1,13 @@
 package model
 
 type FinancePeriodSummary struct {
-	RechargeCents int64 `json:"rechargeCents"`
-	RevenueCents  int64 `json:"revenueCents"`
-	ReleasedCents int64 `json:"releasedCents"`
-	SettledTasks  int64 `json:"settledTasks"`
-	ReleasedTasks int64 `json:"releasedTasks"`
+	RechargeCents    int64 `json:"rechargeCents"`
+	RefundCents      int64 `json:"refundCents"`
+	NetRechargeCents int64 `json:"netRechargeCents"`
+	RevenueCents     int64 `json:"revenueCents"`
+	ReleasedCents    int64 `json:"releasedCents"`
+	SettledTasks     int64 `json:"settledTasks"`
+	ReleasedTasks    int64 `json:"releasedTasks"`
 }
 
 type AdminFinanceSummary struct {
@@ -19,6 +21,7 @@ type AdminFinanceSummary struct {
 	RealizedRevenueCents       int64                 `json:"realizedRevenueCents"`
 	ActualProviderCostCents    int64                 `json:"actualProviderCostCents"`
 	ProviderReserveCents       int64                 `json:"providerReserveCents"`
+	RefundReserveCents         int64                 `json:"refundReserveCents"`
 	GrossProfitCents           int64                 `json:"grossProfitCents"`
 	PaymentFeeCents            int64                 `json:"paymentFeeCents"`
 	CompensationCents          int64                 `json:"compensationCents"`

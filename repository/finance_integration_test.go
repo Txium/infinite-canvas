@@ -277,3 +277,66 @@ func TestCanonicalFinanceProviderAcceptsRouteIDs(t *testing.T) {
 		}
 	}
 }
+
+func TestRefundRequestReservesUnusedBalanceAndRejectRestoresOnce(t *testing.T) {
+	useFinanceTestDB(t)
+	seedFinanceUser(t, 1000, 0)
+	database, _ := DB()
+	recharge := model.RechargeOrder{ID: "recharge-refund-a", UserID: "user-1", AmountCents: 1000, Credits: 1000, Status: model.RechargeOrderApproved, PaymentMethod: "alipay", ProviderTradeID: "trade-refund-a"}
+	if err := database.Create(&recharge).Error; err != nil {
+		t.Fatal(err)
+	}
+	refund := model.RefundOrder{ID: "refund-a", RechargeOrderID: recharge.ID, UserID: "user-1", AmountCents: 600, Reason: "unused", Status: model.RefundOrderPending}
+	if _, err := CreateRefundOrder(refund, "2026-08-30T10:00:00Z"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := CreateRefundOrder(model.RefundOrder{ID: "refund-over", RechargeOrderID: recharge.ID, UserID: "user-1", AmountCents: 500, Reason: "over", Status: model.RefundOrderPending}, "2026-08-30T10:00:01Z"); err == nil {
+		t.Fatal("refund above remaining original payment unexpectedly accepted")
+	}
+	user, _, _ := GetUserByID("user-1")
+	if user.Credits != 400 {
+		t.Fatalf("credits=%d, want 400 while refund is reserved", user.Credits)
+	}
+	if _, err := ReleaseRefundOrder(refund.ID, model.RefundOrderRejected, "admin-1", "not eligible", "", "2026-08-30T10:01:00Z"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReleaseRefundOrder(refund.ID, model.RefundOrderRejected, "admin-1", "replay", "", "2026-08-30T10:01:01Z"); err != nil {
+		t.Fatal(err)
+	}
+	user, _, _ = GetUserByID("user-1")
+	if user.Credits != 1000 {
+		t.Fatalf("credits=%d, want 1000 after rejection replay", user.Credits)
+	}
+}
+
+func TestSuccessfulPaymentRefundIsIdempotentAndKeepsBalanceDeducted(t *testing.T) {
+	useFinanceTestDB(t)
+	seedFinanceUser(t, 1000, 0)
+	database, _ := DB()
+	recharge := model.RechargeOrder{ID: "recharge-refund-b", UserID: "user-1", AmountCents: 1000, Credits: 1000, Status: model.RechargeOrderApproved, PaymentMethod: "alipay", ProviderTradeID: "trade-refund-b"}
+	refund := model.RefundOrder{ID: "refund-b", RechargeOrderID: recharge.ID, UserID: "user-1", AmountCents: 1000, Reason: "unused", Status: model.RefundOrderPending}
+	if err := database.Create(&recharge).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := CreateRefundOrder(refund, "2026-08-30T11:00:00Z"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := StartRefundOrder(refund.ID, "admin-1", "2026-08-30T11:01:00Z"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := CompleteRefundOrder(refund.ID, 1000, "2026-08-30T11:02:00Z"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := CompleteRefundOrder(refund.ID, 1000, "2026-08-30T11:02:01Z"); err != nil {
+		t.Fatal(err)
+	}
+	user, _, _ := GetUserByID("user-1")
+	if user.Credits != 0 {
+		t.Fatalf("credits=%d, want 0 after cash refund", user.Credits)
+	}
+	var paidLogs int64
+	database.Model(&model.CreditLog{}).Where("type = ?", model.CreditLogTypePaymentRefund).Count(&paidLogs)
+	if paidLogs != 1 {
+		t.Fatalf("payment refund logs=%d, want 1", paidLogs)
+	}
+}

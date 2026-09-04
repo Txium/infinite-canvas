@@ -9,7 +9,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/tigerowo/infinite-canvas/config"
@@ -33,6 +37,38 @@ func alipayTestKeys(t *testing.T) (*rsa.PrivateKey, string, string, string) {
 	privatePEM := string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privateDER}))
 	publicPEM := string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: publicDER}))
 	return privateKey, privatePEM, publicPEM, base64.StdEncoding.EncodeToString(publicDER)
+}
+
+func TestCreateOfficialAlipayRefundVerifiesSignedResponse(t *testing.T) {
+	privateKey, privatePEM, _, publicRaw := alipayTestKeys(t)
+	rawResponse := []byte(`{"code":"10000","msg":"Success","trade_no":"trade-r1","out_trade_no":"recharge-r1","refund_fee":"10.00","fund_change":"Y"}`)
+	digest := sha256.Sum256(rawResponse)
+	signed, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, digest[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatal(err)
+		}
+		if r.Form.Get("method") != "alipay.trade.refund" || !strings.Contains(r.Form.Get("biz_content"), `"out_request_no":"refund-r1"`) {
+			t.Fatalf("unexpected refund request: %v", r.Form)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"alipay_trade_refund_response":%s,"sign":%q}`, rawResponse, base64.StdEncoding.EncodeToString(signed))
+	}))
+	defer server.Close()
+	previous := config.Cfg
+	config.Cfg = config.Config{AlipayAppID: "app-r1", AlipayAppPrivateKey: privatePEM, AlipayPublicKey: publicRaw, AlipaySellerID: "seller-r1", AlipayGatewayURL: server.URL, AlipayPaymentEnabled: true, PublicBaseURL: "https://canvas.example.com"}
+	t.Cleanup(func() { config.Cfg = previous })
+
+	amount, err := CreateOfficialAlipayRefund(model.RechargeOrder{ProviderTradeID: "trade-r1"}, model.RefundOrder{ID: "refund-r1", AmountCents: 1000, Reason: "unused"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if amount != 1000 {
+		t.Fatalf("refund amount=%d, want 1000", amount)
+	}
 }
 
 func TestAlipayKeyParsersAcceptPEMAndRawBase64(t *testing.T) {

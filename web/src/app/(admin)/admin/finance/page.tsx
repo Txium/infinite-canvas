@@ -26,9 +26,11 @@ export default function AdminFinancePage() {
         <Alert type="info" showIcon message="提现不在画布里执行" description="用户付款会进入你配置的微信或支付宝商户账户；可提现金额、手续费和结算时间以对应商户后台为准。画布后台负责记录充值、消费、退款和用户未消费余额，不能把累计消费直接当作可提现利润。" action={<Button href="/admin/model-routing">调整模型售价</Button>} />
         <Space className="w-full justify-between"><Typography.Title level={4} className="!mb-0">资金总览</Typography.Title><Segmented value={period} onChange={(value) => setPeriod(String(value))} options={[{label:"今日",value:"today"},{label:"昨日",value:"yesterday"},{label:"7天",value:"7d"},{label:"30天",value:"30d"},{label:"累计",value:"all"}]} /></Space>
         <Row gutter={[16,16]}>
-            <Col xs={24} md={12} xl={6}><Card><Statistic title="累计实际充值" value={formatCNY(summary?.selected?.rechargeCents || 0)} /></Card></Col>
+            <Col xs={24} md={12} xl={6}><Card><Statistic title="实际充值净额" value={formatCNY(summary?.selected?.netRechargeCents || 0)} /></Card></Col>
+			<Col xs={24} md={12} xl={6}><Card><Statistic title="支付宝原路退款" value={formatCNY(summary?.selected?.refundCents || 0)} /></Card></Col>
             <Col xs={24} md={12} xl={6}><Card><Statistic title="用户未消费余额" value={formatCNY(summary?.unconsumedBalanceCents || 0)} /></Card></Col>
             <Col xs={24} md={12} xl={6}><Card><Statistic title="冻结余额" value={formatCNY(summary?.frozenBalanceCents || 0)} /></Card></Col>
+			<Col xs={24} md={12} xl={6}><Card><Statistic title="退款处理中余额" value={formatCNY(summary?.refundReserveCents || 0)} /></Card></Col>
             <Col xs={24} md={12} xl={6}><Card><Statistic title="累计生成收入" value={formatCNY(summary?.selected?.revenueCents || 0)} /></Card></Col>
             <Col xs={24} md={12} xl={6}><Card><Statistic title="实际上游成本" value={formatCNY(summary?.selectedProviderCostCents || 0)} /></Card></Col>
             <Col xs={24} md={12} xl={6}><Card><Statistic title="Provider Reserve" value={formatCNY(summary?.providerReserveCents || 0)} /></Card></Col>
@@ -53,7 +55,8 @@ export default function AdminFinancePage() {
             <Col xs={24} md={12} xl={6}><Card><Statistic title="用户数" value={summary?.userCount || 0} /></Card></Col>
             <Col xs={24} md={12} xl={6}><Card><Statistic title="用户可用余额" value={formatCNY(summary?.availableBalanceCents || 0)} /></Card></Col>
             <Col xs={24} md={12} xl={6}><Card><Statistic title="任务冻结余额" value={formatCNY(summary?.frozenBalanceCents || 0)} /></Card></Col>
-            <Col xs={24} md={12} xl={6}><Card><Statistic title="累计充值到账" value={formatCNY(allTime?.rechargeCents || 0)} /></Card></Col>
+            <Col xs={24} md={12} xl={6}><Card><Statistic title="累计充值净额" value={formatCNY(allTime?.netRechargeCents || 0)} /></Card></Col>
+			<Col xs={24} md={12} xl={6}><Card><Statistic title="累计原路退款" value={formatCNY(allTime?.refundCents || 0)} /></Card></Col>
             <Col xs={24} md={12} xl={6}><Card><Statistic title="累计生成收入" value={formatCNY(allTime?.revenueCents || 0)} /></Card></Col>
             <Col xs={24} md={12} xl={6}><Card><Statistic title="累计失败解冻" value={formatCNY(allTime?.releasedCents || 0)} /></Card></Col>
             <Col xs={24} md={12} xl={6}><Card><Statistic title="未消费预付余额" value={formatCNY(summary?.unconsumedBalanceCents || 0)} /></Card></Col>

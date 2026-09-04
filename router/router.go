@@ -100,6 +100,8 @@ func New() *gin.Engine {
 	v1.GET("/wallet/recharge-orders", gin.WrapF(handler.UserRechargeOrders))
 	v1.POST("/wallet/recharge-orders", gin.WrapF(handler.CreateRechargeOrder))
 	v1.GET("/wallet/credit-logs", gin.WrapF(handler.UserCreditLogs))
+	v1.GET("/wallet/refund-orders", gin.WrapF(handler.UserRefundOrders))
+	v1.POST("/wallet/refund-orders", gin.WrapF(handler.CreateRefundOrder))
 	v1.GET("/generation-tasks", gin.WrapF(handler.UserGenerationTasks))
 	v1.GET("/canvas/projects", gin.WrapF(handler.UserCanvasProjects))
 	v1.POST("/canvas/projects", gin.WrapF(handler.SaveUserCanvasProject))
@@ -145,6 +147,10 @@ func New() *gin.Engine {
 	admin.GET("/recharge-orders", gin.WrapF(handler.AdminRechargeOrders))
 	admin.POST("/recharge-orders/:id/review", func(c *gin.Context) {
 		handler.AdminReviewRechargeOrder(c.Writer, c.Request, c.Param("id"))
+	})
+	admin.GET("/refund-orders", gin.WrapF(handler.AdminRefundOrders))
+	admin.POST("/refund-orders/:id/review", func(c *gin.Context) {
+		handler.AdminReviewRefundOrder(c.Writer, c.Request, c.Param("id"))
 	})
 	admin.GET("/ai-logs", gin.WrapF(handler.AdminAICallLogs))
 	admin.GET("/generation-tasks", gin.WrapF(handler.AdminGenerationTasks))
