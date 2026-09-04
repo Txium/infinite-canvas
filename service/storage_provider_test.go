@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/tigerowo/infinite-canvas/model"
@@ -27,6 +28,27 @@ func TestValidateEnabledStorageProviderTypes(t *testing.T) {
 	}
 	if err := validateEnabledStorageProviderTypes([]model.StorageProvider{{Type: "unknown"}}); err == nil {
 		t.Fatal("unknown provider type should be rejected")
+	}
+}
+
+func TestNewS3RequestSignsEndpointPathPrefix(t *testing.T) {
+	provider := model.StorageProvider{
+		Type:            model.StorageProviderTypeS3,
+		Endpoint:        "https://project.storage.supabase.co/storage/v1/s3",
+		Region:          "us-west-2",
+		Bucket:          "assets",
+		AccessKeyID:     "key",
+		SecretAccessKey: "secret",
+	}
+	request, err := newS3Request("PUT", provider, "canvas/user/file name.png", strings.NewReader("test"), 4)
+	if err != nil {
+		t.Fatalf("newS3Request() error = %v", err)
+	}
+	if got, want := request.URL.EscapedPath(), "/storage/v1/s3/assets/canvas/user/file%20name.png"; got != want {
+		t.Fatalf("escaped path = %q, want %q", got, want)
+	}
+	if authorization := request.Header.Get("Authorization"); !strings.Contains(authorization, "Credential=key/") {
+		t.Fatalf("request was not signed with configured key: %q", authorization)
 	}
 }
 

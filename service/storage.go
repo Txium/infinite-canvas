@@ -802,7 +802,12 @@ func signS3Request(request *http.Request, provider model.StorageProvider, object
 	request.Header.Set("Host", request.URL.Host)
 	request.Header.Set("X-Amz-Date", amzDate)
 	request.Header.Set("X-Amz-Content-Sha256", payloadHash)
-	canonicalURI := "/" + provider.Bucket + "/" + strings.ReplaceAll(url.PathEscape(objectKey), "%2F", "/")
+	// Sign the complete request path, including any path prefix carried by an
+	// S3-compatible endpoint. Supabase Storage uses /storage/v1/s3 before the
+	// bucket name, while providers such as R2 commonly use a root endpoint.
+	// Omitting that endpoint prefix makes the wire request and canonical
+	// request differ, which S3 correctly rejects with SignatureDoesNotMatch.
+	canonicalURI := request.URL.EscapedPath()
 	canonicalHeaders := "host:" + request.URL.Host + "\n" + "x-amz-content-sha256:" + payloadHash + "\n" + "x-amz-date:" + amzDate + "\n"
 	signedHeaders := "host;x-amz-content-sha256;x-amz-date"
 	canonicalRequest := request.Method + "\n" + canonicalURI + "\n" + request.URL.RawQuery + "\n" + canonicalHeaders + "\n" + signedHeaders + "\n" + payloadHash
