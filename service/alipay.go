@@ -130,33 +130,47 @@ func canonicalAlipayParams(params map[string]string) string {
 	return strings.Join(parts, "&")
 }
 
-func normalizedPEM(value string) []byte {
+func decodeKeyDER(value string) ([]byte, error) {
 	value = strings.TrimSpace(strings.ReplaceAll(value, `\n`, "\n"))
-	return []byte(value)
+	if block, _ := pem.Decode([]byte(value)); block != nil {
+		return block.Bytes, nil
+	}
+	// The Alipay console normally displays application and Alipay public
+	// keys as raw Base64 without PEM headers. Accept that format directly so
+	// the official console value can be stored in a Render secret as-is.
+	compact := strings.Join(strings.Fields(value), "")
+	if compact == "" {
+		return nil, fmt.Errorf("empty key")
+	}
+	der, err := base64.StdEncoding.DecodeString(compact)
+	if err != nil {
+		return nil, fmt.Errorf("invalid key encoding: %w", err)
+	}
+	return der, nil
 }
 
 func parseRSAPrivateKey(value string) (*rsa.PrivateKey, error) {
-	block, _ := pem.Decode(normalizedPEM(value))
-	if block == nil {
-		return nil, fmt.Errorf("invalid private key PEM")
+	der, err := decodeKeyDER(value)
+	if err != nil {
+		return nil, err
 	}
-	if key, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
+	if key, err := x509.ParsePKCS8PrivateKey(der); err == nil {
 		if rsaKey, ok := key.(*rsa.PrivateKey); ok {
 			return rsaKey, nil
 		}
 	}
-	return x509.ParsePKCS1PrivateKey(block.Bytes)
+	return x509.ParsePKCS1PrivateKey(der)
 }
 
 func parseRSAPublicKey(value string) (*rsa.PublicKey, error) {
-	block, _ := pem.Decode(normalizedPEM(value))
-	if block == nil {
-		return nil, fmt.Errorf("invalid public key PEM")
+	der, err := decodeKeyDER(value)
+	if err != nil {
+		return nil, err
 	}
-	if key, err := x509.ParsePKIXPublicKey(block.Bytes); err == nil {
+	if key, err := x509.ParsePKIXPublicKey(der); err == nil {
 		if rsaKey, ok := key.(*rsa.PublicKey); ok {
 			return rsaKey, nil
 		}
 	}
-	return x509.ParsePKCS1PublicKey(block.Bytes)
+	return x509.ParsePKCS1PublicKey(der)
 }
