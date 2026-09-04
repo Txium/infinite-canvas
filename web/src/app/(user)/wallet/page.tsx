@@ -31,6 +31,14 @@ export default function WalletPage() {
 	const [refundForm] = Form.useForm();
     const payment = useConfigStore((state) => state.publicSettings?.payment);
     const hydrateUser = useUserStore((state) => state.hydrateUser);
+    const loadPaymentState = async () => {
+        try {
+            const settings = await apiGet<AdminPublicSettings>("/api/settings");
+            setPaymentState(settings.payment);
+        } catch {
+            setPaymentState({ ready: false, message: "支付配置读取失败，请刷新后重试" });
+        }
+    };
     const load = async () => {
         if (!token) return;
         const [orders, creditLogs, refundOrders] = await Promise.all([
@@ -41,16 +49,11 @@ export default function WalletPage() {
         setItems(orders.items);
         setLogs(creditLogs.items);
 		setRefunds(refundOrders.items);
-        try {
-            const settings = await apiGet<AdminPublicSettings>("/api/settings");
-            setPaymentState(settings.payment);
-        } catch {
-            setPaymentState({ ready: false, message: "支付配置读取失败，请刷新后重试" });
-        }
     };
 
     useEffect(() => {
         if (!isReady) return;
+        void loadPaymentState();
         if (!token) { router.replace("/login?redirect=/wallet"); return; }
         const returned = new URLSearchParams(window.location.search).get("payment") === "return";
         void Promise.all([load(), hydrateUser()]).then(() => {

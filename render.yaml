@@ -27,11 +27,19 @@ services:
       - key: STORAGE_DRIVER
         value: postgresql
       - key: DATABASE_DSN
-        fromDatabase:
-          name: infinite-canvas-db
-          property: connectionString
+        sync: false
       - key: PUBLIC_BASE_URL
         value: https://infinite-canvas-staging.onrender.com
+      - key: ALIPAY_APP_ID
+        sync: false
+      - key: ALIPAY_APP_PRIVATE_KEY
+        sync: false
+      - key: ALIPAY_PUBLIC_KEY
+        sync: false
+      - key: ALIPAY_SELLER_ID
+        sync: false
+      - key: ALIPAY_PAYMENT_ENABLED
+        value: false
       - key: MANAGED_PLATFORM_MODE
         value: true
       - key: GENERATION_REQUESTS_PER_MINUTE

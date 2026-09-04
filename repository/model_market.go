@@ -154,7 +154,11 @@ func SyncDefaultModelCatalog(version int, models []model.MarketModel, variants [
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
 		var current model.ModelCatalogVersion
-		if err := tx.Where("key = ?", "default").First(&current).Error; err == nil && current.Version >= version {
+		currentQuery := tx.Where("key = ?", "default").Limit(1).Find(&current)
+		if currentQuery.Error != nil {
+			return currentQuery.Error
+		}
+		if currentQuery.RowsAffected > 0 && current.Version >= version {
 			return nil
 		}
 		modelIDs := make([]string, 0, len(models))
@@ -176,8 +180,11 @@ func SyncDefaultModelCatalog(version int, models []model.MarketModel, variants [
 		}
 		for _, item := range providers {
 			var saved model.ModelProvider
-			findErr := tx.Where("id = ?", item.ID).First(&saved).Error
-			if findErr == nil {
+			findQuery := tx.Where("id = ?", item.ID).Limit(1).Find(&saved)
+			if findQuery.Error != nil {
+				return findQuery.Error
+			}
+			if findQuery.RowsAffected > 0 {
 				// Catalog v5 backfills the four verified provider endpoints after
 				// an ephemeral Render database is recreated.  Preserve any endpoint
 				// the administrator has already configured manually.
@@ -192,9 +199,6 @@ func SyncDefaultModelCatalog(version int, models []model.MarketModel, variants [
 				}
 				continue
 			}
-			if findErr != gorm.ErrRecordNotFound {
-				return findErr
-			}
 			if err := tx.Create(&item).Error; err != nil {
 				return err
 			}
@@ -204,8 +208,11 @@ func SyncDefaultModelCatalog(version int, models []model.MarketModel, variants [
 		}
 		for _, item := range routes {
 			var saved model.ModelRoute
-			findErr := tx.Where("id = ?", item.ID).First(&saved).Error
-			if findErr == nil {
+			findQuery := tx.Where("id = ?", item.ID).Limit(1).Find(&saved)
+			if findQuery.Error != nil {
+				return findQuery.Error
+			}
+			if findQuery.RowsAffected > 0 {
 				waveSpeedAsyncRoutes := map[string]bool{
 					"route_infinitetalk__01": true,
 					"route_infinitetalk__02": true,
@@ -294,9 +301,6 @@ func SyncDefaultModelCatalog(version int, models []model.MarketModel, variants [
 					}
 				}
 				continue
-			}
-			if findErr != gorm.ErrRecordNotFound {
-				return findErr
 			}
 			if err := tx.Create(&item).Error; err != nil {
 				return err
