@@ -1,6 +1,10 @@
 package repository
 
-import "github.com/tigerowo/infinite-canvas/model"
+import (
+	"errors"
+	"github.com/tigerowo/infinite-canvas/model"
+	"gorm.io/gorm"
+)
 
 func ListStaleCanvasAudioTasks(before string, limit int) ([]model.CanvasAudioTask, error) {
 	db, err := DB()
@@ -26,7 +30,8 @@ func CreateCanvasAudioTaskIfAbsent(task model.CanvasAudioTask) (model.CanvasAudi
 	if err != nil {
 		return task, false, err
 	}
-	if err := db.Create(&task).Error; err == nil {
+	err = db.Create(&task).Error
+	if err == nil {
 		return task, true, nil
 	}
 	existing, found, lookupErr := GetUserCanvasAudioTask(task.UserID, task.ID)
@@ -45,10 +50,33 @@ func UpdateCanvasAudioTask(task model.CanvasAudioTask) (model.CanvasAudioTask, e
 		return task, err
 	}
 
-	return task, db.Model(&model.CanvasAudioTask{}).
+	query := db.Model(&model.CanvasAudioTask{}).
 		Where("user_id = ? AND id = ?", task.UserID, task.ID).
-		Select("*").
-		Updates(&task).Error
+		Select("*")
+	if task.UpstreamTaskID == "" {
+		query = query.Omit("upstream_task_id", "channel_id", "channel_name")
+	}
+	if task.Status != "completed" {
+		query = query.Where("status NOT IN ?", []string{"completed", "failed", "cancelled", "canceled"})
+	}
+	if task.Status == "completed" && task.StorageKey == "" {
+		query = query.Where("(status <> ? OR storage_key IS NULL OR storage_key = '')", "completed")
+	}
+	result := query.Updates(&task)
+	if result.Error != nil {
+		return task, result.Error
+	}
+	if result.RowsAffected == 0 {
+		latest, found, err := GetUserCanvasAudioTask(task.UserID, task.ID)
+		if err != nil {
+			return task, err
+		}
+		if !found {
+			return task, gorm.ErrRecordNotFound
+		}
+		return latest, nil
+	}
+	return task, nil
 }
 
 func GetUserCanvasAudioTask(userID string, id string) (model.CanvasAudioTask, bool, error) {
@@ -58,8 +86,8 @@ func GetUserCanvasAudioTask(userID string, id string) (model.CanvasAudioTask, bo
 	}
 	var task model.CanvasAudioTask
 	err = db.First(&task, "user_id = ? AND id = ?", userID, id).Error
-	if err != nil {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return model.CanvasAudioTask{}, false, nil
 	}
-	return task, true, nil
+	return task, err == nil, err
 }

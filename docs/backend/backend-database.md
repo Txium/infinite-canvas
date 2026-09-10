@@ -224,6 +224,8 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 
 画布图片生成任务表。只用于画布节点生成恢复，不影响生图工作台原接口。
 
+`upstream_task_id` 保存已接单的 WaveSpeed 任务号，仅服务器使用（JSON 序列化忽略）。后台恢复器按原供应商查询，不重新提交生成；查询不确定时保持 `reconciling`，明确失败才解冻。
+
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | string | 主键，本地任务 ID |
@@ -233,7 +235,8 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | `node_id` | string | 画布节点 ID |
 | `model` | string | 模型名称 |
 | `channel_id` | string | 模型渠道 ID |
-| `status` | string | 状态：`queued`、`processing`、`completed`、`failed` |
+| `upstream_task_id` | string | 已接单上游任务 ID，仅服务器可见 |
+| `status` | string | 状态：`queued`、`processing`、`reconciling`、`completed`、`failed` |
 | `progress` | number | 生成进度 |
 | `prompt` | text | 提示词 |
 | `generation_type` | string | `generation` 或 `edit` |
@@ -253,6 +256,8 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 
 画布音频生成任务表。只用于画布节点生成恢复，不影响原 `/audio/speech` 接口。
 
+该表同样增加 `upstream_task_id` 用于已接单 WaveSpeed 音频的重启恢复。两个新列由现有 `AutoMigrate` 兼容添加，不清空历史记录；上线前仍需在 PostgreSQL staging 验证。
+
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | string | 主键，本地任务 ID |
@@ -262,7 +267,8 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | `node_id` | string | 画布节点 ID |
 | `model` | string | 模型名称 |
 | `channel_id` | string | 模型渠道 ID |
-| `status` | string | 状态：`queued`、`processing`、`completed`、`failed` |
+| `upstream_task_id` | string | 已接单上游任务 ID，仅服务器可见 |
+| `status` | string | 状态：`queued`、`processing`、`reconciling`、`completed`、`failed` |
 | `progress` | number | 生成进度 |
 | `prompt` | text | 提示词 |
 | `audio_url` | text | 完成后音频 URL |
@@ -468,6 +474,11 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | `timeout` | number | 请求超时秒数 |
 | `balance_cents` | number/null | 管理员从上游核实后手工记录的余额，单位为人民币分；空值表示需要登录上游查看 |
 | `balance_checked_at` | string | 手工余额最近更新时间 |
+| `upstream_balance_amount` | string | 上游最近一次有效余额原值，保留小数文本精度，不折算成人民币 |
+| `upstream_balance_currency` | string | 上游返回的 USD/PTC/原币种标签，不推测汇率 |
+| `upstream_balance_checked_at` | string | 最近一次成功核实时间，UTC 固定纳秒格式 |
+| `upstream_balance_attempted_at` | string | 最近查询尝试时间，用于拒绝乱序旧响应 |
+| `upstream_balance_error` | string | 最近查询失败的安全摘要，失败不清除已核实余额 |
 | `warning_balance_cents` | number | 黄色余额提醒阈值，默认 ¥100 |
 | `critical_balance_cents` | number | 红色余额提醒阈值，默认 ¥30 |
 | `low_balance_cents` | number | 极低余额提醒阈值，默认 ¥10 |
@@ -511,3 +522,5 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 - `video_tasks`、`canvas_image_tasks`、`canvas_audio_tasks`：兼容增加售价、预计/实际 Provider 成本、毛差、成本来源、成本确认时间与上游退款状态字段。
 
 `provider_reserve` 不保存为可被任意修改的余额字段，第一版由冻结/对账中任务的预计 Provider 成本汇总计算。未消费预付余额由所有用户 `credits + frozen_credits` 汇总计算，不能计入利润。
+
+上游余额快照由连接查询独立更新，配置保存不得覆盖人民币手工账或原币快照。更新必须匹配当前供应商 Base URL，旧地址的迟到响应不写入；没有 `data.balance` 不当成零余额。新增五列仅为兼容扩展，本地 SQLite 迁移与回归通过，staging PostgreSQL 迁移尚未执行。

@@ -163,6 +163,9 @@ func CompleteRefundOrder(id string, providerAmount int, reviewedAt string) (mode
 }
 
 func ReleaseRefundOrder(id string, status model.RefundOrderStatus, adminID, remark, failure, reviewedAt string) (model.RefundOrder, error) {
+	if status != model.RefundOrderRejected && status != model.RefundOrderFailed {
+		return model.RefundOrder{}, gorm.ErrInvalidValue
+	}
 	db, err := DB()
 	if err != nil {
 		return model.RefundOrder{}, err
@@ -203,7 +206,7 @@ func SetRefundOrderMessage(id, message, updatedAt string) (model.RefundOrder, er
 	if err != nil {
 		return model.RefundOrder{}, err
 	}
-	if err := db.Model(&model.RefundOrder{}).Where("id = ?", id).Updates(map[string]any{"failure_message": message, "updated_at": updatedAt}).Error; err != nil {
+	if err := db.Model(&model.RefundOrder{}).Where("id = ? AND status = ?", id, model.RefundOrderProcessing).Updates(map[string]any{"failure_message": message, "updated_at": updatedAt}).Error; err != nil {
 		return model.RefundOrder{}, err
 	}
 	return GetRefundOrderByID(id)

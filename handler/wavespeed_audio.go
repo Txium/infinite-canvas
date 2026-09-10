@@ -45,10 +45,28 @@ func copyWaveSpeedAudioResponse(w http.ResponseWriter, response *http.Response, 
 	}
 	payload, _ := io.ReadAll(io.LimitReader(response.Body, 512*1024))
 	taskID, outputs, status, message := readWaveSpeedTask(payload)
+	if taskID != "" && internalBillingID(request) != "" {
+		if err := rememberWaveSpeedTask(request, logContext, taskID); err != nil {
+			w.Header().Set("X-Upstream-Transport-Error", "1")
+			if onFailure != nil {
+				onFailure()
+			}
+			writeWaveSpeedImageError(w, "上游已接单，本地任务映射保存失败，请联系管理员对账", logContext)
+			return true
+		}
+	}
 	if len(outputs) == 0 && taskID != "" && !waveSpeedDone(status) && message == "" {
 		outputs, message = pollWaveSpeedTask(request, channel, taskID, "音频")
 	}
 	if message != "" || len(outputs) == 0 {
+		if taskID != "" && !waveSpeedFailed(status) {
+			w.Header().Set("X-Upstream-Transport-Error", "1")
+			if onFailure != nil {
+				onFailure()
+			}
+			writeWaveSpeedImageError(w, "上游已接单，等待结果对账", logContext)
+			return true
+		}
 		if onFailure != nil {
 			onFailure()
 		}
@@ -56,6 +74,9 @@ func copyWaveSpeedAudioResponse(w http.ResponseWriter, response *http.Response, 
 		return true
 	}
 	download, err := http.NewRequestWithContext(request.Context(), http.MethodGet, outputs[0], nil)
+	// A successful provider task followed by a download error is not a failed
+	// generation. Keep its reservation for the durable result reconciler.
+	w.Header().Set("X-Upstream-Transport-Error", "1")
 	if err != nil {
 		if onFailure != nil {
 			onFailure()
@@ -63,7 +84,7 @@ func copyWaveSpeedAudioResponse(w http.ResponseWriter, response *http.Response, 
 		writeWaveSpeedImageError(w, "WaveSpeed 音频地址无效", logContext)
 		return true
 	}
-	result, err := service.HTTPClientForChannel(channel).Do(download)
+	result, err := service.SafeProxyHTTPClient().Do(download)
 	if err != nil || result.StatusCode >= http.StatusBadRequest {
 		if result != nil {
 			_ = result.Body.Close()
@@ -75,12 +96,27 @@ func copyWaveSpeedAudioResponse(w http.ResponseWriter, response *http.Response, 
 		return true
 	}
 	defer result.Body.Close()
-	audio, _ := io.ReadAll(io.LimitReader(result.Body, 32*1024*1024))
+	audio, readErr := io.ReadAll(io.LimitReader(result.Body, 32*1024*1024+1))
+	if readErr != nil || len(audio) == 0 || len(audio) > 32*1024*1024 {
+		if onFailure != nil {
+			onFailure()
+		}
+		writeWaveSpeedImageError(w, "音频下载不完整，请联系管理员核对任务", logContext)
+		return true
+	}
 	contentType := strings.TrimSpace(strings.Split(result.Header.Get("Content-Type"), ";")[0])
 	if !strings.HasPrefix(contentType, "audio/") {
 		contentType = http.DetectContentType(audio)
 	}
+	if !strings.HasPrefix(contentType, "audio/") {
+		if onFailure != nil {
+			onFailure()
+		}
+		writeWaveSpeedImageError(w, "音频接口未返回有效音频文件", logContext)
+		return true
+	}
 	w.Header().Set("Content-Type", contentType)
+	w.Header().Del("X-Upstream-Transport-Error")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(audio)
 	saveAIProxyLog(logContext, http.StatusOK, "[binary audio]", "")

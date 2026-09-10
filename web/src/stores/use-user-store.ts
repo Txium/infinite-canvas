@@ -18,6 +18,8 @@ type UserStore = {
     register: (payload: AuthPayload) => Promise<AuthUser>;
 };
 
+let hydrationRequest = 0;
+
 export const useUserStore = create<UserStore>()(
     persist(
         (set, get) => ({
@@ -25,9 +27,10 @@ export const useUserStore = create<UserStore>()(
             user: null,
             isReady: false,
             isLoading: false,
-            setSession: (token, user) => set({ token, user, isReady: true }),
-            clearSession: () => set({ token: "", user: null, isReady: true }),
+            setSession: (token, user) => set({ token, user, isReady: true, isLoading: false }),
+            clearSession: () => set({ token: "", user: null, isReady: true, isLoading: false }),
             hydrateUser: async () => {
+                const request = ++hydrationRequest;
                 const token = get().token;
                 if (!token) {
                     set({ user: null, isReady: true });
@@ -36,12 +39,14 @@ export const useUserStore = create<UserStore>()(
                 set({ isLoading: true });
                 try {
                     const user = await fetchCurrentUser(token);
+                    if (get().token !== token || request !== hydrationRequest) return;
                     if (user.role === "guest") {
                         set({ token: "", user: null, isReady: true, isLoading: false });
                         return;
                     }
                     set({ user, isReady: true, isLoading: false });
                 } catch (error) {
+                    if (get().token !== token || request !== hydrationRequest) return;
                     // Only an explicit authentication rejection should erase a
                     // saved session. Render cold starts and temporary network
                     // failures must not force the user to sign in again.

@@ -9,8 +9,10 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/tigerowo/infinite-canvas/model"
+	"github.com/tigerowo/infinite-canvas/repository"
 	"github.com/tigerowo/infinite-canvas/service"
 )
 
@@ -21,11 +23,12 @@ func persistGeneratedMedia(userID, remoteURL, prefix string, maxBytes int64) (se
 	if userID == "" || !strings.HasPrefix(remoteURL, "https://") {
 		return service.UploadedStorageObject{}, false
 	}
-	storage, err := service.PublicStorageConfig()
-	if err != nil || storage.Mode == "local_indexeddb" {
+	ctx, cancel, ok := generatedMediaStorageContext(userID)
+	if !ok {
 		return service.UploadedStorageObject{}, false
 	}
-	request, err := http.NewRequest(http.MethodGet, remoteURL, nil)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, remoteURL, nil)
 	if err != nil {
 		return service.UploadedStorageObject{}, false
 	}
@@ -53,10 +56,44 @@ func persistGeneratedMedia(userID, remoteURL, prefix string, maxBytes int64) (se
 	if contentType == "" {
 		contentType = http.DetectContentType(data)
 	}
-	ctx := service.WithUser(context.Background(), model.AuthUser{ID: userID})
 	uploaded, err := service.UploadStorageObject(ctx, fmt.Sprintf("%s%s", prefix, extension), contentType, data)
 	if err != nil {
 		log.Printf("persist generated media failed: user=%s err=%v", userID, err)
+		return service.UploadedStorageObject{}, false
+	}
+	return uploaded, true
+}
+
+// Background jobs have no request session. Resolve the actual owner instead of
+// dropping their role or granting every job administrator storage privileges.
+func generatedMediaStorageContext(userID string) (context.Context, context.CancelFunc, bool) {
+	user, found, err := repository.GetUserByID(userID)
+	if err != nil || !found || user.Status != model.UserStatusActive || user.Role == model.UserRoleGuest {
+		return nil, nil, false
+	}
+	ctx, cancel := context.WithTimeout(service.WithUser(context.Background(), model.PublicUser(user)), 2*time.Minute)
+	active, err := service.HasActiveCloudStorage(ctx)
+	if err != nil || !active {
+		cancel()
+		return nil, nil, false
+	}
+	return ctx, cancel, true
+}
+
+// Audio is already downloaded and validated; store those exact bytes rather
+// than retaining a large base64 payload when platform storage is available.
+func persistGeneratedAudio(userID, filename, mimeType string, data []byte) (service.UploadedStorageObject, bool) {
+	if len(data) == 0 || len(data) > 32<<20 {
+		return service.UploadedStorageObject{}, false
+	}
+	ctx, cancel, ok := generatedMediaStorageContext(userID)
+	if !ok {
+		return service.UploadedStorageObject{}, false
+	}
+	defer cancel()
+	uploaded, err := service.UploadStorageObject(ctx, filename, mimeType, data)
+	if err != nil {
+		log.Printf("persist generated audio failed: user=%s err=%v", userID, err)
 		return service.UploadedStorageObject{}, false
 	}
 	return uploaded, true

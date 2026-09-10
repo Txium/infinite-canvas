@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/tigerowo/infinite-canvas/model"
@@ -31,7 +32,8 @@ func CreateCanvasImageTaskIfAbsent(task model.CanvasImageTask) (model.CanvasImag
 	if err != nil {
 		return task, false, err
 	}
-	if err := db.Create(&task).Error; err == nil {
+	err = db.Create(&task).Error
+	if err == nil {
 		return task, true, nil
 	}
 	existing, found, lookupErr := GetUserCanvasImageTask(task.UserID, task.ID)
@@ -50,10 +52,33 @@ func UpdateCanvasImageTask(task model.CanvasImageTask) (model.CanvasImageTask, e
 		return task, err
 	}
 
-	return task, db.Model(&model.CanvasImageTask{}).
+	query := db.Model(&model.CanvasImageTask{}).
 		Where("user_id = ? AND id = ?", task.UserID, task.ID).
-		Select("*").
-		Updates(&task).Error
+		Select("*")
+	if task.UpstreamTaskID == "" {
+		query = query.Omit("upstream_task_id", "channel_id", "channel_name")
+	}
+	if task.Status != "completed" {
+		query = query.Where("status NOT IN ?", []string{"completed", "failed", "cancelled", "canceled"})
+	}
+	if task.Status == "completed" && task.StorageKey == "" {
+		query = query.Where("(status <> ? OR storage_key IS NULL OR storage_key = '')", "completed")
+	}
+	result := query.Updates(&task)
+	if result.Error != nil {
+		return task, result.Error
+	}
+	if result.RowsAffected == 0 {
+		latest, found, err := GetUserCanvasImageTask(task.UserID, task.ID)
+		if err != nil {
+			return task, err
+		}
+		if !found {
+			return task, gorm.ErrRecordNotFound
+		}
+		return latest, nil
+	}
+	return task, nil
 }
 
 func GetUserCanvasImageTask(userID string, id string) (model.CanvasImageTask, bool, error) {
@@ -63,10 +88,10 @@ func GetUserCanvasImageTask(userID string, id string) (model.CanvasImageTask, bo
 	}
 	var task model.CanvasImageTask
 	err = db.First(&task, "user_id = ? AND id = ?", userID, id).Error
-	if err != nil {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return model.CanvasImageTask{}, false, nil
 	}
-	return task, true, nil
+	return task, err == nil, err
 }
 
 func ListUserCanvasImageTasks(userID string, sources []string, limit int) ([]model.CanvasImageTask, error) {
@@ -83,7 +108,7 @@ func ListUserCanvasImageTasks(userID string, sources []string, limit int) ([]mod
 		query = query.Where("source IN ?", sources)
 	}
 	err = query.
-		Where("status IN ?", []string{"queued", "processing", "running", "in_progress"}).
+		Where("status IN ?", []string{"queued", "processing", "running", "in_progress", "reconciling"}).
 		Order("created_at DESC").
 		Limit(limit).
 		Find(&tasks).Error

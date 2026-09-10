@@ -56,6 +56,7 @@ import { CanvasNode } from "../components/canvas-node";
 import { CanvasNodePromptPanel, type CanvasNodeGenerationMode, type CanvasVideoFrameOption } from "../components/canvas-node-prompt-panel";
 import type { CanvasVideoResourceOption } from "../components/canvas-video-settings-popover";
 import { CanvasToolbar } from "../components/canvas-toolbar";
+import layoutStyles from "../components/canvas-layout.module.css";
 import { AssetPickerModal, type AssetPickerTab } from "../components/asset-picker-modal";
 import { CanvasZoomControls } from "../components/canvas-zoom-controls";
 import { CANVAS_ASSET_DRAG_TYPE, CanvasSidePanel } from "../components/canvas-side-panel";
@@ -367,6 +368,19 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const [backgroundMode, setBackgroundMode] = useState<CanvasBackgroundMode>("lines");
     const [showImageInfo, setShowImageInfo] = useState(false);
     const [sidePanel, setSidePanel] = useState(() => DEFAULT_CANVAS_SIDE_PANEL);
+    const [compactLayout, setCompactLayout] = useState(false);
+    const [compactSidePanelOpen, setCompactSidePanelOpen] = useState(false);
+    useEffect(() => {
+        const query = window.matchMedia("(max-width: 900px)");
+        const update = () => {
+            setCompactLayout(query.matches);
+            setCompactSidePanelOpen(false);
+        };
+        update();
+        query.addEventListener("change", update);
+        return () => query.removeEventListener("change", update);
+    }, []);
+    const sidePanelVisible = compactLayout ? compactSidePanelOpen : sidePanel.open;
     const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
     const [assetPickerOpen, setAssetPickerOpen] = useState(false);
     const [assetPickerTab, setAssetPickerTab] = useState<AssetPickerTab>("my-assets");
@@ -3758,14 +3772,15 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
 
     if (!projectLoaded) return <CanvasRefreshShell />;
     return (
-        <main className="flex h-full min-h-0 overflow-hidden" style={{ background: theme.canvas.background, color: theme.node.text }}>
+        <main className="relative flex h-full min-h-0 overflow-hidden" style={{ background: theme.canvas.background, color: theme.node.text }}>
+            <div className={compactLayout ? "absolute bottom-0 left-0 top-16 z-[60]" : "flex shrink-0"}>
             <CanvasSidePanel
                 nodes={nodes}
                 selectedNodeIds={selectedNodeIds}
-                open={sidePanel.open}
-                width={sidePanel.width}
+                open={sidePanelVisible}
+                width={compactLayout ? Math.min(sidePanel.width, 280) : sidePanel.width}
                 onWidthChange={(width) => setSidePanel((current) => ({ ...current, width }))}
-                onFocusNode={focusNode}
+                onFocusNode={(id) => { focusNode(id); setCompactSidePanelOpen(false); }}
                 onAssetDragStart={(payload) => {
                     draggedAssetPayloadRef.current = payload;
                 }}
@@ -3774,13 +3789,17 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                         draggedAssetPayloadRef.current = null;
                     }, 0);
                 }}
-                onInsertAsset={handleAssetInsert}
+                onInsertAsset={(payload) => { handleAssetInsert(payload); setCompactSidePanelOpen(false); }}
             />
-            <section className="relative min-w-0 flex-1 overflow-hidden">
+            </div>
+            <section className={`relative min-w-0 flex-1 overflow-hidden ${layoutStyles.workspace}`}>
                 <CanvasTopBar
+                    compact={size.width <= 900}
                     title={currentProject?.title || "未命名画布"}
-                    sidePanelOpen={sidePanel.open}
-                    onToggleSidePanel={() => setSidePanel((current) => ({ ...current, open: !current.open }))}
+                    sidePanelOpen={sidePanelVisible}
+                    onToggleSidePanel={() => compactLayout
+                        ? setCompactSidePanelOpen((current) => !current)
+                        : setSidePanel((current) => ({ ...current, open: !current.open }))}
                     titleDraft={titleDraft}
                     isTitleEditing={titleEditing}
                     onTitleDraftChange={setTitleDraft}
@@ -4201,13 +4220,14 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 <AssetPickerModal open={assetPickerOpen} defaultTab={assetPickerTab} onInsert={handleAssetInsert} onClose={() => { assetInsertPositionRef.current = null; setAssetPickerOpen(false); }} />
             </section>
             {assistantMounted ? (
+                <div className={compactLayout ? "absolute bottom-0 right-0 top-16 z-[60] max-w-full overflow-hidden" : "flex shrink-0"}>
                 <CanvasAssistantPanel
                     nodes={nodes}
                     selectedNodeIds={selectedNodeIds}
                     sessions={chatSessions}
                     activeSessionId={activeChatId}
                     agentConfig={resolvedAgentConfig}
-                    width={agentPanel.width}
+                    width={compactLayout ? Math.min(agentPanel.width, size.width) : agentPanel.width}
                     onWidthChange={(width) => setAgentPanel((current) => ({ ...current, width }))}
                     onSelectNodeIds={setSelectedNodeIds}
                     onSessionsChange={handleAssistantSessionsChange}
@@ -4228,6 +4248,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     initialRequest={initialAgentRequest}
                     onInitialRequestConsumed={() => setInitialAgentRequest(null)}
                 />
+                </div>
             ) : null}
             <RecentGenerationTasksPanel />
         </main>
@@ -4331,6 +4352,7 @@ function FullscreenPreview({ src, alt, isPanorama, proxyGeneratedPanorama = fals
 }
 
 function CanvasTopBar({
+    compact,
     title,
     sidePanelOpen,
     onToggleSidePanel,
@@ -4352,6 +4374,7 @@ function CanvasTopBar({
     assistantCollapsed,
     onExpandAssistant,
 }: {
+    compact: boolean;
     title: string;
     sidePanelOpen: boolean;
     onToggleSidePanel: () => void;
@@ -4400,9 +4423,9 @@ function CanvasTopBar({
 
     return (
         <>
-            <div className="pointer-events-none absolute left-0 right-0 top-0 z-50 flex h-16 items-center justify-between px-4">
-                <div className="pointer-events-auto flex min-w-0 items-center gap-3">
-                    <button type="button" onClick={onToggleSidePanel} className="grid size-7 place-items-center rounded-full transition hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }} aria-label={sidePanelOpen ? "收起左侧面板" : "展开左侧面板"}>
+            <div className="pointer-events-none absolute left-0 right-0 top-0 z-50 flex h-16 items-center justify-between gap-2 px-2 sm:px-4">
+                <div className="pointer-events-auto flex min-w-0 flex-1 items-center gap-1 sm:gap-3">
+                    <button type="button" onClick={onToggleSidePanel} className="grid size-7 shrink-0 place-items-center rounded-full transition hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }} aria-label={sidePanelOpen ? "收起左侧面板" : "展开左侧面板"}>
                         {sidePanelOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
                     </button>
                     <Dropdown
@@ -4422,12 +4445,12 @@ function CanvasTopBar({
                             ],
                         }}
                     >
-                        <button type="button" className="grid size-9 place-items-center rounded-full transition hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }} aria-label="打开画布菜单">
+                        <button type="button" className="grid size-9 shrink-0 place-items-center rounded-full transition hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }} aria-label="打开画布菜单">
                             <Menu className="size-5" />
                         </button>
                     </Dropdown>
 
-                    <div ref={titleRef} className="flex min-w-0 items-center gap-2">
+                    <div ref={titleRef} className="flex min-w-0 flex-1 items-center gap-2">
                         {isTitleEditing ? (
                             <input
                                 autoFocus
@@ -4438,13 +4461,14 @@ function CanvasTopBar({
                                     if (event.key === "Enter") onFinishTitleEditing();
                                     if (event.key === "Escape") onCancelTitleEditing();
                                 }}
-                                className="max-w-[280px] bg-transparent p-0 text-left text-lg font-semibold tracking-normal outline-none"
+                                aria-label="画布名称"
+                                className="min-w-0 w-full max-w-[280px] bg-transparent p-0 text-left text-lg font-semibold tracking-normal outline-none"
                                 style={{ color: theme.node.text }}
                             />
                         ) : (
                             <button
                                 type="button"
-                                className="max-w-[280px] truncate border-b border-dashed border-transparent text-left text-lg font-semibold tracking-normal transition hover:border-current"
+                                className="min-w-0 max-w-[280px] truncate border-b border-dashed border-transparent text-left text-lg font-semibold tracking-normal transition hover:border-current"
                                 onDoubleClick={onStartTitleEditing}
                                 title="双击修改画布名称"
                             >
@@ -4454,8 +4478,9 @@ function CanvasTopBar({
                     </div>
                 </div>
 
-                <div className="pointer-events-auto flex items-center gap-1.5">
+                <div className="pointer-events-auto flex shrink-0 items-center gap-1.5">
                     <UserStatusActions
+                        compact={compact}
                         variant="canvas"
                         accountOpen={accountOpen}
                         onAccountOpenChange={setAccountOpen}
@@ -4475,8 +4500,9 @@ function CanvasTopBar({
                                 style={{ background: theme.toolbar.panel, color: theme.node.text, boxShadow: "0 10px 30px rgba(28,25,23,.10)" }}
                                 icon={<Bot className="size-4" />}
                                 onClick={onExpandAssistant}
+                                aria-label="打开 Agent 助手"
                             >
-                                Agent
+                                {compact ? null : "Agent"}
                             </Button>
                         </>
                     ) : null}

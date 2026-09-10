@@ -35,7 +35,7 @@ func TestPublicVariantPricedRejectsUnsettledActualCostFormula(t *testing.T) {
 		t.Fatal("actual-cost formula must remain hidden until usage-aware settlement exists")
 	}
 	variant.PriceFormula = "输入¥5.44 / 输出¥32.66"
-	if !publicVariantPriced(variant) {
-		t.Fatal("input/output token formula should be public")
+	if publicVariantPriced(variant) {
+		t.Fatal("input/output formula must stay disabled without actual usage settlement")
 	}
 }

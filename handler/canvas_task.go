@@ -279,7 +279,7 @@ func runCanvasImageTask(task model.CanvasImageTask, user model.AuthUser, body []
 
 	payload, status, responseContentType, err := executeCanvasAIRequestWithFallback(user, task.Model, task.Endpoint, body, contentType, channelID, userChannelID, task.ID)
 	if err != nil {
-		saveFailedCanvasImageTask(task, err.Error(), err.Error())
+		saveReconcilingCanvasImageTask(task, err.Error())
 		return
 	}
 	if status >= http.StatusBadRequest {
@@ -295,6 +295,10 @@ func runCanvasImageTask(task model.CanvasImageTask, user model.AuthUser, body []
 	imageURLs, mimeType, bytes, err := imageURLsFromAIResponse(payload, responseContentType, collectAll, task.Endpoint == "/chat/completions")
 	if err != nil {
 		saveFailedCanvasImageTask(task, err.Error(), string(payload))
+		return
+	}
+	if err := settleAcceptedCanvasMedia(task.UserID, task.Model, task.Endpoint, task.ID); err != nil {
+		saveReconcilingCanvasImageTask(task, err.Error())
 		return
 	}
 	task.Status = "completed"
@@ -337,7 +341,7 @@ func runCanvasAudioTask(task model.CanvasAudioTask, user model.AuthUser, body []
 
 	payload, status, responseContentType, err := executeCanvasAIRequestWithFallback(user, task.Model, task.Endpoint, body, contentType, channelID, userChannelID, task.ID)
 	if err != nil {
-		saveFailedCanvasAudioTask(task, err.Error(), err.Error())
+		saveReconcilingCanvasAudioTask(task, err.Error())
 		return
 	}
 	if status >= http.StatusBadRequest {
@@ -353,12 +357,16 @@ func runCanvasAudioTask(task model.CanvasAudioTask, user model.AuthUser, body []
 	if mimeType == "" {
 		mimeType = strings.TrimSpace(http.DetectContentType(payload))
 	}
-	if strings.Contains(mimeType, "json") {
+	if !validCanvasAudioPayload(mimeType, payload) {
 		saveFailedCanvasAudioTask(task, "音频接口没有返回音频文件", string(payload))
 		return
 	}
 	if task.ContentType != "" && strings.HasPrefix(task.ContentType, "audio/") {
 		mimeType = task.ContentType
+	}
+	if err := settleAcceptedCanvasMedia(task.UserID, task.Model, task.Endpoint, task.ID); err != nil {
+		saveReconcilingCanvasAudioTask(task, err.Error())
+		return
 	}
 	task.Status = "completed"
 	task.Progress = 100
@@ -368,11 +376,26 @@ func runCanvasAudioTask(task model.CanvasAudioTask, user model.AuthUser, body []
 	task.StorageKey = ""
 	task.MimeType = mimeType
 	task.Bytes = int64(len(payload))
+	if uploaded, ok := persistGeneratedAudio(task.UserID, "generated-audio-"+task.ID, mimeType, payload); ok {
+		task.AudioURL = uploaded.URL
+		task.StorageKey = uploaded.StorageKey
+	}
 	task.Error = ""
 	task.ErrorDetail = ""
 	if _, err := saveCanvasAudioTaskWithRetry(task); err != nil {
 		log.Printf("persist completed canvas audio task failed; keep for reconciliation: id=%s err=%v", task.ID, err)
 	}
+}
+
+func validCanvasAudioPayload(contentType string, payload []byte) bool {
+	if len(payload) == 0 {
+		return false
+	}
+	detected := http.DetectContentType(payload)
+	if strings.HasPrefix(detected, "text/") || json.Valid(bytes.TrimSpace(payload)) {
+		return false
+	}
+	return strings.HasPrefix(contentType, "audio/") || strings.HasPrefix(detected, "audio/")
 }
 
 func executeCanvasAIRequestWithFallback(user model.AuthUser, modelName string, endpoint string, body []byte, contentType string, channelID string, userChannelID string, billingID string) ([]byte, int, string, error) {
@@ -404,7 +427,7 @@ func executeCanvasAIRequestWithFallback(user model.AuthUser, modelName string, e
 
 func executeCanvasAIRequest(user model.AuthUser, endpoint string, body []byte, contentType string, channelID string, userChannelID string, billingID string, routeID string) ([]byte, int, string, error) {
 	request := httptest.NewRequest(http.MethodPost, "http://canvas.local/api/v1"+endpoint, bytes.NewReader(body))
-	request = request.WithContext(service.WithUser(context.Background(), user))
+	request = request.WithContext(context.WithValue(service.WithUser(context.Background(), user), canvasBillingContextKey{}, billingID))
 	if contentType != "" {
 		request.Header.Set("Content-Type", contentType)
 	}
@@ -440,6 +463,8 @@ func retryableMarketRouteFailure(status int, err error) bool {
 func saveFailedCanvasImageTask(task model.CanvasImageTask, message string, detail string) {
 	if err := service.ReleaseTaskFrozenCredits(task.UserID, task.Model, task.Endpoint, task.ID); err != nil {
 		log.Printf("release failed canvas image billing id=%s err=%v", task.ID, err)
+		saveReconcilingCanvasImageTask(task, detail)
+		return
 	}
 	task.Status = "failed"
 	task.CompletedAt = taskTime()
@@ -453,6 +478,8 @@ func saveFailedCanvasImageTask(task model.CanvasImageTask, message string, detai
 func saveFailedCanvasAudioTask(task model.CanvasAudioTask, message string, detail string) {
 	if err := service.ReleaseTaskFrozenCredits(task.UserID, task.Model, task.Endpoint, task.ID); err != nil {
 		log.Printf("release failed canvas audio billing id=%s err=%v", task.ID, err)
+		saveReconcilingCanvasAudioTask(task, detail)
+		return
 	}
 	task.Status = "failed"
 	task.CompletedAt = taskTime()
@@ -501,6 +528,9 @@ func readCanvasTaskAIRequest(r *http.Request, fallbackEndpoint string) ([]byte, 
 			return nil, "", "", "", "", "", "", "", "", err
 		}
 		endpoint := firstNonEmpty(meta["_canvas_endpoint"], fallbackEndpoint)
+		if !validCanvasTaskEndpoint(endpoint, fallbackEndpoint) {
+			return nil, "", "", "", "", "", "", "", "", errors.New("任务接口与媒体类型不匹配")
+		}
 		return body, cleanedContentType, endpoint, meta["_canvas_source"], meta["_canvas_node_id"], meta["_canvas_source_id"], meta["_canvas_task_id"], meta["_canvas_prompt"], meta["_canvas_channel_id"], nil
 	}
 	var wrapper struct {
@@ -526,7 +556,22 @@ func readCanvasTaskAIRequest(r *http.Request, fallbackEndpoint string) ([]byte, 
 		return nil, "", "", "", "", "", "", "", "", errors.New("任务请求体不能为空")
 	}
 	endpoint := firstNonEmpty(wrapper.Endpoint, fallbackEndpoint)
+	if !validCanvasTaskEndpoint(endpoint, fallbackEndpoint) {
+		return nil, "", "", "", "", "", "", "", "", errors.New("任务接口与媒体类型不匹配")
+	}
 	return body, "application/json", endpoint, wrapper.Source, wrapper.NodeID, wrapper.SourceID, firstNonEmpty(wrapper.ClientTaskID, wrapper.TaskID), wrapper.Prompt, wrapper.ChannelID, nil
+}
+
+func validCanvasTaskEndpoint(endpoint, fallback string) bool {
+	if fallback == "/audio/speech" {
+		return endpoint == fallback
+	}
+	switch endpoint {
+	case "/images/generations", "/images/edits", "/chat/completions", "/responses":
+		return true
+	default:
+		return false
+	}
 }
 
 func stripCanvasTaskMultipartFields(raw []byte, contentType string, normalizeImages bool) ([]byte, string, map[string]string, error) {

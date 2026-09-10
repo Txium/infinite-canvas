@@ -1,7 +1,7 @@
 "use client";
 
 import { Alert, App, Button, Card, Form, Input, InputNumber, Modal, Space, Statistic, Table, Tag, Typography } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createRechargeOrder, createRefundOrder, fetchRechargeOrders, fetchRefundOrders, fetchWalletCreditLogs, type CreditLog, type RechargeOrder, type RefundOrder } from "@/services/api/wallet";
@@ -26,6 +26,8 @@ export default function WalletPage() {
 	const [refunds, setRefunds] = useState<RefundOrder[]>([]);
 	const [refundTarget, setRefundTarget] = useState<RechargeOrder | null>(null);
 	const [loading, setLoading] = useState(false);
+	const [refundLoading, setRefundLoading] = useState(false);
+	const refundSubmitting = useRef(false);
 	const [paymentState, setPaymentState] = useState<{ ready: boolean; message: string } | null>(null);
     const [form] = Form.useForm();
 	const [refundForm] = Form.useForm();
@@ -46,13 +48,15 @@ export default function WalletPage() {
             fetchWalletCreditLogs(token),
 			fetchRefundOrders(token),
         ]);
-        setItems(orders.items);
-        setLogs(creditLogs.items);
-		setRefunds(refundOrders.items);
+        if (useUserStore.getState().token !== token) return;
+        setItems(orders.items || []);
+        setLogs(creditLogs.items || []);
+		setRefunds(refundOrders.items || []);
     };
 
     useEffect(() => {
         if (!isReady) return;
+        setItems([]); setLogs([]); setRefunds([]); setRefundTarget(null);
         void loadPaymentState();
         if (!token) { router.replace("/login?redirect=/wallet"); return; }
         const returned = new URLSearchParams(window.location.search).get("payment") === "return";
@@ -60,7 +64,9 @@ export default function WalletPage() {
             if (returned) message.success("支付结果已刷新；若刚完成付款，到账可能需要几秒");
         }).catch((error) => message.error(error instanceof Error ? error.message : "钱包加载失败"));
         if (!returned) return;
-        const timer = window.setInterval(() => { void Promise.all([load(), hydrateUser()]); }, 3000);
+        const timer = window.setInterval(() => {
+            void Promise.all([load(), hydrateUser()]).catch(() => message.warning("到账状态刷新失败，请稍后刷新钱包；请勿重复付款"));
+        }, 3000);
         const stop = window.setTimeout(() => window.clearInterval(timer), 15000);
         window.history.replaceState(null, "", "/wallet");
         return () => { window.clearInterval(timer); window.clearTimeout(stop); };
@@ -84,6 +90,9 @@ export default function WalletPage() {
 	};
 
 	const submitRefund = async () => {
+		if (refundSubmitting.current || !refundTarget) return;
+		refundSubmitting.current = true;
+		setRefundLoading(true);
 		try {
 			const values = await refundForm.validateFields();
 			await createRefundOrder(token!, { rechargeOrderId: refundTarget!.id, amountCents: Math.round(values.amount * 100), reason: values.reason });
@@ -91,7 +100,11 @@ export default function WalletPage() {
 			setRefundTarget(null);
 			await Promise.all([load(), hydrateUser()]);
 		} catch (error) {
+			if (error && typeof error === "object" && "errorFields" in error) return;
 			message.error(error instanceof Error ? error.message : "退款申请提交失败");
+		} finally {
+			refundSubmitting.current = false;
+			setRefundLoading(false);
 		}
 	};
 
@@ -148,7 +161,7 @@ export default function WalletPage() {
                 { title: "说明", dataIndex: "remark" },
             ]} />
         </Card>
-		<Modal title="申请支付宝原路退款" open={!!refundTarget} okText="提交申请" cancelText="取消" onCancel={() => setRefundTarget(null)} onOk={() => void submitRefund()}>
+		<Modal title="申请支付宝原路退款" open={!!refundTarget} confirmLoading={refundLoading} cancelButtonProps={{ disabled: refundLoading }} okText="提交申请" cancelText="取消" onCancel={() => { if (!refundSubmitting.current) setRefundTarget(null); }} onOk={() => void submitRefund()}>
 			<Alert type="warning" showIcon className="mb-4" message="只可退未消费余额" description="提交后退款金额会立即从可用余额中锁定；审核拒绝或支付宝明确退款失败时会自动恢复。" />
 			<Form form={refundForm} layout="vertical">
 				<Form.Item name="amount" label="退款金额（元）" rules={[{ required: true }]}><InputNumber min={1} max={(refundTarget?.refundableCents || 0) / 100} precision={2} className="!w-full" /></Form.Item>

@@ -16,13 +16,13 @@ export type MarketModelVariant = {
 
 export async function fetchModelMarket() {
     const items = await apiGet<MarketModelCard[]>("/api/model-market");
-    return items.flatMap((item) => {
+    return (items || []).flatMap((item) => {
         const availableVariantIds = item.availableVariantIds || [];
         const available = new Set(availableVariantIds);
         // Keep the browser resilient to an older/cached API response: a
         // variant without an enabled route must never be rendered as a
         // selectable “线路配置中” option in the public market.
-        const variants = (item.variants || []).filter((variant) => available.has(variant.id));
+        const variants = (item.variants || []).filter((variant) => variant.enabled && available.has(variant.id));
         if (!variants.length) return [];
         return [{
             ...item,

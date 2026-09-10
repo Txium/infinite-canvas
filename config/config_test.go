@@ -68,3 +68,21 @@ func TestPaymentConfiguredAcceptsOfficialAlipay(t *testing.T) {
 		t.Fatal("Alipay without public key must not be ready")
 	}
 }
+
+func TestPostgresDSNIsNotUsedAsSecretFilePath(t *testing.T) {
+	t.Chdir(t.TempDir())
+	previous := Cfg
+	t.Cleanup(func() { Cfg = previous })
+	Cfg = Config{StorageDriver: "postgresql", DatabaseDSN: "postgresql://user:private@db.example/database?sslmode=require"}
+	first, err := persistentJWTSecret()
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := persistentJWTSecret()
+	if err != nil || first == "" || first != second {
+		t.Fatal("JWT secret not persisted")
+	}
+	if _, err := os.Stat(filepath.Join("data", ".jwt-secret")); err != nil {
+		t.Fatal(err)
+	}
+}

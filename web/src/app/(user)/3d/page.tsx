@@ -7,16 +7,18 @@ import { useEffect, useState } from "react";
 import { requestVideoGeneration } from "@/services/api/video";
 import { useEffectiveConfig } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
+import { fetchModelMarket } from "@/services/api/model-market";
+import { formatCNY } from "@/constant/credits";
 
 export default function ThreeDGenerationPage() {
-    const { message } = App.useApp();
+    const { message, modal } = App.useApp();
     const effectiveConfig = useEffectiveConfig();
     const [image, setImage] = useState<ReferenceImage | null>(null);
     const [prompt, setPrompt] = useState("");
     const [resultUrl, setResultUrl] = useState("");
     const [loading, setLoading] = useState(false);
     const [marketVariant, setMarketVariant] = useState("");
-    const model = marketVariant || effectiveConfig.videoModel || "seed3d_20__01";
+    const model = marketVariant.startsWith("seed3d_20__") ? marketVariant : "seed3d_20__01";
 
     useEffect(() => setMarketVariant(new URLSearchParams(window.location.search).get("marketVariant") || ""), []);
 
@@ -25,9 +27,20 @@ export default function ThreeDGenerationPage() {
         setLoading(true);
         setResultUrl("");
         try {
-            const result = await requestVideoGeneration({ ...effectiveConfig, model, videoModel: model }, prompt, [image]);
-            setResultUrl(result.url);
-            message.success("3D 模型已生成，可下载 GLB 文件");
+            const cards = await fetchModelMarket();
+            const variant = cards.find((card) => card.category === "3d")?.variants.find((item) => item.id === model);
+            if (!variant?.priceCents) throw new Error("3D 模型暂不可用，请到模型广场查看");
+            modal.confirm({ title: "确认生成 3D 模型", content: `本次费用 ${formatCNY(variant.priceCents)}${variant.billingUnit}，将使用所选图片生成 GLB。`, okText: "确认生成", cancelText: "取消",
+                onOk: async () => {
+                    setLoading(true);
+                    try {
+                        const result = await requestVideoGeneration({ ...effectiveConfig, channelMode: "remote", model, videoModel: model }, prompt, [image]);
+                        setResultUrl(result.url);
+                        message.success("3D 模型已生成，可下载 GLB 文件");
+                    } catch (error) { message.error(error instanceof Error ? error.message : "3D 模型生成失败"); }
+                    finally { setLoading(false); }
+                },
+            });
         } catch (error) {
             message.error(error instanceof Error ? error.message : "3D 模型生成失败");
         } finally {

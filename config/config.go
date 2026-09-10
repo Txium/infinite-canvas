@@ -60,7 +60,8 @@ func Load() error {
 func persistentJWTSecret() (string, error) {
 	secretPath := filepath.Join("data", ".jwt-secret")
 	dsn := strings.TrimSpace(Cfg.DatabaseDSN)
-	if dsn != "" && dsn != ":memory:" && !strings.HasPrefix(dsn, "file:") {
+	driver := strings.ToLower(strings.TrimSpace(Cfg.StorageDriver))
+	if (driver == "" || driver == "sqlite") && dsn != "" && dsn != ":memory:" && !strings.HasPrefix(dsn, "file:") {
 		pathPart := dsn
 		if index := strings.Index(pathPart, "?"); index >= 0 {
 			pathPart = pathPart[:index]

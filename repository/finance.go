@@ -128,7 +128,11 @@ func AdminFinanceSummary(todayStart, period, periodStart, periodEnd string) (mod
 	if err := db.Model(&model.ProviderLedger{}).Where("type = ?", model.ProviderLedgerCost).Count(&providerCostEntries).Error; err != nil {
 		return result, err
 	}
-	result.UpstreamCostReady = result.AllTime.SettledTasks == 0 || providerCostEntries >= result.AllTime.SettledTasks
+	var estimatedTasks int64
+	if err := db.Model(&model.VideoTask{}).Where("billing_status = ? AND provider_cost_source = ?", "settled", "estimated").Count(&estimatedTasks).Error; err != nil {
+		return result, err
+	}
+	result.UpstreamCostReady = result.AllTime.SettledTasks == 0 || (providerCostEntries >= result.AllTime.SettledTasks && estimatedTasks == 0)
 	return result, nil
 }
 

@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +23,13 @@ import (
 const userModelChannelHeader = "X-User-Model-Channel-ID"
 const marketModelRouteHeader = "X-Market-Route-ID"
 const deferredBillingReleaseHeader = "X-Billing-Defer-Release"
+
+type canvasBillingContextKey struct{}
+
+func internalBillingID(r *http.Request) string {
+	id, _ := r.Context().Value(canvasBillingContextKey{}).(string)
+	return id
+}
 
 func selectAIRequestChannel(user model.AuthUser, modelName string, channelID string, userChannelID string) (model.ModelChannel, string, error) {
 	userChannelID = strings.TrimSpace(userChannelID)
@@ -70,6 +79,10 @@ func AIVideos(w http.ResponseWriter, r *http.Request) {
 
 func AIVideo(w http.ResponseWriter, r *http.Request, id string) {
 	if serveAIVideoTask(w, r, id) {
+		return
+	}
+	if user, ok := service.UserFromContext(r.Context()); ok && !model.IsAdminRole(user.Role) {
+		FailWithStatus(w, http.StatusNotFound, "视频任务不存在")
 		return
 	}
 	if isClientVideoTaskID(id) {
@@ -170,7 +183,11 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 			Fail(w, err.Error())
 			return
 		}
-		credits *= readAIRequestBillingUnits(body, contentType, billingUnit)
+		credits, err = checkedBillingTotal(credits, readAIRequestBillingUnits(body, contentType, billingUnit))
+		if err != nil {
+			Fail(w, err.Error())
+			return
+		}
 	}
 	upstreamPath := resolveAIProxyPath(channel, modelName, path)
 	if service.IsGeminiChannel(channel) {
@@ -254,7 +271,7 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 			return
 		}
 	}
-	request, err := http.NewRequest(http.MethodPost, resolveAIProxyURL(channel, modelName, upstreamPath), bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, resolveAIProxyURL(channel, modelName, upstreamPath), bytes.NewReader(body))
 	if err != nil {
 		log.Printf("AI proxy build request failed: url=%s err=%v", service.BuildModelChannelURL(channel, upstreamPath), err)
 		Fail(w, "AI 接口请求失败")
@@ -265,27 +282,27 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 	if contentType != "" {
 		request.Header.Set("Content-Type", contentType)
 	}
-	billingID := firstNonEmpty(r.Header.Get("X-Billing-Task-ID"), "request_"+uuid.NewString())
+	billingID := firstNonEmpty(internalBillingID(r), "request_"+uuid.NewString())
 	if credits > 0 {
 		if err := service.FreezeUserCredits(user.ID, requestedModel, credits, upstreamPath, billingID); err != nil {
 			FailError(w, err)
 			return
 		}
 	}
-	deferFailureRelease := strings.TrimSpace(r.Header.Get(deferredBillingReleaseHeader)) == "1"
+	deferFailureRelease := internalBillingID(r) != ""
 	if is302MidjourneyRequest(channel, modelName, path) {
 		copy302MidjourneyImageResponse(w, request, channel, aiLogContext{
 			StartedAt: startedAt, Endpoint: path, Method: http.MethodPost, Model: requestedModel,
 			Channel: channel, UserID: user.ID, UserDisplayName: firstNonEmpty(user.DisplayName, user.Username),
 			Credits: credits, RequestBody: summarizeAIRequest(body, contentType),
 		}, func() {
-			if credits > 0 {
+			if credits > 0 && !deferFailureRelease {
 				if err := service.SettleUserCredits(user.ID, requestedModel, credits, upstreamPath, billingID); err != nil {
 					log.Printf("302 MJ settle credits failed: user=%s model=%s err=%v", user.ID, requestedModel, err)
 				}
 			}
 		}, func() {
-			if credits > 0 && !deferFailureRelease {
+			if credits > 0 && !deferFailureRelease && w.Header().Get("X-Upstream-Transport-Error") != "1" {
 				if err := service.ReleaseUserCredits(user.ID, requestedModel, credits, upstreamPath, billingID); err != nil {
 					log.Printf("302 MJ release credits failed: user=%s model=%s err=%v", user.ID, requestedModel, err)
 				}
@@ -304,13 +321,13 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		Credits:         credits,
 		RequestBody:     summarizeAIRequest(body, contentType),
 	}, func() {
-		if credits > 0 {
+		if credits > 0 && !deferFailureRelease {
 			if err := service.SettleUserCredits(user.ID, requestedModel, credits, upstreamPath, billingID); err != nil {
 				log.Printf("AI proxy settle credits failed: user=%s model=%s credits=%d err=%v", user.ID, requestedModel, credits, err)
 			}
 		}
 	}, func() {
-		if credits > 0 && !deferFailureRelease {
+		if credits > 0 && !deferFailureRelease && w.Header().Get("X-Upstream-Transport-Error") != "1" {
 			if err := service.ReleaseUserCredits(user.ID, requestedModel, credits, upstreamPath, billingID); err != nil {
 				log.Printf("AI proxy release credits failed: user=%s model=%s credits=%d err=%v", user.ID, requestedModel, credits, err)
 			}
@@ -320,7 +337,44 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 
 func replaceAIRequestModel(body []byte, contentType string, modelName string) ([]byte, error) {
 	if strings.Contains(strings.ToLower(contentType), "multipart/form-data") {
-		return body, nil
+		_, params, err := mime.ParseMediaType(contentType)
+		if err != nil {
+			return nil, err
+		}
+		reader := multipart.NewReader(bytes.NewReader(body), params["boundary"])
+		var buffer bytes.Buffer
+		writer := multipart.NewWriter(&buffer)
+		if err := writer.SetBoundary(params["boundary"]); err != nil {
+			return nil, err
+		}
+		for {
+			part, err := reader.NextPart()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return nil, err
+			}
+			if part.FormName() == "model" {
+				_ = part.Close()
+				continue
+			}
+			output, err := writer.CreatePart(part.Header)
+			if err != nil {
+				return nil, err
+			}
+			if _, err := io.Copy(output, part); err != nil {
+				return nil, err
+			}
+			_ = part.Close()
+		}
+		if err := writer.WriteField("model", modelName); err != nil {
+			return nil, err
+		}
+		if err := writer.Close(); err != nil {
+			return nil, err
+		}
+		return buffer.Bytes(), nil
 	}
 	var payload map[string]any
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -635,27 +689,50 @@ func readAIRequestCount(body []byte, contentType string) int {
 	if strings.HasPrefix(contentType, "multipart/form-data") {
 		_, params, err := mime.ParseMediaType(contentType)
 		if err != nil {
-			return count
+			return 0
 		}
 		form, err := multipart.NewReader(bytes.NewReader(body), params["boundary"]).ReadForm(32 << 20)
 		if err != nil {
-			return count
+			return 0
 		}
 		defer form.RemoveAll()
 		if values := form.Value["n"]; len(values) > 0 {
-			_, _ = fmt.Sscan(values[0], &count)
+			value, err := strconv.ParseFloat(values[0], 64)
+			if err != nil || math.IsNaN(value) || math.IsInf(value, 0) || value < 1 || value > 16 || math.Trunc(value) != value {
+				return 0
+			}
+			count = int(value)
 		}
 	} else {
 		var payload struct {
-			N int `json:"n"`
+			N json.RawMessage `json:"n"`
 		}
-		_ = json.Unmarshal(body, &payload)
-		count = payload.N
+		if json.Unmarshal(body, &payload) != nil {
+			return 0
+		}
+		if len(payload.N) == 0 {
+			return 1
+		}
+		value, err := strconv.ParseFloat(strings.Trim(string(payload.N), "\""), 64)
+		if err != nil || math.IsNaN(value) || math.IsInf(value, 0) || value < 1 || value > 16 || math.Trunc(value) != value {
+			return 0
+		}
+		count = int(value)
+	}
+	if count > 16 {
+		return 0
 	}
 	if count < 1 {
 		return 1
 	}
 	return count
+}
+
+func checkedBillingTotal(price, units int) (int, error) {
+	if price < 0 || units < 1 || (price > 0 && units > int(^uint(0)>>1)/price) {
+		return 0, fmt.Errorf("生成数量、时长或计费金额无效")
+	}
+	return price * units, nil
 }
 
 func resolveAIProxyURL(channel model.ModelChannel, modelName string, path string) string {
@@ -803,41 +880,44 @@ func readAIRequestBillingUnits(body []byte, contentType string, billingUnit stri
 	if !strings.Contains(strings.ToLower(billingUnit), "秒") {
 		return readAIRequestCount(body, contentType)
 	}
-	seconds := 0
+	parseSeconds := func(value string) int {
+		number, err := strconv.ParseFloat(value, 64)
+		// The existing video UI uses -1 for automatic duration (15-second hold).
+		if err == nil && number == -1 {
+			return 15
+		}
+		if err != nil || math.IsNaN(number) || math.IsInf(number, 0) || number <= 0 || number > 3600 {
+			return 0
+		}
+		return int(math.Ceil(number))
+	}
 	if strings.HasPrefix(contentType, "multipart/form-data") {
 		_, params, err := mime.ParseMediaType(contentType)
-		if err == nil {
-			form, formErr := multipart.NewReader(bytes.NewReader(body), params["boundary"]).ReadForm(32 << 20)
-			if formErr == nil {
-				defer form.RemoveAll()
-				for _, name := range []string{"seconds", "duration"} {
-					if values := form.Value[name]; len(values) > 0 {
-						_, _ = fmt.Sscan(values[0], &seconds)
-						break
-					}
-				}
+		if err != nil {
+			return 0
+		}
+		form, err := multipart.NewReader(bytes.NewReader(body), params["boundary"]).ReadForm(32 << 20)
+		if err != nil {
+			return 0
+		}
+		defer form.RemoveAll()
+		for _, name := range []string{"seconds", "duration"} {
+			if values := form.Value[name]; len(values) > 0 {
+				return parseSeconds(values[0])
 			}
 		}
 	} else {
-		var payload map[string]any
-		if json.Unmarshal(body, &payload) == nil {
-			for _, name := range []string{"seconds", "duration"} {
-				switch value := payload[name].(type) {
-				case float64:
-					seconds = int(value)
-				case string:
-					_, _ = fmt.Sscan(value, &seconds)
-				}
-				if seconds != 0 {
-					break
-				}
+		var payload map[string]json.RawMessage
+		if json.Unmarshal(body, &payload) != nil {
+			return 0
+		}
+		for _, name := range []string{"seconds", "duration"} {
+			if value, present := payload[name]; present {
+				return parseSeconds(strings.Trim(string(value), "\""))
 			}
 		}
 	}
-	if seconds < 1 {
-		return 15
-	}
-	return seconds
+	return 15
 }
 
 func isAgnesVideoModel(modelName string) bool {

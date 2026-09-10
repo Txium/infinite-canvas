@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/tigerowo/infinite-canvas/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func SaveProviderLedger(entry model.ProviderLedger) (model.ProviderLedger, error) {
@@ -69,7 +70,7 @@ func RecordProviderTopup(providerID string, amountCNY int64, operatorID, reason,
 	var result model.ProviderLedger
 	err = db.Transaction(func(tx *gorm.DB) error {
 		var provider model.ModelProvider
-		if err := tx.Where("id = ?", providerID).First(&provider).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", providerID).First(&provider).Error; err != nil {
 			return err
 		}
 		before := int64(0)
@@ -103,7 +104,7 @@ func SettleVideoTaskFinancials(task *model.VideoTask, current string) error {
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
 		var saved model.VideoTask
-		if err := tx.Where("id = ?", task.ID).First(&saved).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", task.ID).First(&saved).Error; err != nil {
 			return err
 		}
 		if saved.BillingStatus == "settled" {
@@ -112,6 +113,35 @@ func SettleVideoTaskFinancials(task *model.VideoTask, current string) error {
 		}
 		if saved.BillingStatus != "frozen" {
 			return gorm.ErrInvalidValue
+		}
+		// The caller contains the just-polled result. Keep financial fields from
+		// the locked row, but do not replace a successful result with its old state.
+		saved.Status, saved.Progress = task.Status, task.Progress
+		saved.VideoURL, saved.CompletedAt = task.VideoURL, task.CompletedAt
+		saved.LastResponse, saved.LastPolledAt = task.LastResponse, task.LastPolledAt
+		saved.Seconds, saved.Size = task.Seconds, task.Size
+		saved.Error, saved.ErrorDetail = task.Error, task.ErrorDetail
+		saved.UpstreamModel, saved.UpstreamTaskID, saved.UpstreamVideoID = task.UpstreamModel, task.UpstreamTaskID, task.UpstreamVideoID
+		saved.ChannelID, saved.ChannelName, saved.UserChannelID = task.ChannelID, task.ChannelName, task.UserChannelID
+		saved.RequestBody, saved.ResponseBody = task.RequestBody, task.ResponseBody
+		var user model.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", saved.UserID).First(&user).Error; err != nil {
+			return err
+		}
+		var released int64
+		if err := tx.Model(&model.CreditLog{}).Where("user_id = ? AND related_id = ? AND type = ?", saved.UserID, saved.BillingID, model.CreditLogTypeAIRelease).Count(&released).Error; err != nil {
+			return err
+		}
+		if released > 0 {
+			// An old refund may have committed before its task status was saved.
+			// Restore the result, never charge another task's frozen balance.
+			saved.BillingStatus = "released"
+			saved.UpdatedAt = current
+			if err := tx.Save(&saved).Error; err != nil {
+				return err
+			}
+			*task = saved
+			return nil
 		}
 
 		updated := tx.Model(&model.User{}).
@@ -123,7 +153,6 @@ func SettleVideoTaskFinancials(task *model.VideoTask, current string) error {
 		if updated.RowsAffected != 1 {
 			return gorm.ErrInvalidValue
 		}
-		var user model.User
 		if err := tx.Where("id = ?", saved.UserID).First(&user).Error; err != nil {
 			return err
 		}

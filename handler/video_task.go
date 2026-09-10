@@ -123,7 +123,11 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		billingUnits := readAIRequestBillingUnits(body, contentType, billingUnit)
-		credits *= billingUnits
+		credits, err = checkedBillingTotal(credits, billingUnits)
+		if err != nil {
+			Fail(w, err.Error())
+			return
+		}
 		if estimatedProviderCost, err = service.MarketModelEstimatedProviderCost(requestedModel, billingUnits); err != nil {
 			log.Printf("AI video read provider cost failed: model=%s err=%v", requestedModel, err)
 			Fail(w, "模型成本配置无效")
@@ -632,9 +636,7 @@ func selectPersistedVideoTaskChannel(task model.VideoTask) (model.ModelChannel, 
 				return candidate.Channel, upstreamModel, nil
 			}
 		}
-		if len(candidates) > 0 {
-			return candidates[0].Channel, candidates[0].UpstreamModel, nil
-		}
+		return model.ModelChannel{}, upstreamModel, errors.New("原任务供应商线路暂不可用，等待恢复后对账")
 	}
 	channel, err := service.SelectModelChannelForModel(upstreamModel, task.ChannelID)
 	return channel, upstreamModel, err
@@ -799,6 +801,10 @@ func parseVideoTaskPayload(payload []byte, modelName string) parsedVideoTaskPayl
 	}
 	if result.Status == "" {
 		result.Status = "processing"
+	}
+	// Preview/poll URLs from a processing or failed task are not a result.
+	if result.Status != "completed" {
+		result.VideoURL = ""
 	}
 	if result.VideoURL != "" {
 		result.Status = "completed"

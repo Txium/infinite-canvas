@@ -5,6 +5,7 @@ import (
 
 	"github.com/tigerowo/infinite-canvas/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func SaveRechargeOrder(order model.RechargeOrder) (model.RechargeOrder, error) {
@@ -36,10 +37,13 @@ func CompleteRechargeOrder(id, providerTradeID, provider, sellerID string, paidA
 	var result model.RechargeOrder
 	err = db.Transaction(func(tx *gorm.DB) error {
 		var order model.RechargeOrder
-		if err := tx.Where("id = ?", id).First(&order).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).First(&order).Error; err != nil {
 			return err
 		}
 		if order.Status != model.RechargeOrderPending {
+			if order.Status != model.RechargeOrderApproved || order.ProviderTradeID != providerTradeID {
+				return gorm.ErrInvalidValue
+			}
 			result = order
 			return nil
 		}
@@ -102,7 +106,7 @@ func ReviewRechargeOrder(id string, status model.RechargeOrderStatus, adminID, r
 	var result model.RechargeOrder
 	err = db.Transaction(func(tx *gorm.DB) error {
 		var order model.RechargeOrder
-		if err := tx.Where("id = ?", id).First(&order).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).First(&order).Error; err != nil {
 			return err
 		}
 		if order.Status != model.RechargeOrderPending {

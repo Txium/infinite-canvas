@@ -11,6 +11,7 @@ type CanvasImageTask struct {
 	ChannelID                  string   `json:"channelId"`
 	UserChannelID              string   `json:"userChannelId"`
 	ChannelName                string   `json:"channelName"`
+	UpstreamTaskID             string   `json:"-"`
 	Status                     string   `json:"status"`
 	Progress                   int      `json:"progress"`
 	Prompt                     string   `json:"prompt" gorm:"type:text"`

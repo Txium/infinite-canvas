@@ -22,6 +22,15 @@ func TestParseVideoTaskPayloadReadsNestedContentURL(t *testing.T) {
 	}
 }
 
+func TestProcessingAndFailedURLsAreNotCompletedArtifacts(t *testing.T) {
+	for _, payload := range []string{`{"status":"processing","url":"https://example.com/poll"}`, `{"status":"failed","url":"https://example.com/preview.png","error":"rejected"}`} {
+		result := parseVideoTaskPayload([]byte(payload), "public-model")
+		if result.Status == "completed" || result.VideoURL != "" {
+			t.Fatalf("non-result incorrectly completed: %+v", result)
+		}
+	}
+}
+
 func TestUnavailablePersistedRouteKeepsAcceptedTaskReconciling(t *testing.T) {
 	update := reconcilingVideoPollUpdate("route disabled", `{"error":"temporary"}`)
 	if update.Status != "reconciling" || update.Error != "" {

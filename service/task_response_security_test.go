@@ -43,6 +43,24 @@ func TestUnknownVideoStatusRemainsPollable(t *testing.T) {
 	}
 }
 
+func TestProviderErrorsNeverEchoSecrets(t *testing.T) {
+	for _, raw := range []string{"invalid token sk-private at relay.example/model", "余额不足 secret-provider-token", "LEC internal detail"} {
+		if got := userFriendlyTaskError(raw, "生成失败"); got != "生成失败" {
+			t.Fatalf("raw provider text leaked: %q", got)
+		}
+	}
+	if got := userFriendlyTaskError("insufficient wallet quota", "生成失败"); got == "余额不足" || got == "生成失败" {
+		t.Fatal("provider wallet failure not distinguished")
+	}
+}
+
+func TestRefundedLateSuccessStaysVisibleAsCompleted(t *testing.T) {
+	item := userTask("late", "public-model", "video", "completed", "released", 169, 100, "", "", "", "https://example.com/late.mp4")
+	if item.Status != "completed" || item.RefundAmountCents != 169 || item.UserFriendlyError != "" {
+		t.Fatalf("late success hidden: %+v", item)
+	}
+}
+
 func TestReconcilingVideoTaskKeepsDiagnosticWithoutRefunding(t *testing.T) {
 	task := model.VideoTask{ID: "local", Status: "queued", BillingStatus: "frozen"}
 	// Exercise the state mutation without billing by leaving Credits at zero.

@@ -1,6 +1,10 @@
 package repository
 
-import "github.com/tigerowo/infinite-canvas/model"
+import (
+	"errors"
+	"github.com/tigerowo/infinite-canvas/model"
+	"gorm.io/gorm"
+)
 
 func SaveVideoTask(task model.VideoTask) (model.VideoTask, error) {
 	db, err := DB()
@@ -15,7 +19,8 @@ func CreateVideoTaskIfAbsent(task model.VideoTask) (model.VideoTask, bool, error
 	if err != nil {
 		return task, false, err
 	}
-	if err := db.Create(&task).Error; err == nil {
+	err = db.Create(&task).Error
+	if err == nil {
 		return task, true, nil
 	}
 	existing, found, lookupErr := GetVideoTask(task.ID)
@@ -23,6 +28,9 @@ func CreateVideoTaskIfAbsent(task model.VideoTask) (model.VideoTask, bool, error
 		return task, false, lookupErr
 	}
 	if found {
+		if existing.UserID != task.UserID {
+			return task, false, gorm.ErrInvalidValue
+		}
 		return existing, false, nil
 	}
 	return task, false, err
@@ -35,10 +43,10 @@ func GetVideoTask(id string) (model.VideoTask, bool, error) {
 	}
 	var task model.VideoTask
 	err = db.First(&task, "id = ?", id).Error
-	if err != nil {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return model.VideoTask{}, false, nil
 	}
-	return task, true, nil
+	return task, err == nil, err
 }
 
 func GetUserVideoTask(userID string, id string) (model.VideoTask, bool, error) {
@@ -48,10 +56,10 @@ func GetUserVideoTask(userID string, id string) (model.VideoTask, bool, error) {
 	}
 	var task model.VideoTask
 	err = db.First(&task, "user_id = ? AND (id = ? OR upstream_task_id = ? OR upstream_video_id = ?)", userID, id, id, id).Error
-	if err != nil {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return model.VideoTask{}, false, nil
 	}
-	return task, true, nil
+	return task, err == nil, err
 }
 
 func ListUserVideoTasks(userID string, source string, limit int) ([]model.VideoTask, error) {

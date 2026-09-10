@@ -205,6 +205,16 @@ func copyWaveSpeedImageResponse(w http.ResponseWriter, response *http.Response, 
 	}
 	payload, _ := io.ReadAll(io.LimitReader(response.Body, 512*1024))
 	taskID, outputs, status, errorMessage := readWaveSpeedTask(payload)
+	if taskID != "" && internalBillingID(request) != "" {
+		if err := rememberWaveSpeedTask(request, logContext, taskID); err != nil {
+			w.Header().Set("X-Upstream-Transport-Error", "1")
+			if onFailure != nil {
+				onFailure()
+			}
+			writeWaveSpeedImageError(w, "上游已接单，本地任务映射保存失败，请联系管理员对账", logContext)
+			return true
+		}
+	}
 	if errorMessage != "" {
 		if onFailure != nil {
 			onFailure()
@@ -216,6 +226,14 @@ func copyWaveSpeedImageResponse(w http.ResponseWriter, response *http.Response, 
 		outputs, errorMessage = pollWaveSpeedTask(request, channel, taskID, "图片")
 	}
 	if errorMessage != "" || len(outputs) == 0 {
+		if taskID != "" {
+			w.Header().Set("X-Upstream-Transport-Error", "1")
+			if onFailure != nil {
+				onFailure()
+			}
+			writeWaveSpeedImageError(w, "上游已接单，等待结果对账", logContext)
+			return true
+		}
 		if onFailure != nil {
 			onFailure()
 		}
@@ -243,12 +261,12 @@ func pollWaveSpeedTask(request *http.Request, channel model.ModelChannel, taskID
 		service.SetModelChannelAuthHeader(pollRequest, channel)
 		pollResponse, err := service.HTTPClientForChannel(channel).Do(pollRequest)
 		if err != nil {
-			return nil, err.Error()
+			continue
 		}
 		body, _ := io.ReadAll(io.LimitReader(pollResponse.Body, 512*1024))
 		_ = pollResponse.Body.Close()
 		if pollResponse.StatusCode >= http.StatusBadRequest {
-			return nil, readUpstreamAIErrorMessage(body, pollResponse.StatusCode)
+			continue
 		}
 		_, outputs, status, errorMessage := readWaveSpeedTask(body)
 		if errorMessage != "" {

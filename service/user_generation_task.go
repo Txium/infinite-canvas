@@ -74,7 +74,9 @@ func UserGenerationTasks(user model.AuthUser, query UserGenerationTaskQuery) ([]
 		}
 		if entry.Type == model.CreditLogTypeAIRelease {
 			item.RefundAmountCents = int64(entry.Amount)
-			item.Status = "refunded"
+			if item.Status != "completed" {
+				item.Status = "refunded"
+			}
 			item.UserFriendlyError = friendlyTaskError(item.Status)
 		}
 	}
@@ -113,7 +115,9 @@ func userTask(id, modelName, kind, status, billing string, price int64, progress
 	refund := int64(0)
 	if billing == "released" {
 		refund = price
-		normalized = "refunded"
+		if normalized != "completed" {
+			normalized = "refunded"
+		}
 	}
 	if price < 0 {
 		price = -price

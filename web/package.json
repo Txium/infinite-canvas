@@ -4,6 +4,8 @@
     "private": true,
     "type": "module",
     "scripts": {
+        "test:audit": "node --test scripts/audit.test.cjs",
+        "typecheck": "tsc --noEmit",
         "dev": "next dev --webpack -H 0.0.0.0 -p 3000",
         "build": "next build",
         "start": "next start",

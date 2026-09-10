@@ -929,6 +929,20 @@ func extensionForContentType(contentType string) string {
 		return ".webp"
 	case "image/png":
 		return ".png"
+	case "audio/mpeg", "audio/mp3":
+		return ".mp3"
+	case "audio/wav", "audio/x-wav":
+		return ".wav"
+	case "audio/ogg":
+		return ".ogg"
+	case "audio/opus":
+		return ".opus"
+	case "audio/aac":
+		return ".aac"
+	case "audio/flac":
+		return ".flac"
+	case "audio/mp4":
+		return ".m4a"
 	default:
 		return ".bin"
 	}

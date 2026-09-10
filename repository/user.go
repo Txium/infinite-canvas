@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/tigerowo/infinite-canvas/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ListUsers 分页查询用户。
@@ -140,7 +141,7 @@ func AdjustUserCredits(id string, adjustment int, operatorID, reason, now string
 	var result model.User
 	err = db.Transaction(func(tx *gorm.DB) error {
 		var user model.User
-		if err := tx.Where("id = ?", id).First(&user).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).First(&user).Error; err != nil {
 			return err
 		}
 		if adjustment == 0 {
@@ -163,6 +164,9 @@ func AdjustUserCredits(id string, adjustment int, operatorID, reason, now string
 }
 
 func updateFrozenCredits(id string, credits int, log model.CreditLog, now string, operation string) (model.User, bool, error) {
+	if credits <= 0 || log.UserID != id || strings.TrimSpace(log.RelatedID) == "" {
+		return model.User{}, false, gorm.ErrInvalidValue
+	}
 	db, err := DB()
 	if err != nil {
 		return model.User{}, false, err
@@ -170,13 +174,29 @@ func updateFrozenCredits(id string, credits int, log model.CreditLog, now string
 	var result model.User
 	applied := false
 	err = db.Transaction(func(tx *gorm.DB) error {
-		var existing int64
-		if err := tx.Model(&model.CreditLog{}).Where("id = ?", log.ID).Count(&existing).Error; err != nil {
+		// Serialize all wallet changes for this user, including terminal replays.
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).First(&result).Error; err != nil {
 			return err
 		}
-		if existing > 0 {
+		var existing []model.CreditLog
+		if err := tx.Where("id = ?", log.ID).Find(&existing).Error; err != nil {
+			return err
+		}
+		if len(existing) > 0 {
+			if existing[0].UserID != id || existing[0].RelatedID != log.RelatedID || existing[0].Amount != log.Amount || existing[0].FrozenAmount != log.FrozenAmount {
+				return gorm.ErrInvalidValue
+			}
 			applied = true
-			return tx.Where("id = ?", id).First(&result).Error
+			return nil
+		}
+		if operation != "freeze" {
+			var terminal int64
+			if err := tx.Model(&model.CreditLog{}).Where("user_id = ? AND related_id = ? AND type IN ?", id, log.RelatedID, []model.CreditLogType{model.CreditLogTypeAISettle, model.CreditLogTypeAIRelease}).Count(&terminal).Error; err != nil {
+				return err
+			}
+			if terminal > 0 {
+				return gorm.ErrInvalidValue
+			}
 		}
 		updates := map[string]any{"updated_at": now}
 		query := tx.Model(&model.User{}).Where("id = ?", id)

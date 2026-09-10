@@ -475,13 +475,17 @@ func userFriendlyTaskError(value string, fallback string) string {
 	if message == "" {
 		return fallback
 	}
-	lower := strings.ToLower(message)
-	for _, marker := range []string{"http ", "status code", "provider", "upstream", "request_invalid", "internal", "api key", "timeout", "502", "503", "504"} {
-		if strings.Contains(lower, marker) {
-			return fallback
-		}
+	if strings.Contains(strings.ToLower(message), "insufficient wallet quota") {
+		return "当前模型服务额度不足，请联系管理员或更换模型；这不是您的钱包余额不足"
 	}
-	return message
+	// Provider text is untrusted and can contain credentials, URLs and model
+	// identifiers. Only explicitly safe local messages may reach the user.
+	switch message {
+	case "余额不足", "请先登录", "缺少模型名称", "当前模型档位未上架", "动态价格尚未接入真实成本结算，当前不能生成":
+		return message
+	default:
+		return fallback
+	}
 }
 
 func IsCompletedVideoTaskStatus(status string) bool {

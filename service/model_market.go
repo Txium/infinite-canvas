@@ -9,9 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -201,17 +199,20 @@ func AdminMarketModels() ([]model.MarketModel, error) {
 }
 
 type ModelProviderConnectionTest struct {
-	OK          bool     `json:"ok"`
-	ProviderID  string   `json:"providerId"`
-	Message     string   `json:"message"`
-	BalanceText string   `json:"balanceText,omitempty"`
-	Models      []string `json:"models,omitempty"`
+	OK               bool     `json:"ok"`
+	ProviderID       string   `json:"providerId"`
+	Message          string   `json:"message"`
+	BalanceText      string   `json:"balanceText,omitempty"`
+	BalanceAmount    string   `json:"balanceAmount,omitempty"`
+	BalanceCurrency  string   `json:"balanceCurrency,omitempty"`
+	BalanceCheckedAt string   `json:"balanceCheckedAt,omitempty"`
+	Models           []string `json:"models,omitempty"`
 }
 
 // TestModelProviderConnection performs an authenticated, non-generation
 // request.  It verifies that the server-side secret reaches the intended
 // upstream without spending inference balance.
-func TestModelProviderConnection(id string) (ModelProviderConnectionTest, error) {
+func TestModelProviderConnection(id string) (result ModelProviderConnectionTest, finalErr error) {
 	provider, err := repository.SavedModelProviderByID(strings.TrimSpace(id))
 	if err != nil {
 		return ModelProviderConnectionTest{}, errors.New("中转站不存在")
@@ -221,7 +222,23 @@ func TestModelProviderConnection(id string) (ModelProviderConnectionTest, error)
 		return ModelProviderConnectionTest{}, errors.New("请先启用中转站并配置 Base URL 与服务器 Secret")
 	}
 	channel := model.ModelChannel{ID: provider.ID, Protocol: "openai", Name: provider.Name, BaseURL: provider.BaseURL, APIKey: provider.APIKey, Timeout: 60, Enabled: true}
-	result := ModelProviderConnectionTest{OK: true, ProviderID: provider.ID, Message: "服务器 Key 与 Base URL 连接正常"}
+	result = ModelProviderConnectionTest{OK: true, ProviderID: provider.ID, Message: "服务器 Key 与 Base URL 连接正常"}
+	attemptedAt := time.Now().UTC().Format("2006-01-02T15:04:05.000000000Z")
+	defer func() {
+		if provider.Code != "wavespeed" && provider.Code != "302" && provider.Code != "seedance_nz" {
+			return
+		}
+		detail := ""
+		if finalErr != nil {
+			detail = "最近一次查询失败，保留上次核实余额；请检查上游权限与连接"
+		}
+		if finalErr == nil && result.BalanceAmount != "" {
+			result.BalanceCheckedAt = attemptedAt
+		}
+		if err := repository.RecordProviderBalanceSnapshot(provider.ID, provider.BaseURL, attemptedAt, result.BalanceAmount, result.BalanceCurrency, detail); err != nil && finalErr == nil {
+			finalErr = errors.New("已连接上游，但余额记录保存失败，请重试查询")
+		}
+	}()
 	var requestURL string
 	switch provider.Code {
 	case "wavespeed":
@@ -251,7 +268,10 @@ func TestModelProviderConnection(id string) (ModelProviderConnectionTest, error)
 		return ModelProviderConnectionTest{}, safeMessageError{message: "连接失败：上游接口无响应或网络不可达"}
 	}
 	defer response.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(response.Body, 512*1024))
+	body, readErr := io.ReadAll(io.LimitReader(response.Body, 512*1024+1))
+	if readErr != nil || len(body) > 512*1024 {
+		return ModelProviderConnectionTest{}, errors.New("上游余额响应不完整")
+	}
 	if response.StatusCode == http.StatusForbidden && provider.Code == "302" {
 		return ModelProviderConnectionTest{}, safeMessageError{message: "302.AI 返回 403：当前 API Key 未开通余额查询权限，请在 302.AI API Key 高级设置中开启余额权限后再查询"}
 	}
@@ -262,14 +282,19 @@ func TestModelProviderConnection(id string) (ModelProviderConnectionTest, error)
 		var payload struct {
 			Code int `json:"code"`
 			Data struct {
-				Balance float64 `json:"balance"`
+				Balance json.RawMessage `json:"balance"`
 			} `json:"data"`
 		}
 		if json.Unmarshal(body, &payload) != nil || payload.Code != 200 {
 			return ModelProviderConnectionTest{}, errors.New("WaveSpeed 余额响应无法解析")
 		}
-		result.BalanceText = "$" + strconv.FormatFloat(payload.Data.Balance, 'f', 2, 64) + " USD"
-		result.Message = "连接正常；已读取美元余额（不会写入人民币余额）"
+		result.BalanceAmount, err = providerBalanceAmount(payload.Data.Balance)
+		if err != nil {
+			return ModelProviderConnectionTest{}, err
+		}
+		result.BalanceCurrency = "USD"
+		result.BalanceText = result.BalanceAmount + " USD"
+		result.Message = "连接正常；美元余额已独立记录，不改变人民币资金账"
 		return result, nil
 	}
 	if provider.Code == "302" {
@@ -281,16 +306,13 @@ func TestModelProviderConnection(id string) (ModelProviderConnectionTest, error)
 		if json.Unmarshal(body, &payload) != nil || len(payload.Data.Balance) == 0 {
 			return ModelProviderConnectionTest{}, errors.New("302.AI 余额响应无法解析，请给 API Key 开通余额查询权限")
 		}
-		var balance string
-		if json.Unmarshal(payload.Data.Balance, &balance) != nil {
-			var number float64
-			if json.Unmarshal(payload.Data.Balance, &number) != nil {
-				return ModelProviderConnectionTest{}, errors.New("302.AI 余额响应无法解析")
-			}
-			balance = strconv.FormatFloat(number, 'f', 2, 64)
+		result.BalanceAmount, err = providerBalanceAmount(payload.Data.Balance)
+		if err != nil {
+			return ModelProviderConnectionTest{}, err
 		}
-		result.BalanceText = strings.TrimSpace(balance) + " PTC"
-		result.Message = "连接正常；已读取 302.AI 余额"
+		result.BalanceCurrency = "PTC"
+		result.BalanceText = result.BalanceAmount + " PTC"
+		result.Message = "连接正常；302.AI 原币余额已独立记录"
 		return result, nil
 	}
 	if provider.Code == "lec" {
@@ -316,35 +338,36 @@ func TestModelProviderConnection(id string) (ModelProviderConnectionTest, error)
 	if provider.Code == "seedance_nz" {
 		var payload struct {
 			Data struct {
-				Amount      *float64 `json:"amount"`
-				DisplayType string   `json:"display_type"`
+				Amount      json.RawMessage `json:"amount"`
+				DisplayType string          `json:"display_type"`
 			} `json:"data"`
 		}
-		if json.Unmarshal(body, &payload) == nil && payload.Data.Amount != nil {
+		if json.Unmarshal(body, &payload) == nil {
+			result.BalanceAmount, err = providerBalanceAmount(payload.Data.Amount)
+			if err != nil {
+				return ModelProviderConnectionTest{}, err
+			}
 			unit := strings.TrimSpace(payload.Data.DisplayType)
 			if unit == "" {
 				unit = "原币种"
 			}
-			result.BalanceText = strconv.FormatFloat(*payload.Data.Amount, 'f', 2, 64) + " " + unit
-			result.Message = "连接正常；已读取 seedance.nz 钱包余额（原币种显示）"
+			if len(unit) > 32 {
+				return ModelProviderConnectionTest{}, errors.New("上游余额币种无法识别")
+			}
+			result.BalanceCurrency = unit
+			result.BalanceText = result.BalanceAmount + " " + unit
+			result.Message = "连接正常；seedance.nz 原币余额已独立记录"
 			return result, nil
 		}
+		return ModelProviderConnectionTest{}, errors.New("上游钱包响应无法解析，保留最近一次核实值")
 	}
 	result.Message = "连接正常；钱包接口鉴权通过（余额币种未自动换算）"
 	return result, nil
 }
 
 func publicVariantPriced(variant model.ModelVariant) bool {
-	if variant.PricingMode == "fixed" {
-		return variant.PriceCents != nil && *variant.PriceCents > 0
-	}
-	if variant.PricingMode != "dynamic" {
-		return false
-	}
-	// Dynamic LLM formulas declare both input and output RMB rates. A formula
-	// such as "actual cost x 1.08" cannot be settled by the current wallet
-	// implementation and must not become a one-cent public generation route.
-	return len(regexp.MustCompile(`([0-9]+(?:\.[0-9]+)?)`).FindAllString(variant.PriceFormula, -1)) >= 2
+	// A formula is not proof of actual usage-aware settlement support.
+	return variant.PricingMode == "fixed" && variant.PriceCents != nil && *variant.PriceCents > 0
 }
 
 func modelIDsFromPayload(value any) []string {
@@ -415,8 +438,12 @@ func SaveModelProvider(item model.ModelProvider) (model.ModelProvider, error) {
 	if item.Timeout <= 0 {
 		item.Timeout = 300
 	}
-	item.HasAPIKey = providerSecret(item.Code) != ""
-	return item, repository.SaveModelProvider(item)
+	if err := repository.SaveModelProvider(item); err != nil {
+		return model.ModelProvider{}, err
+	}
+	saved, err := repository.SavedModelProviderByID(item.ID)
+	saved.APIKey, saved.HasAPIKey = "", providerSecret(item.Code) != ""
+	return saved, err
 }
 func SaveMarketModel(item model.MarketModel) (model.MarketModel, error) {
 	now := time.Now().Format(time.RFC3339)
@@ -489,10 +516,8 @@ func SaveModelRoute(item model.ModelRoute) (model.ModelRoute, error) {
 		if modelErr != nil || !marketModel.Enabled || marketModel.Status == "maintenance" {
 			return model.ModelRoute{}, errors.New("模型未上架或正在维护，不能启用线路")
 		}
-		fixedPriced := variant.PricingMode == "fixed" && variant.PriceCents != nil && *variant.PriceCents > 0
-		dynamicPriced := variant.PricingMode == "dynamic" && strings.TrimSpace(variant.PriceFormula) != ""
-		if !variant.Enabled || (!fixedPriced && !dynamicPriced) {
-			return model.ModelRoute{}, errors.New("启用线路前必须为档位设置售价或有效的动态价格公式并上架")
+		if !variant.Enabled || !publicVariantPriced(variant) {
+			return model.ModelRoute{}, errors.New("启用线路前必须设置固定售价并上架；动态计费尚未接入真实结算")
 		}
 		if !modelProviderReady(withProviderSecret(provider)) {
 			return model.ModelRoute{}, errors.New("启用线路前必须启用供应商并配置 Base URL 与服务器 Secret")
@@ -573,15 +598,7 @@ func AdminModelReadiness() (model.ModelReadiness, error) {
 		}
 		result.EnabledVariantCount++
 		if variant.PricingMode == "dynamic" {
-			if strings.TrimSpace(variant.PriceFormula) == "" {
-				dynamicCount++
-				continue
-			}
-			if enabledRoutesByVariant[variant.ID] > 0 {
-				result.AvailableVariantCount++
-			} else {
-				missingRouteCount++
-			}
+			dynamicCount++
 			continue
 		}
 		if variant.PricingMode != "fixed" || variant.PriceCents == nil || *variant.PriceCents <= 0 {
@@ -627,6 +644,9 @@ func ResolveMarketRoutes(variantID string) ([]MarketRouteCandidate, bool, error)
 	if !variant.Enabled {
 		return nil, true, errors.New("当前模型档位未上架")
 	}
+	if variant.PricingMode == "dynamic" {
+		return nil, true, errors.New("动态价格尚未接入真实成本结算，当前不能生成")
+	}
 	routes, err := repository.EnabledRoutesForVariant(strings.TrimSpace(variantID))
 	if err != nil {
 		return nil, true, err
@@ -640,6 +660,9 @@ func ResolveMarketRoutes(variantID string) ([]MarketRouteCandidate, bool, error)
 		}
 		baseURL := provider.BaseURL
 		protocol := route.Protocol
+		if provider.Code == "wavespeed" {
+			protocol = "wavespeed"
+		}
 		if marketModel, marketErr := repository.SavedMarketModelByID(variant.ModelID); marketErr == nil && marketModel.Category == "llm" && provider.Code == "wavespeed" {
 			// WaveSpeed serves LLMs from its OpenAI-compatible host, separate
 			// from the media prediction API, while keeping the same account key.
@@ -754,10 +777,7 @@ func MarketModelPricing(variantID string) (int, string, bool, error) {
 	return MarketModelPricingForRequest(variantID, nil)
 }
 
-// MarketModelPricingForRequest returns a conservative RMB reservation for a
-// market request. Dynamic LLM variants are reserved from the declared
-// input/output per-million-token formula; a later usage-aware settlement can
-// refund any unused reservation without exposing provider pricing to clients.
+// MarketModelPricingForRequest only enables verifiable fixed-price billing.
 func MarketModelPricingForRequest(variantID string, body []byte) (int, string, bool, error) {
 	variant, err := repository.MarketVariantByID(strings.TrimSpace(variantID))
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -770,12 +790,9 @@ func MarketModelPricingForRequest(variantID string, body []byte) (int, string, b
 		return 0, "", false, errors.New("当前模型档位未上架")
 	}
 	if variant.PricingMode == "dynamic" {
-		if strings.TrimSpace(variant.PriceFormula) == "" {
-			return 0, "", false, errors.New("动态价格尚未配置")
-		}
-		return dynamicVariantReservation(variant.PriceFormula, body), strings.TrimSpace(variant.BillingUnit), true, nil
+		return 0, "", true, errors.New("动态价格尚未接入真实成本结算，当前不能生成")
 	}
-	if variant.PriceCents == nil {
+	if !publicVariantPriced(variant) {
 		return 0, "", false, errors.New("模型售价尚未配置")
 	}
 	return int(*variant.PriceCents), strings.TrimSpace(variant.BillingUnit), true, nil
@@ -795,36 +812,4 @@ func MarketModelEstimatedProviderCost(variantID string, units int) (int64, error
 		units = 1
 	}
 	return *variant.CostCents * int64(units), nil
-}
-
-func dynamicVariantReservation(formula string, body []byte) int {
-	prices := regexp.MustCompile(`([0-9]+(?:\.[0-9]+)?)`).FindAllString(formula, -1)
-	if len(prices) < 2 {
-		return 1
-	}
-	inputRate, _ := strconv.ParseFloat(prices[0], 64)
-	outputRate, _ := strconv.ParseFloat(prices[1], 64)
-	inputTokens := 1
-	if len(body) > 0 {
-		inputTokens = len([]rune(string(body))) / 4
-		if inputTokens < 1 {
-			inputTokens = 1
-		}
-	}
-	outputTokens := 512
-	var request struct {
-		MaxTokens int `json:"max_tokens"`
-	}
-	if json.Unmarshal(body, &request) == nil && request.MaxTokens > 0 {
-		outputTokens = request.MaxTokens
-	}
-	reservation := (float64(inputTokens)*inputRate + float64(outputTokens)*outputRate) / 10000
-	credits := int(reservation)
-	if float64(credits) < reservation {
-		credits++
-	}
-	if credits < 1 {
-		credits = 1
-	}
-	return credits
 }

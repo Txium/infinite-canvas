@@ -34,29 +34,34 @@ export default function AdminProvidersPage() {
     const [editing, setEditing] = useState<AdminModelProvider | null>(null);
     const [testingID, setTestingID] = useState("");
     const [syncingID, setSyncingID] = useState("");
-    const [liveBalances, setLiveBalances] = useState<Record<string, string>>({});
     const [balanceErrors, setBalanceErrors] = useState<Record<string, string>>({});
     const autoBalanceKey = useRef("");
+	const balancePending = useRef(new Set<string>());
+	const loadSequence = useRef(0);
+	const [saving, setSaving] = useState(false);
+	const [topupSaving, setTopupSaving] = useState(false);
+	const savingRef = useRef(false);
+	const topupSavingRef = useRef(false);
     const [testedModels, setTestedModels] = useState<{ provider: string; models: string[] } | null>(null);
     const [form] = Form.useForm<ProviderForm>();
     const [topupForm] = Form.useForm<TopupForm>();
     const [topupProvider, setTopupProvider] = useState<AdminModelProvider | null>(null);
-    const load = async () => { if (token) { const [providers, history] = await Promise.all([fetchAdminModelProviders(token), fetchAdminProviderLedgers(token)]); setItems(providers); setLedgers(history); } };
-    useEffect(() => { void load(); }, [token]);
+    const load = async () => {
+		const sequence = ++loadSequence.current;
+		if (!token) return;
+		try {
+			const [providers, history] = await Promise.all([fetchAdminModelProviders(token), fetchAdminProviderLedgers(token)]);
+			if (sequence !== loadSequence.current || useUserStore.getState().token !== token) return;
+			setItems(providers || []); setLedgers(history || []);
+		} catch { if (useUserStore.getState().token === token) void message.error("中转站数据读取失败，请刷新重试"); }
+	};
+    useEffect(() => { setItems([]); setLedgers([]); setBalanceErrors({}); autoBalanceKey.current = ""; balancePending.current = new Set(); void load(); return () => { loadSequence.current++; }; }, [token]);
     useEffect(() => {
         if (!token || items.length === 0) return;
-        const key = items.map((item) => item.id).join("|");
+        const key = token + items.map((item) => `${item.id}:${item.ready}:${item.baseUrl}`).join("|");
         if (autoBalanceKey.current === key) return;
         autoBalanceKey.current = key;
-        void Promise.all(items.filter((item) => item.ready).map(async (item) => {
-            try {
-                const result = await testAdminModelProvider(token, item.id);
-                if (result.balanceText) setLiveBalances((current) => ({ ...current, [item.id]: result.balanceText! }));
-            } catch (error) {
-                const detail = error instanceof Error ? error.message : "余额查询失败，请检查上游 Key 权限";
-                setBalanceErrors((current) => ({ ...current, [item.id]: detail }));
-            }
-        }));
+        void Promise.all(items.filter((item) => item.ready).map((item) => testConnection(item, false)));
     }, [items, token]);
     const open = (item: AdminModelProvider) => {
         setEditing(item);
@@ -68,7 +73,9 @@ export default function AdminProvidersPage() {
         });
     };
     const save = async () => {
-        if (!editing || !token) return;
+        if (!editing || !token || savingRef.current) return;
+		savingRef.current = true; setSaving(true);
+		try {
         const values = await form.validateFields();
         const { warningBalanceYuan, criticalBalanceYuan, lowBalanceYuan, ...providerValues } = values;
         await saveAdminModelProvider(token, {
@@ -81,31 +88,40 @@ export default function AdminProvidersPage() {
         message.success("中转站配置已保存");
         setEditing(null);
         await load();
+		} catch (error) { if (!(error && typeof error === "object" && "errorFields" in error)) void message.error(error instanceof Error ? error.message : "保存失败"); }
+		finally { savingRef.current = false; setSaving(false); }
     };
     const saveTopup = async () => {
-        if (!topupProvider || !token) return;
+        if (!topupProvider || !token || topupSavingRef.current) return;
+		topupSavingRef.current = true; setTopupSaving(true);
+		try {
         const values = await topupForm.validateFields();
         await recordAdminProviderTopup(token, { providerId: topupProvider.id, amountCents: Math.round(values.amountYuan * 100), reason: values.reason, reference: values.reference });
         message.success("上游充值已登记并写入独立资金账本");
         setTopupProvider(null);
         topupForm.resetFields();
         await load();
+		} catch (error) { if (!(error && typeof error === "object" && "errorFields" in error)) void message.error(error instanceof Error ? error.message : "登记失败，请先核对流水再重试"); }
+		finally { topupSavingRef.current = false; setTopupSaving(false); }
     };
-    const testConnection = async (item: AdminModelProvider) => {
-        if (!token) return;
-        setTestingID(item.id);
+    const testConnection = async (item: AdminModelProvider, notify = true) => {
+        if (!token || balancePending.current.has(item.id)) return;
+		balancePending.current.add(item.id);
+        if (notify) setTestingID(item.id);
         try {
             const result = await testAdminModelProvider(token, item.id);
-            message.success([result.message, result.balanceText].filter(Boolean).join("；"));
-            if (result.balanceText) setLiveBalances((current) => ({ ...current, [item.id]: result.balanceText! }));
+			if (useUserStore.getState().token !== token) return;
+            if (notify) void message.success([result.message, result.balanceText].filter(Boolean).join("；"));
+			if (result.balanceAmount != null && result.balanceCurrency && result.balanceCheckedAt) setItems((current) => current.map((provider) => provider.id === item.id ? { ...provider, upstreamBalanceAmount: result.balanceAmount, upstreamBalanceCurrency: result.balanceCurrency, upstreamBalanceCheckedAt: result.balanceCheckedAt, upstreamBalanceAttemptedAt: result.balanceCheckedAt, upstreamBalanceError: "" } : provider));
             setBalanceErrors((current) => { const next = { ...current }; delete next[item.id]; return next; });
-            if (result.models?.length) setTestedModels({ provider: item.name, models: result.models });
+            if (notify && result.models?.length) setTestedModels({ provider: item.name, models: result.models });
         } catch (error) {
+			if (useUserStore.getState().token !== token) return;
             const detail = error instanceof Error ? error.message : "余额查询失败，请检查上游 Key 权限";
             setBalanceErrors((current) => ({ ...current, [item.id]: detail }));
-            message.error(detail);
+            if (notify) void message.error(detail);
         } finally {
-            setTestingID("");
+			if (useUserStore.getState().token === token) { balancePending.current.delete(item.id); if (notify) setTestingID(""); }
         }
     };
     const syncCatalog = async (item: AdminModelProvider) => {
@@ -123,12 +139,13 @@ export default function AdminProvidersPage() {
     };
     return <div className="p-6">
         <Card title="四家上游中转站" extra={<Button onClick={() => void load()}>刷新</Button>}>
-            <Typography.Paragraph type="secondary">API Key 只保存在 Render Secret。点击“查询余额”会调用上游免费余额接口；不同上游的币种/积分单位原样显示，不会擅自换算成人民币。</Typography.Paragraph>
+            <Typography.Paragraph type="secondary">API Key 只保存在服务器 Secret。查询余额会独立保存上游原币数值和时间，失败时保留最近一次核实值。人民币手工资金账单独显示，预警阈值针对人民币账本；LEC 当前仅测试模型接口，不伪造余额。</Typography.Paragraph>
             <Table rowKey="id" dataSource={items} pagination={false} columns={[
                 { title: "中转站", render: (_: unknown, item: AdminModelProvider) => <Space direction="vertical" size={0}><Typography.Text strong>{item.name}</Typography.Text><Typography.Text type="secondary">{item.code}</Typography.Text></Space> },
                 { title: "连接配置", render: (_: unknown, item: AdminModelProvider) => <Space direction="vertical" size={2}><Tag color={item.hasApiKey ? "success" : "error"}>{item.hasApiKey ? "服务器 Key 已配置" : "服务器 Key 未配置"}</Tag><Typography.Text type="secondary" ellipsis style={{ maxWidth: 260 }}>{item.baseUrl || "Base URL 未配置"}</Typography.Text></Space> },
                 { title: "线路", render: (_: unknown, item: AdminModelProvider) => `${item.enabledRouteCount} 启用 / ${item.routeCount} 总计` },
-                { title: "余额", render: (_: unknown, item: AdminModelProvider) => <Space direction="vertical" size={0}><Typography.Text strong>{liveBalances[item.id] || yuan(item.balanceCents)}</Typography.Text><Typography.Text type={balanceErrors[item.id] ? "danger" : "secondary"}>{balanceErrors[item.id] || (liveBalances[item.id] ? "刚刚从上游读取" : item.balanceCheckedAt ? dayjs(item.balanceCheckedAt).format("YYYY-MM-DD HH:mm") : "点击查询余额")}</Typography.Text></Space> },
+                { title: "上游核实余额", render: (_: unknown, item: AdminModelProvider) => <Space direction="vertical" size={0}><Typography.Text strong>{item.upstreamBalanceAmount != null && item.upstreamBalanceAmount !== "" && item.upstreamBalanceCurrency ? `${item.upstreamBalanceAmount} ${item.upstreamBalanceCurrency}` : "未核实"}</Typography.Text><Typography.Text type="secondary">{item.upstreamBalanceCheckedAt ? `最近成功：${dayjs(item.upstreamBalanceCheckedAt).format("YYYY-MM-DD HH:mm:ss")}` : item.code === "lec" ? "上游未提供余额接口" : "点击查询余额"}</Typography.Text>{balanceErrors[item.id] || item.upstreamBalanceError ? <Typography.Text type="danger">{balanceErrors[item.id] || item.upstreamBalanceError}</Typography.Text> : null}</Space> },
+                { title: "人民币手工账", render: (_: unknown, item: AdminModelProvider) => <Space direction="vertical" size={0}><Typography.Text>{yuan(item.balanceCents)}</Typography.Text><Typography.Text type="secondary">{item.balanceCheckedAt ? dayjs(item.balanceCheckedAt).format("YYYY-MM-DD HH:mm") : "未登记"}</Typography.Text></Space> },
                 { title: "预警", render: (_: unknown, item: AdminModelProvider) => { const meta = statusMeta[item.balanceStatus] || statusMeta.unknown; return <Space direction="vertical" size={0}><Tag color={meta.color}>{meta.label}</Tag><Typography.Text type="secondary">{item.balanceMessage || "需要登录上游查看"}</Typography.Text></Space>; } },
                 { title: "状态", render: (_: unknown, item: AdminModelProvider) => <Tag color={item.ready ? "success" : "default"}>{item.ready ? "可路由" : "不可路由"}</Tag> },
                 { title: "操作", render: (_: unknown, item: AdminModelProvider) => <Space wrap><Button size="small" loading={testingID === item.id} disabled={!item.ready} onClick={() => void testConnection(item)}>查询余额</Button><Button size="small" loading={syncingID === item.id} disabled={!item.ready || !["302", "lec", "wavespeed"].includes(item.code)} onClick={() => void syncCatalog(item)}>同步模型</Button><Button size="small" onClick={() => open(item)}>配置</Button><Button size="small" type="primary" onClick={() => setTopupProvider(item)}>登记充值</Button></Space> },
@@ -145,7 +162,7 @@ export default function AdminProvidersPage() {
                 { title: "凭证", dataIndex: "reference", render: (value: string) => value || "-" },
             ]} />
         </Card>
-        <Modal title={editing ? `配置 ${editing.name}` : "配置中转站"} open={!!editing} onCancel={() => setEditing(null)} onOk={() => void save()} width={620}>
+        <Modal title={editing ? `配置 ${editing.name}` : "配置中转站"} open={!!editing} confirmLoading={saving} cancelButtonProps={{disabled:saving}} closable={!saving} maskClosable={!saving} keyboard={!saving} onCancel={() => { if (!savingRef.current) setEditing(null); }} onOk={() => void save()} width={620}>
             <Form form={form} layout="vertical">
                 <Form.Item name="baseUrl" label="Base URL"><Input placeholder="填写已核实的上游 API Base URL" /></Form.Item>
                 <Form.Item label="API Key"><div className="rounded-lg border border-stone-200 p-3 text-sm text-stone-500 dark:border-stone-700">只在 Render 环境变量中配置对应的 <code>MODEL_PROVIDER_*_API_KEY</code>，本页面不读取明文。</div></Form.Item>
@@ -161,7 +178,7 @@ export default function AdminProvidersPage() {
                 </Space>
             </Form>
         </Modal>
-        <Modal title={topupProvider ? `登记 ${topupProvider.name} 上游充值` : "登记上游充值"} open={!!topupProvider} onCancel={() => setTopupProvider(null)} onOk={() => void saveTopup()}>
+        <Modal title={topupProvider ? `登记 ${topupProvider.name} 上游充值` : "登记上游充值"} open={!!topupProvider} confirmLoading={topupSaving} cancelButtonProps={{disabled:topupSaving}} closable={!topupSaving} maskClosable={!topupSaving} keyboard={!topupSaving} onCancel={() => { if (!topupSavingRef.current) setTopupProvider(null); }} onOk={() => void saveTopup()}>
             <Form form={topupForm} layout="vertical">
                 <Form.Item name="amountYuan" label="实际充值金额（人民币元）" rules={[{ required: true, message: "请输入充值金额" }]}><InputNumber min={0.01} precision={2} className="w-full" /></Form.Item>
                 <Form.Item name="reason" label="原因" rules={[{ required: true, whitespace: true, message: "请填写原因" }]}><Input placeholder="例如：LEC 余额低于预警线" /></Form.Item>

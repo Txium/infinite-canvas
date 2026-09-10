@@ -87,7 +87,8 @@ func SaveModelProvider(item model.ModelProvider) error {
 	if err != nil {
 		return err
 	}
-	return db.Save(&item).Error
+	// Configuration edits must not replace concurrent balance checks or ledger balances.
+	return db.Omit("BalanceCents", "BalanceCheckedAt", "UpstreamBalanceAmount", "UpstreamBalanceCurrency", "UpstreamBalanceCheckedAt", "UpstreamBalanceAttemptedAt", "UpstreamBalanceError").Save(&item).Error
 }
 func SaveMarketModel(item model.MarketModel) error {
 	db, err := DB()

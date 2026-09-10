@@ -6,6 +6,7 @@ import { CircleDot, Eraser, FolderOpen, Globe2, Grid2x2, Hand, Image as ImageIco
 import { canvasThemes, type CanvasBackgroundMode, type CanvasColorTheme, type CanvasTheme } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
+import layoutStyles from "./canvas-layout.module.css";
 
 export function CanvasToolbar({
     selectedCount,
@@ -70,7 +71,7 @@ export function CanvasToolbar({
     const tip = hovered ? toolLabel(hovered) : "";
 
     return (
-        <div className="pointer-events-none absolute bottom-5 z-50 flex justify-center" style={{ left: 300, right: 16 }}>
+        <div className={`pointer-events-none absolute z-50 flex justify-center ${layoutStyles.toolbar}`}>
             {tip ? <DockTip label={tip} x={tipX} theme={theme} /> : null}
             <div ref={wrapRef} className="thin-scrollbar pointer-events-auto flex h-14 max-w-full items-center gap-1 overflow-x-auto rounded-xl border px-2 shadow-lg backdrop-blur [&>*]:shrink-0" style={dockStyle}>
                 <ToolbarButton id={`tool-${canvasTool}`} label={canvasTool === "select" ? "选择" : "移动"} active hovered={hovered} activeStyle={activeStyle} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={() => onCanvasToolChange(canvasTool === "select" ? "pan" : "select")}>

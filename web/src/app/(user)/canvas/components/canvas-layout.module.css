@@ -1,0 +1,19 @@
+.workspace {
+    container-name: canvas-workspace;
+    container-type: inline-size;
+}
+
+.toolbar {
+    left: 300px;
+    right: 16px;
+    bottom: 20px;
+}
+
+/* Use the remaining canvas width, not the browser width: either side panel
+   can leave a narrow workspace even on a large screen. */
+@container canvas-workspace (max-width: 900px) {
+    .toolbar {
+        left: 16px;
+        bottom: 88px;
+    }
+}
