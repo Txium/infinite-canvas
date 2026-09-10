@@ -4467,6 +4467,7 @@ function CanvasTopBar({
                             <button
                                 type="button"
                                 className="min-w-0 max-w-[280px] truncate border-b border-dashed border-transparent text-left text-lg font-semibold tracking-normal transition hover:border-current"
+                                style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                                 onDoubleClick={onStartTitleEditing}
                                 title="双击修改画布名称"
                             >
