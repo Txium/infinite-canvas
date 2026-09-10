@@ -94,3 +94,62 @@ test('model market handles null arrays and excludes disabled variants', async ()
     assert.equal(items[0].variants[0].id, 'enabled');
     assert.equal(items[0].modes.length, 0);
 });
+
+test('canvas measurement waits for project mount, tracks resize and preserves saved viewport', () => {
+    // Execute the actual observer effect, including its dependency wiring. No
+    // browser or paid API is involved; deployed DOM behavior is checked separately.
+    const filename = path.resolve(__dirname, '../src/app/(user)/canvas/[id]/canvas-client-page.tsx');
+    const source = ts.createSourceFile(filename, fs.readFileSync(filename, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    let effect;
+    function visit(node) {
+        if (ts.isCallExpression(node) && node.expression.getText(source) === 'useEffect'
+            && node.arguments[0]?.getText(source).includes('new ResizeObserver(')) effect = node;
+        ts.forEachChild(node, visit);
+    }
+    visit(source);
+    assert.ok(effect, 'canvas observer effect exists');
+    const state = { projectLoaded: false, containerRef: { current: null } };
+    const measurements = [], observers = [];
+    let dependency, cleanup;
+    const context = vm.createContext({
+        ...state,
+        setSize: (size) => measurements.push({ ...size }),
+        setViewport: () => assert.fail('measurement must not overwrite the saved viewport'),
+        ResizeObserver: class {
+            constructor(callback) { this.callback = callback; observers.push(this); }
+            observe(element) { this.element = element; }
+            disconnect() { this.disconnected = true; }
+        },
+        useEffect: (callback, deps) => {
+            if (dependency && deps.length === dependency.length && deps.every((value, i) => Object.is(value, dependency[i]))) return;
+            cleanup?.();
+            dependency = [...deps];
+            cleanup = callback();
+        },
+    });
+    const runEffect = () => vm.runInContext(effect.getText(source), context);
+    runEffect();
+    assert.equal(observers.length, 0);
+    let rect = { width: 622, height: 760 };
+    const element = { getBoundingClientRect: () => rect };
+    state.containerRef.current = element;
+    context.projectLoaded = true;
+    runEffect();
+    assert.equal(observers.length, 1, 'observer attaches after async restoration');
+    assert.equal(observers[0].element, element);
+    assert.deepEqual(measurements.at(-1), rect);
+    rect = { width: 390, height: 844 };
+    observers[0].callback();
+    assert.deepEqual(measurements.at(-1), rect);
+    context.projectLoaded = false;
+    state.containerRef.current = null;
+    runEffect();
+    assert.equal(observers[0].disconnected, true);
+    state.containerRef.current = element;
+    context.projectLoaded = true;
+    runEffect();
+    assert.equal(observers.length, 2, 'newly mounted project is measured again');
+    assert.deepEqual(measurements.at(-1), rect);
+    cleanup();
+    assert.equal(observers[1].disconnected, true);
+});
