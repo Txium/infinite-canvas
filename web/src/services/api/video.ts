@@ -21,7 +21,7 @@ type ReferenceMediaUploadEnvelope = { code: number; data?: { url?: string } | nu
 export type VideoGenerationResult = { id: string; url: string; durationMs: number; width: number; height: number; bytes: number; mimeType: string; task: VideoResponse };
 export type CreatedVideoGenerationTask = { task: VideoResponse; pollId: string; startedAt: number; requestBody: unknown };
 export type VideoProgressHandler = (progress: number, task: VideoResponse) => void;
-export type VideoTaskCreateOptions = { clientTaskId?: string; source?: "video-workbench" | "canvas"; sourceId?: string };
+export type VideoTaskCreateOptions = { clientTaskId?: string; retryOfTaskId?: string; source?: "video-workbench" | "canvas"; sourceId?: string };
 // The server persists asynchronous image/video status.  A shorter client-side
 // interval does not call the paid generation endpoint again; it only reduces
 // the delay between an upstream completion and the result appearing on canvas.
@@ -138,7 +138,7 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
                 ? miniMaxApiUrl(config, "/v2/video_generation")
                 : aiApiUrl(config, !accountProxy && (isGrok2APIVideoConfig(config, model) || isCogVideoX3Model(model)) ? "/videos/generations" : "/videos");
         const requestBody = !accountProxy && isGeminiConfig(config, model) ? withoutVideoModel(body) : body;
-        const requestHeaders = tmlabSeedance ? tmlabHeaders(config) : headers;
+        const requestHeaders = tmlabSeedance ? tmlabHeaders(config) : { ...headers, ...(accountProxy && createOptions.retryOfTaskId ? { "X-Retry-Video-Task-ID": createOptions.retryOfTaskId } : {}) };
         const created = directProvider
             ? await withVideoCreateTimeout((await import("@/services/api/direct-ai")).createDirectVideoTask(config, directProvider, body), "视频任务提交超时，请稍后在任务记录中查看")
             : unwrapVideoResponseForConfig(config, model, (await axios.post<ApiVideoResponse>(createUrl, requestBody, { headers: requestHeaders, timeout: VIDEO_CREATE_TIMEOUT_MS })).data);

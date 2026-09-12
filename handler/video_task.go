@@ -87,6 +87,20 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	clientTaskID := readClientVideoTaskID(r)
+	if retryOf := strings.TrimSpace(r.Header.Get("X-Retry-Video-Task-ID")); retryOf != "" {
+		previous, found, lookupErr := service.GetUserVideoTask(user.ID, retryOf)
+		if lookupErr != nil || !found {
+			Fail(w, "找不到原视频任务，请刷新任务记录")
+			return
+		}
+		if !canRetryFailedVideoTask(previous) {
+			OK(w, service.VideoTaskResponse(previous))
+			return
+		}
+		// One replacement per failed attempt, including concurrent clicks and
+		// transport retries. Never reopen the old financial transaction.
+		clientTaskID = videoRetryTaskID(user.ID, previous.ID)
+	}
 	if clientTaskID != "" {
 		if existing, found, lookupErr := service.GetUserVideoTask(user.ID, clientTaskID); lookupErr == nil && found {
 			OK(w, service.VideoTaskResponse(existing))

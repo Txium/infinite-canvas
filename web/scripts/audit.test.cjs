@@ -5,6 +5,15 @@ const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('typescript');
 
+test('canvas video retry sends the latest original task ID explicitly', () => {
+    const canvas = fs.readFileSync(path.resolve(__dirname, '../src/app/(user)/canvas/[id]/canvas-client-page.tsx'), 'utf8');
+    const api = fs.readFileSync(path.resolve(__dirname, '../src/services/api/video.ts'), 'utf8');
+    assert.ok(canvas.includes('node.metadata?.videoTaskId || `client_video_task_${node.id}`'));
+    assert.ok(canvas.includes('retryOfTaskId: retryVideoTaskId'));
+    assert.ok(api.includes('accountProxy && createOptions.retryOfTaskId'));
+    assert.ok(api.includes('"X-Retry-Video-Task-ID": createOptions.retryOfTaskId'));
+});
+
 // Exercise the real TypeScript modules with mocked HTTP, without paid calls.
 function loadModule(relative, mocks) {
     const filename = path.resolve(__dirname, '..', relative);
