@@ -108,6 +108,15 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		failAIChannelSelect(w, err, "AI 接口请求失败")
 		return
 	}
+	// Reject known local format errors before freezing funds or creating a task.
+	for _, candidate := range candidates {
+		if isLECVideoChannel(candidate.Channel) && candidate.UpstreamModel == "lec-seed-2-0-900" {
+			if _, _, err := normalizeLEC900VideoBody(body, contentType); err != nil {
+				Fail(w, err.Error())
+				return
+			}
+		}
+	}
 	credits := 0
 	estimatedProviderCost := int64(0)
 	if userChannelID == "" {
@@ -647,6 +656,9 @@ func videoTaskUpstreamModel(task model.VideoTask) string {
 }
 
 func normalizeVideoCreateBody(body []byte, contentType string, modelName string, channel model.ModelChannel, upstreamPath string) ([]byte, string, error) {
+	if isLECVideoChannel(channel) && modelName == "lec-seed-2-0-900" {
+		return normalizeLEC900VideoBody(body, contentType)
+	}
 	if isWaveSpeedChannel(channel) && strings.Contains(strings.ToLower(upstreamPath), "/minimax-h3/") {
 		return normalizeWaveSpeedH3VideoBody(body, contentType, upstreamPath)
 	}

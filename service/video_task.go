@@ -481,6 +481,9 @@ func userFriendlyTaskError(value string, fallback string) string {
 	if strings.Contains(strings.ToLower(message), "missing 302 apikey") {
 		return "当前模型渠道密钥认证失败，请联系管理员修复；无需充值或反复重试"
 	}
+	if strings.Contains(strings.ToLower(message), "multipart image uploads are not supported") {
+		return "视频渠道不接受当前参考图传输格式，请联系管理员修复；无需充值或反复重试"
+	}
 	// Provider text is untrusted and can contain credentials, URLs and model
 	// identifiers. Only explicitly safe local messages may reach the user.
 	switch message {
