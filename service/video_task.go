@@ -478,6 +478,9 @@ func userFriendlyTaskError(value string, fallback string) string {
 	if strings.Contains(strings.ToLower(message), "insufficient wallet quota") {
 		return "当前模型服务额度不足，请联系管理员或更换模型；这不是您的钱包余额不足"
 	}
+	if strings.Contains(strings.ToLower(message), "missing 302 apikey") {
+		return "当前模型渠道密钥认证失败，请联系管理员修复；无需充值或反复重试"
+	}
 	// Provider text is untrusted and can contain credentials, URLs and model
 	// identifiers. Only explicitly safe local messages may reach the user.
 	switch message {

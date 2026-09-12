@@ -22,6 +22,46 @@ function deferred() {
     return { promise, resolve, reject };
 }
 
+const { buildGenerationConfig } = loadModule('src/app/(user)/canvas/utils/generation-config.ts', {
+    '@/stores/use-config-store': { defaultConfig: {}, normalizeLocalChannels: (config) => config.channels || [], modelMatchesCapability: () => true },
+    '@/lib/market-video-resolution': { fixedMarketVideoResolution: () => '', resolutionConfigValue: (value) => value },
+    './canvas-panorama': { PANORAMA_IMAGE_SIZE: '2048x1024', isPanoramaNodeType: () => false },
+});
+
+for (const mode of ['image', 'video', 'audio', 'text']) {
+    test(`${mode}: saved node selection overrides global default for display, price and request`, () => {
+        const config = { channelMode: 'remote', publicChannels: [], marketModels: [{ id: 'selected', capability: mode }],
+            [`${mode}Model`]: 'global-default', [`${mode}ChannelId`]: 'global-channel' };
+        const selected = buildGenerationConfig(config, { metadata: { model: 'selected', channelId: 'selected-channel' } }, mode);
+        assert.equal(selected.model, 'selected');
+        assert.equal(selected.activeChannelId, 'selected-channel');
+        assert.equal(selected[`${mode}ChannelId`], 'selected-channel');
+        const reselected = buildGenerationConfig(config, { metadata: { model: 'global-default', channelId: 'global-channel' } }, mode);
+        assert.equal(reselected.model, 'global-default');
+        assert.equal(reselected.activeChannelId, 'global-channel');
+    });
+}
+
+test('unavailable or wrong-capability saved model resolves identically for rendering and submitting', () => {
+    const config = { channelMode: 'remote', publicChannels: [], marketModels: [{ id: 'old-video', capability: 'video' }],
+        imageModel: 'gpt-image', imageChannelId: 'platform' };
+    for (const model of ['removed', 'old-video']) {
+        const result = buildGenerationConfig(config, { metadata: { model, channelId: 'old-channel' } }, 'image');
+        assert.equal(result.model, 'gpt-image');
+        assert.equal(result.activeChannelId, 'platform');
+    }
+});
+
+test('configuration picker, price and submission share the resolved node model', () => {
+    const panel = fs.readFileSync(path.resolve(__dirname, '../src/app/(user)/canvas/components/canvas-config-node-panel.tsx'), 'utf8');
+    const page = fs.readFileSync(path.resolve(__dirname, '../src/app/(user)/canvas/[id]/canvas-client-page.tsx'), 'utf8');
+    assert.match(panel, /const config = buildGenerationConfig\(globalConfig, node, mode\)/);
+    assert.match(panel, /<ModelPicker[^>]*value=\{config\.model\}/);
+    assert.match(panel, /item\.id === config\.model/);
+    assert.match(page, /const generationConfig = buildGenerationConfig\(effectiveConfig, sourceNode, mode\)/);
+    assert.match(page, /import \{ buildGenerationConfig \} from "\.\.\/utils\/generation-config"/);
+});
+
 function userStore(fetchCurrentUser) {
     class ApiError extends Error { constructor(status) { super('request failed'); this.status = status; } }
     const { useUserStore } = loadModule('src/stores/use-user-store.ts', {

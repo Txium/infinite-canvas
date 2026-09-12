@@ -2,8 +2,22 @@ package handler
 
 import (
 	"encoding/json"
+	"net/http"
 	"testing"
+
+	"github.com/tigerowo/infinite-canvas/model"
 )
+
+func Test302MidjourneyKeepsGatewayAndModelAuthentication(t *testing.T) {
+	for _, endpoint := range []string{"/mj/submit/imagine", "/mj-turbo/submit/imagine"} {
+		request, _ := http.NewRequest(http.MethodPost, "https://api.302.ai"+endpoint, nil)
+		request.Header.Set("Authorization", "Bearer stale-test-value")
+		set302MidjourneyAuthHeader(request, model.ModelChannel{APIKey: "test-secret"}, endpoint)
+		if request.Header.Get("Authorization") != "Bearer test-secret" || request.Header.Get("mj-api-secret") != "test-secret" {
+			t.Fatal("gateway and Midjourney authentication must use the resolved channel key")
+		}
+	}
+}
 
 func TestNormalize302MidjourneyRequest(t *testing.T) {
 	body, contentType, err := normalize302MidjourneyRequest([]byte(`{"model":"midjourney__01","prompt":"stormy coast","size":"1280x720"}`), "application/json")

@@ -11,7 +11,8 @@ import { deleteCanvasProjects, deleteCanvasTasks } from "@/services/api/canvas-t
 import { createCanvasImageTask, pollCanvasImageTaskStatus, requestImageQuestion, type CanvasImageTask } from "@/services/api/image";
 import { createCanvasAudioTask, pollCanvasAudioTaskStatus, type CanvasAudioTask } from "@/services/api/audio";
 import { createVideoGenerationTask, listVideoGenerationTasks, pollAccountVideoGenerationTaskStatus, VIDEO_CREATE_TIMEOUT_MS, VIDEO_POLL_INTERVAL_MS, type VideoResponse } from "@/services/api/video";
-import { channelProtocolForConfig, defaultConfig, modelMatchesCapability, normalizeLocalChannels, type AiConfig, type ModelCapability, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
+import { channelProtocolForConfig, defaultConfig, type AiConfig, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
+import { buildGenerationConfig } from "../utils/generation-config";
 import { collectImageStorageKeys, deleteStoredImages, resolveImageUrl, uploadImage, uploadRemoteImageToServer, type UploadedImage } from "@/services/image-storage";
 import { resolveMediaUrl, uploadMediaFile, uploadRemoteMediaToServer, type UploadedFile } from "@/services/file-storage";
 import { nanoid } from "nanoid";
@@ -34,7 +35,6 @@ import { isGlmTtsModel } from "@/lib/audio-generation";
 import { isGrok2APITtsConfig } from "@/lib/grok-tts";
 import { isGeminiConfig, isGeminiTtsModel } from "@/lib/gemini";
 import { isKIESeedreamLayerDecompositionModel } from "@/lib/kie-models";
-import { fixedMarketVideoResolution, resolutionConfigValue } from "@/lib/market-video-resolution";
 import { NODE_DEFAULT_SIZE, getNodeSpec } from "../constants";
 import { ActiveConnectionPath, ConnectionPath } from "../components/canvas-connections";
 import { CanvasConfigComposer } from "../components/canvas-config-composer";
@@ -5094,69 +5094,6 @@ function isCanvasAgentKlingV26(key: string) {
     return key.includes("kling-v2-6") || key.includes("kling-2-6");
 }
 
-function buildGenerationConfig(config: AiConfig, node: CanvasNodeData | undefined, mode: CanvasNodeGenerationMode): AiConfig {
-    const defaultModel = mode === "image" ? config.imageModel : mode === "video" ? config.videoModel : mode === "audio" ? config.audioModel : config.textModel;
-    const capability = mode as ModelCapability;
-    const savedModel = node?.metadata?.model || "";
-    const savedChannelId = node?.metadata?.channelId || "";
-    const channels = config.channelMode === "remote" ? config.publicChannels : normalizeLocalChannels(config);
-    const savedChannel = channels.find((channel) => channel.id === savedChannelId);
-    const savedChannelPurpose = config.channelMode === "local" ? normalizeLocalChannels(config).find((channel) => channel.id === savedChannelId)?.purpose || "general" : "general";
-    const savedMarketModel = config.channelMode === "remote" ? config.marketModels.find((item) => item.id === savedModel && item.capability === capability) : undefined;
-    const savedSelectionMatchesMode = Boolean(
-        savedModel &&
-        (savedMarketModel || (
-            modelMatchesCapability(savedModel, capability, savedChannel?.protocol || "") &&
-            savedChannel &&
-            (savedChannel.models || []).includes(savedModel) &&
-            (savedChannelPurpose === "general" || savedChannelPurpose === capability)
-        )),
-    );
-    const model = savedSelectionMatchesMode ? savedModel : defaultModel || (mode === "audio" ? defaultConfig.audioModel : config.model || defaultConfig.model);
-    const fixedVideoResolution = mode === "video" ? fixedMarketVideoResolution(model) : "";
-    const channelId = savedSelectionMatchesMode ? savedChannelId : "";
-    const imageChannelId = mode === "image" ? channelId || config.imageChannelId : config.imageChannelId;
-    const videoChannelId = mode === "video" ? channelId || config.videoChannelId : config.videoChannelId;
-    const textChannelId = mode === "text" ? channelId || config.textChannelId : config.textChannelId;
-    const audioChannelId = mode === "audio" ? channelId || config.audioChannelId : config.audioChannelId;
-    const activeChannelId = mode === "image" ? imageChannelId : mode === "video" ? videoChannelId : mode === "text" ? textChannelId : mode === "audio" ? audioChannelId || config.activeChannelId : config.activeChannelId;
-    return {
-        ...config,
-        model,
-        activeChannelId,
-        imageChannelId,
-        videoChannelId,
-        textChannelId,
-        audioChannelId,
-        quality: node?.metadata?.quality || config.quality || defaultConfig.quality,
-        size: isPanoramaNodeType(node?.type) ? PANORAMA_IMAGE_SIZE : node?.metadata?.size || (mode === "video" ? config.videoSize || defaultConfig.videoSize : config.size || defaultConfig.size),
-        videoSeconds: node?.metadata?.seconds || config.videoSeconds || defaultConfig.videoSeconds,
-        vquality: fixedVideoResolution ? resolutionConfigValue(fixedVideoResolution) : node?.metadata?.vquality || config.vquality || defaultConfig.vquality,
-        videoMode: node?.metadata?.mode || config.videoMode || defaultConfig.videoMode,
-        videoNegativePrompt: node?.metadata?.negativePrompt || config.videoNegativePrompt || defaultConfig.videoNegativePrompt,
-        videoMultiShot: node?.metadata?.multiShot || config.videoMultiShot || defaultConfig.videoMultiShot,
-        videoShotType: node?.metadata?.shotType || config.videoShotType || defaultConfig.videoShotType,
-        videoGenerateAudio: node?.metadata?.generateAudio || config.videoGenerateAudio || defaultConfig.videoGenerateAudio,
-        videoCharacterOrientation: node?.metadata?.characterOrientation || config.videoCharacterOrientation || defaultConfig.videoCharacterOrientation,
-        videoWatermark: node?.metadata?.watermark || config.videoWatermark || defaultConfig.videoWatermark,
-        audioVoice: node?.metadata?.audioVoice || config.audioVoice || defaultConfig.audioVoice,
-        audioFormat: node?.metadata?.audioFormat || config.audioFormat || defaultConfig.audioFormat,
-        audioSpeed: node?.metadata?.audioSpeed || config.audioSpeed || defaultConfig.audioSpeed,
-        audioInstructions: node?.metadata?.audioInstructions || config.audioInstructions || defaultConfig.audioInstructions,
-        grokTtsVoice: node?.metadata?.grokTtsVoice || config.grokTtsVoice || defaultConfig.grokTtsVoice,
-        grokTtsLanguage: node?.metadata?.grokTtsLanguage || config.grokTtsLanguage || defaultConfig.grokTtsLanguage,
-        grokTtsFormat: node?.metadata?.grokTtsFormat || config.grokTtsFormat || defaultConfig.grokTtsFormat,
-        grokTtsSpeed: node?.metadata?.grokTtsSpeed || config.grokTtsSpeed || defaultConfig.grokTtsSpeed,
-        glmTtsVoice: node?.metadata?.glmTtsVoice || config.glmTtsVoice || defaultConfig.glmTtsVoice,
-        glmTtsFormat: node?.metadata?.glmTtsFormat || config.glmTtsFormat || defaultConfig.glmTtsFormat,
-        glmTtsSpeed: node?.metadata?.glmTtsSpeed || config.glmTtsSpeed || defaultConfig.glmTtsSpeed,
-        mimoTtsVoice: node?.metadata?.mimoTtsVoice || config.mimoTtsVoice || defaultConfig.mimoTtsVoice,
-        mimoTtsFormat: node?.metadata?.mimoTtsFormat || config.mimoTtsFormat || defaultConfig.mimoTtsFormat,
-        mimoVoiceDesignPrompt: node?.metadata?.mimoVoiceDesignPrompt || config.mimoVoiceDesignPrompt || defaultConfig.mimoVoiceDesignPrompt,
-        geminiTtsVoice: node?.metadata?.geminiTtsVoice || config.geminiTtsVoice || defaultConfig.geminiTtsVoice,
-        count: String(node?.metadata?.count || (mode === "image" ? config.canvasImageCount || config.count : config.count) || defaultConfig.count),
-    };
-}
 
 function resetInterruptedGeneration(nodes: CanvasNodeData[]) {
     return nodes.map((node) => (node.metadata?.status === "loading" && !canvasRecoverableTaskId(node) ? { ...node, metadata: { ...node.metadata, status: "error" as const, errorDetails: "页面刷新后生成已中断，请重新生成。" } } : node));

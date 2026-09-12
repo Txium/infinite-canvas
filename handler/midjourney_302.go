@@ -46,7 +46,8 @@ func set302MidjourneyAuthHeader(request *http.Request, channel model.ModelChanne
 	if request == nil || !is302MidjourneyModel(modelName) {
 		return
 	}
-	request.Header.Del("Authorization")
+	// Keep gateway authentication as well as the Midjourney-specific header.
+	request.Header.Set("Authorization", "Bearer "+channel.APIKey)
 	request.Header.Set("mj-api-secret", channel.APIKey)
 }
 
@@ -192,7 +193,7 @@ func fetch302MidjourneyTask(channel model.ModelChannel, submitPath string, taskI
 	if err != nil {
 		return midjourney302TaskResponse{}, 0, "", err
 	}
-	request.Header.Set("mj-api-secret", channel.APIKey)
+	set302MidjourneyAuthHeader(request, channel, submitPath)
 	response, err := service.HTTPClientForChannel(channel).Do(request)
 	if err != nil {
 		return midjourney302TaskResponse{}, 0, "", err
