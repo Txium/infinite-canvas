@@ -1,6 +1,31 @@
 package handler
 
-import "testing"
+import (
+	"encoding/json"
+	"fmt"
+	"testing"
+)
+
+func TestAllGPTImageTiersKeepResolutionAndQuality(t *testing.T) {
+	for qualityIndex, quality := range []string{"low", "medium", "high"} {
+		for resolutionIndex, resolution := range []string{"1k", "2k", "4k"} {
+			id := fmt.Sprintf("gpt_image_2__%02d", qualityIndex*3+resolutionIndex+1)
+			t.Run(id, func(t *testing.T) {
+				body, _, err := normalizeWaveSpeedImageBody([]byte(`{"prompt":"test","size":"1280x720","quality":"auto","resolution":"1k"}`), "application/json", id)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var payload map[string]any
+				if err := json.Unmarshal(body, &payload); err != nil {
+					t.Fatal(err)
+				}
+				if payload["quality"] != quality || payload["resolution"] != resolution || payload["aspect_ratio"] != "16:9" {
+					t.Fatalf("wrong tier parameters: %s", body)
+				}
+			})
+		}
+	}
+}
 
 func TestReadWaveSpeedTask(t *testing.T) {
 	id, outputs, status, message := readWaveSpeedTask([]byte(`{"code":200,"data":{"id":"task-1","status":"completed","outputs":["https://example.com/a.png"]}}`))
