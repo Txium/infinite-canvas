@@ -5126,6 +5126,12 @@ function canvasTaskFailed(status?: string) {
 }
 
 function findRetrySourceNode(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[]) {
+    const target = nodes.find((node) => node.id === nodeId);
+    // An image-to-video result must reuse its direct image input, not climb
+    // past that image to the text-to-image config that originally created it.
+    if (target?.type === CanvasNodeType.Video && connections.some((connection) =>
+        connection.toNodeId === nodeId && nodes.some((node) => node.id === connection.fromNodeId && isCanvasImageNodeType(node.type) && Boolean(node.metadata?.content)),
+    )) return target;
     const queue = connections.filter((connection) => connection.toNodeId === nodeId).map((connection) => connection.fromNodeId);
     const visited = new Set<string>();
     while (queue.length) {

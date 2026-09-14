@@ -5,6 +5,20 @@ const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('typescript');
 
+test('image-to-video retry keeps its direct image instead of ancestral image config', () => {
+    const filename = path.resolve(__dirname, '../src/app/(user)/canvas/[id]/canvas-client-page.tsx');
+    const source = ts.createSourceFile(filename, fs.readFileSync(filename, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const fn = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'findRetrySourceNode');
+    assert.ok(fn);
+    const code = ts.transpileModule(fn.getText(source), {compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+    const context = vm.createContext({CanvasNodeType:{Video:'video',Config:'config'},isCanvasImageNodeType:type=>type==='image'});
+    vm.runInContext(code, context);
+    const nodes = [{id:'config',type:'config'}, {id:'image',type:'image',metadata:{content:'https://example.com/image.png'}}, {id:'video',type:'video'}];
+    const edges = [{fromNodeId:'config',toNodeId:'image'}, {fromNodeId:'image',toNodeId:'video'}];
+    assert.equal(context.findRetrySourceNode('video',nodes,edges).id,'video');
+    assert.equal(context.findRetrySourceNode('image',nodes,edges).id,'config');
+});
+
 test('canvas video retry sends the latest original task ID explicitly', () => {
     const canvas = fs.readFileSync(path.resolve(__dirname, '../src/app/(user)/canvas/[id]/canvas-client-page.tsx'), 'utf8');
     const api = fs.readFileSync(path.resolve(__dirname, '../src/services/api/video.ts'), 'utf8');
