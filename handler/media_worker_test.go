@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -38,6 +39,30 @@ func TestMediaWorkerAcceptsChunkedUploadWithoutForwardingUserToken(t *testing.T)
 	ProcessMedia(response, request)
 	if response.Code != 200 || response.Body.String() != "processed-output" {
 		t.Fatalf("bad response %d %s", response.Code, response.Body.String())
+	}
+}
+
+func TestMediaWorkerContinuesAfterProxyUploadContextIsCancelled(t *testing.T) {
+	worker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer worker-test" {
+			t.Error("worker token missing")
+		}
+		_, _ = io.Copy(io.Discard, r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"duration":4,"fps":24}`))
+	}))
+	defer worker.Close()
+	t.Setenv("MEDIA_WORKER_URL", worker.URL)
+	t.Setenv("MEDIA_WORKER_TOKEN", "worker-test")
+	t.Setenv("MEDIA_WORKER_MAX_MB", "1")
+	request := httptest.NewRequest("POST", "/", strings.NewReader("original-media"))
+	proxyContext, cancelProxy := context.WithCancel(request.Context())
+	cancelProxy()
+	request = request.WithContext(proxyContext)
+	response := httptest.NewRecorder()
+	ProcessMedia(response, request)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"fps":24`) {
+		t.Fatalf("worker call incorrectly inherited cancelled proxy context: %d %s", response.Code, response.Body.String())
 	}
 }
 

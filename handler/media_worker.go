@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -80,7 +81,13 @@ func ProcessMedia(w http.ResponseWriter, r *http.Request) {
 		FailWithStatus(w, http.StatusRequestEntityTooLarge, "视频超过当前媒体处理上传限制")
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 240*time.Second)
+	// The public request reaches Go through the Next.js streaming proxy. Its
+	// request context can be cancelled as soon as the proxy finishes forwarding
+	// the upload body, before the worker has returned its result. Give the
+	// bounded worker call its own lifetime so a completed upload is not aborted
+	// by the transport layer. The 240-second timeout still prevents orphaned
+	// media work from running indefinitely.
+	ctx, cancel := context.WithTimeout(context.Background(), 240*time.Second)
 	defer cancel()
 	// Next.js forwards request bodies with chunked encoding. Spool a bounded
 	// upload so the private worker receives a verified Content-Length.
@@ -113,6 +120,7 @@ func ProcessMedia(w http.ResponseWriter, r *http.Request) {
 	client := &http.Client{Timeout: 240 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}
 	response, err := client.Do(request)
 	if err != nil {
+		log.Printf("media worker request failed host=%s error=%T %v", base.Host, err, err)
 		FailWithStatus(w, http.StatusBadGateway, "媒体Worker连接失败或处理超时，原视频未修改")
 		return
 	}
