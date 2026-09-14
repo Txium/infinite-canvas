@@ -107,6 +107,21 @@ func GetCanvasImageTaskByID(id string) (model.CanvasImageTask, bool, error) {
 	return task, err == nil, err
 }
 
+func ReopenCanvasImageTaskForReconciliation(id string) error {
+	db, err := DB()
+	if err != nil {
+		return err
+	}
+	return db.Model(&model.CanvasImageTask{}).
+		Where("id = ? AND upstream_task_id <> '' AND status = 'failed'", strings.TrimSpace(id)).
+		Updates(map[string]any{
+			"status": "timed_out_unknown", "error": "",
+			"error_detail": "管理员正在重新查询已提交的上游任务",
+			"error_code": model.GenerationErrorTimedOutUnknown,
+			"completed_at": "",
+		}).Error
+}
+
 func ListUserCanvasImageTasks(userID string, sources []string, limit int) ([]model.CanvasImageTask, error) {
 	db, err := DB()
 	if err != nil {

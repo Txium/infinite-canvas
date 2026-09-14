@@ -173,10 +173,10 @@ func pollAcceptedCanvasMedia(userID, modelName, upstreamModelID, channelID, task
 	if is302MidjourneyModel(upstreamModel) {
 		result, status, raw, fetchErr := fetch302MidjourneyTask(channel, upstreamModel, taskID)
 		if fetchErr != nil {
-			if status == http.StatusTooManyRequests || status >= http.StatusInternalServerError || status == 0 {
-				return nil, "reconciling", firstNonEmpty(fetchErr.Error(), raw)
-			}
-			return nil, "failed", firstNonEmpty(fetchErr.Error(), raw)
+			// A status transport/auth/parse failure says nothing about the actual
+			// asynchronous generation outcome. Only an explicit provider FAILURE
+			// below is terminal and eligible for release/refund.
+			return nil, "reconciling", firstNonEmpty(fetchErr.Error(), raw)
 		}
 		switch strings.ToUpper(strings.TrimSpace(result.Status)) {
 		case "SUCCESS", "SUCCEEDED", "COMPLETED", "FINISHED":

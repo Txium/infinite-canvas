@@ -129,6 +129,28 @@ func TestMediaAcceptanceSurvivesStaleWorkerSave(t *testing.T) {
 	}
 }
 
+func TestFailedAcceptedImageCanReenterReconciliationWithoutChangingBilling(t *testing.T) {
+	useFinanceTestDB(t)
+	task := model.CanvasImageTask{
+		ID: "manual-reconcile", UserID: "owner", Status: "failed",
+		UpstreamTaskID: "provider-task", BillingStatus: "released",
+		Error: "图片生成失败", ErrorCode: model.GenerationErrorUpstreamTaskFailed,
+	}
+	if _, _, err := CreateCanvasImageTaskIfAbsent(task); err != nil {
+		t.Fatal(err)
+	}
+	if err := ReopenCanvasImageTaskForReconciliation(task.ID); err != nil {
+		t.Fatal(err)
+	}
+	saved, found, err := GetCanvasImageTaskByID(task.ID)
+	if err != nil || !found {
+		t.Fatalf("reopened task missing: %+v %v", saved, err)
+	}
+	if saved.Status != "timed_out_unknown" || saved.BillingStatus != "released" || saved.Error != "" {
+		t.Fatalf("unsafe manual reconciliation state: %+v", saved)
+	}
+}
+
 func TestStaleMediaWorkerCannotUndoCompletion(t *testing.T) {
 	useFinanceTestDB(t)
 	image := model.CanvasImageTask{ID: "terminal-image", UserID: "owner", Status: "completed", ImageURL: "https://example.com/result.png"}

@@ -97,6 +97,17 @@ func AdminReconcileGenerationTask(w http.ResponseWriter, r *http.Request, id str
 		Fail(w, "任务没有上游任务 ID，不能对账")
 		return
 	}
+	if task.Status == "failed" {
+		if err := repository.ReopenCanvasImageTaskForReconciliation(task.ID); err != nil {
+			FailError(w, err)
+			return
+		}
+		task, _, err = repository.GetCanvasImageTaskByID(task.ID)
+		if err != nil {
+			FailError(w, err)
+			return
+		}
+	}
 	if task.Status != "reconciling" && task.Status != "timed_out_unknown" && task.Status != "processing" {
 		Fail(w, "当前任务状态不需要对账")
 		return
