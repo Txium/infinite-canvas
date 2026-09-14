@@ -1,43 +1,60 @@
 package model
 
 type CanvasImageTask struct {
-	ID                         string   `json:"id" gorm:"primaryKey"`
-	UserID                     string   `json:"userId" gorm:"index:idx_canvas_image_tasks_user_source_node,priority:1"`
-	UserDisplayName            string   `json:"userDisplayName"`
-	Source                     string   `json:"source" gorm:"index:idx_canvas_image_tasks_user_source_node,priority:2"`
-	SourceID                   string   `json:"sourceId" gorm:"index:idx_canvas_image_tasks_user_source_node,priority:3"`
-	NodeID                     string   `json:"nodeId" gorm:"index:idx_canvas_image_tasks_user_source_node,priority:4"`
-	Model                      string   `json:"model"`
-	ChannelID                  string   `json:"channelId"`
-	UserChannelID              string   `json:"userChannelId"`
-	ChannelName                string   `json:"channelName"`
-	UpstreamTaskID             string   `json:"-"`
-	Status                     string   `json:"status"`
-	Progress                   int      `json:"progress"`
-	Prompt                     string   `json:"prompt" gorm:"type:text"`
-	GenerationType             string   `json:"generationType"`
-	Endpoint                   string   `json:"endpoint"`
-	ContentType                string   `json:"contentType"`
-	RequestBody                string   `json:"requestBody" gorm:"type:text"`
-	ResponseBody               string   `json:"responseBody" gorm:"type:text"`
-	Error                      string   `json:"error" gorm:"type:text"`
-	ErrorDetail                string   `json:"errorDetail" gorm:"type:text"`
-	ImageURL                   string   `json:"imageUrl" gorm:"type:text"`
-	ImageURLs                  []string `json:"imageUrls" gorm:"serializer:json"`
-	StorageKey                 string   `json:"storageKey"`
-	Width                      int      `json:"width"`
-	Height                     int      `json:"height"`
-	MimeType                   string   `json:"mimeType"`
-	Bytes                      int64    `json:"bytes"`
-	SalePriceCents             int64    `json:"salePriceCents"`
-	EstimatedProviderCostCents int64    `json:"estimatedProviderCostCents"`
-	ActualProviderCostCents    int64    `json:"actualProviderCostCents"`
-	GrossProfitCents           int64    `json:"grossProfitCents"`
-	UpstreamRefundStatus       string   `json:"upstreamRefundStatus"`
-	ProviderCostSource         string   `json:"providerCostSource"`
-	ProviderCostConfirmedAt    string   `json:"providerCostConfirmedAt"`
-	CreatedAt                  string   `json:"createdAt"`
-	UpdatedAt                  string   `json:"updatedAt"`
-	StartedAt                  string   `json:"startedAt"`
-	CompletedAt                string   `json:"completedAt"`
+	ID                          string   `json:"id" gorm:"primaryKey"`
+	UserID                      string   `json:"userId" gorm:"index:idx_canvas_image_tasks_user_source_node,priority:1"`
+	UserDisplayName             string   `json:"userDisplayName"`
+	Source                      string   `json:"source" gorm:"index:idx_canvas_image_tasks_user_source_node,priority:2"`
+	SourceID                    string   `json:"sourceId" gorm:"index:idx_canvas_image_tasks_user_source_node,priority:3"`
+	NodeID                      string   `json:"nodeId" gorm:"index:idx_canvas_image_tasks_user_source_node,priority:4"`
+	Model                       string   `json:"model"`
+	Provider                    string   `json:"provider"`
+	UpstreamModelID             string   `json:"upstreamModelId"`
+	Adapter                     string   `json:"adapter"`
+	ProviderEndpoint            string   `json:"providerEndpoint"`
+	ChannelID                   string   `json:"channelId"`
+	UserChannelID               string   `json:"userChannelId"`
+	ChannelName                 string   `json:"channelName"`
+	UpstreamTaskID              string   `json:"-"`
+	UpstreamRequestSent         bool     `json:"upstreamRequestSent"`
+	UpstreamRequestStartedAt    string   `json:"upstreamRequestStartedAt"`
+	UpstreamHTTPStatus          int      `json:"upstreamHttpStatus"`
+	ProviderTaskStatus          string   `json:"providerTaskStatus"`
+	Status                      string   `json:"status"`
+	Progress                    int      `json:"progress"`
+	Prompt                      string   `json:"prompt" gorm:"type:text"`
+	GenerationType              string   `json:"generationType"`
+	Endpoint                    string   `json:"endpoint"`
+	ContentType                 string   `json:"contentType"`
+	RequestBody                 string   `json:"requestBody" gorm:"type:text"`
+	ResponseBody                string   `json:"responseBody" gorm:"type:text"`
+	Error                       string   `json:"error" gorm:"type:text"`
+	ErrorDetail                 string   `json:"errorDetail" gorm:"type:text"`
+	ErrorCode                   string   `json:"errorCode" gorm:"index"`
+	FrontendSelectedResolution  string   `json:"frontendSelectedResolution"`
+	BackendResolvedResolution   string   `json:"backendResolvedResolution"`
+	ProviderRequestedResolution string   `json:"providerRequestedResolution"`
+	ProviderFinalResolution     string   `json:"providerFinalResolution"`
+	ProviderFinalWidth          int      `json:"providerFinalWidth"`
+	ProviderFinalHeight         int      `json:"providerFinalHeight"`
+	ProviderOriginalResultURL   string   `json:"providerOriginalResultUrl" gorm:"type:text"`
+	CanvasResultURL             string   `json:"canvasResultUrl" gorm:"type:text"`
+	ImageURL                    string   `json:"imageUrl" gorm:"type:text"`
+	ImageURLs                   []string `json:"imageUrls" gorm:"serializer:json"`
+	StorageKey                  string   `json:"storageKey"`
+	Width                       int      `json:"width"`
+	Height                      int      `json:"height"`
+	MimeType                    string   `json:"mimeType"`
+	Bytes                       int64    `json:"bytes"`
+	SalePriceCents              int64    `json:"salePriceCents"`
+	EstimatedProviderCostCents  int64    `json:"estimatedProviderCostCents"`
+	ActualProviderCostCents     int64    `json:"actualProviderCostCents"`
+	GrossProfitCents            int64    `json:"grossProfitCents"`
+	UpstreamRefundStatus        string   `json:"upstreamRefundStatus"`
+	ProviderCostSource          string   `json:"providerCostSource"`
+	ProviderCostConfirmedAt     string   `json:"providerCostConfirmedAt"`
+	CreatedAt                   string   `json:"createdAt"`
+	UpdatedAt                   string   `json:"updatedAt"`
+	StartedAt                   string   `json:"startedAt"`
+	CompletedAt                 string   `json:"completedAt"`
 }

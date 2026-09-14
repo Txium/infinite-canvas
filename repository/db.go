@@ -96,6 +96,10 @@ func DB() (*gorm.DB, error) {
 			&model.ProviderLedger{},
 			&model.OperatingExpense{},
 		)
+		if dbErr != nil {
+			return
+		}
+		dbErr = applyGenerationAuditMigration(db)
 	})
 	return db, dbErr
 }

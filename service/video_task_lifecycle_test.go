@@ -15,6 +15,20 @@ func TestNormalizeVideoTaskStatusReconciling(t *testing.T) {
 	}
 }
 
+func TestNormalizeVideoTaskStatusTerminalAliasesAndTimeout(t *testing.T) {
+	for _, status := range []string{"finished", "succeeded", "completed"} {
+		if got := NormalizeVideoTaskStatus(status); got != "completed" {
+			t.Fatalf("%s normalized to %s", status, got)
+		}
+	}
+	if got := NormalizeVideoTaskStatus("timeout"); got != "timed_out_unknown" {
+		t.Fatalf("timeout normalized to %s", got)
+	}
+	if IsFailedVideoTaskStatus("timed_out_unknown") {
+		t.Fatal("an uncertain timeout must not release frozen funds")
+	}
+}
+
 func TestVideoTaskPolledRecently(t *testing.T) {
 	now := time.Now().UTC()
 	task := model.VideoTask{LastPolledAt: videoTaskTime(now.Add(-30 * time.Second))}

@@ -10,45 +10,58 @@ import (
 )
 
 type CanvasImageTaskCreateInput struct {
-	UserID          string
-	UserDisplayName string
-	Source          string
-	SourceID        string
-	NodeID          string
-	ClientTaskID    string
-	Model           string
-	ChannelID       string
-	UserChannelID   string
-	ChannelName     string
-	Prompt          string
-	GenerationType  string
-	Endpoint        string
-	ContentType     string
-	RequestBody     string
+	UserID                     string
+	UserDisplayName            string
+	Source                     string
+	SourceID                   string
+	NodeID                     string
+	ClientTaskID               string
+	Model                      string
+	Provider                   string
+	UpstreamModelID            string
+	Adapter                    string
+	ProviderEndpoint           string
+	ChannelID                  string
+	UserChannelID              string
+	ChannelName                string
+	Prompt                     string
+	GenerationType             string
+	Endpoint                   string
+	ContentType                string
+	RequestBody                string
+	FrontendSelectedResolution string
+	BackendResolvedResolution  string
 }
 
 func CreateCanvasImageTask(input CanvasImageTaskCreateInput) (model.CanvasImageTask, bool, error) {
 	current := now()
 	task := model.CanvasImageTask{
-		ID:              firstVideoTaskValue(input.ClientTaskID, "canvas_image_task_"+uuid.NewString()),
-		UserID:          strings.TrimSpace(input.UserID),
-		UserDisplayName: strings.TrimSpace(input.UserDisplayName),
-		Source:          normalizeCanvasImageTaskSource(input.Source),
-		SourceID:        strings.TrimSpace(input.SourceID),
-		NodeID:          strings.TrimSpace(input.NodeID),
-		Model:           strings.TrimSpace(input.Model),
-		ChannelID:       strings.TrimSpace(input.ChannelID),
-		UserChannelID:   strings.TrimSpace(input.UserChannelID),
-		ChannelName:     strings.TrimSpace(input.ChannelName),
-		Status:          "queued",
-		Progress:        0,
-		Prompt:          strings.TrimSpace(input.Prompt),
-		GenerationType:  strings.TrimSpace(input.GenerationType),
-		Endpoint:        strings.TrimSpace(input.Endpoint),
-		ContentType:     strings.TrimSpace(input.ContentType),
-		RequestBody:     input.RequestBody,
-		CreatedAt:       current,
-		UpdatedAt:       current,
+		ID:                          firstVideoTaskValue(input.ClientTaskID, "canvas_image_task_"+uuid.NewString()),
+		UserID:                      strings.TrimSpace(input.UserID),
+		UserDisplayName:             strings.TrimSpace(input.UserDisplayName),
+		Source:                      normalizeCanvasImageTaskSource(input.Source),
+		SourceID:                    strings.TrimSpace(input.SourceID),
+		NodeID:                      strings.TrimSpace(input.NodeID),
+		Model:                       strings.TrimSpace(input.Model),
+		Provider:                    strings.TrimSpace(input.Provider),
+		UpstreamModelID:             strings.TrimSpace(input.UpstreamModelID),
+		Adapter:                     strings.TrimSpace(input.Adapter),
+		ProviderEndpoint:            strings.TrimSpace(input.ProviderEndpoint),
+		ChannelID:                   strings.TrimSpace(input.ChannelID),
+		UserChannelID:               strings.TrimSpace(input.UserChannelID),
+		ChannelName:                 strings.TrimSpace(input.ChannelName),
+		Status:                      "queued",
+		Progress:                    0,
+		Prompt:                      strings.TrimSpace(input.Prompt),
+		GenerationType:              strings.TrimSpace(input.GenerationType),
+		Endpoint:                    strings.TrimSpace(input.Endpoint),
+		ContentType:                 strings.TrimSpace(input.ContentType),
+		RequestBody:                 input.RequestBody,
+		FrontendSelectedResolution:  strings.TrimSpace(input.FrontendSelectedResolution),
+		BackendResolvedResolution:   strings.TrimSpace(input.BackendResolvedResolution),
+		ProviderRequestedResolution: strings.TrimSpace(input.BackendResolvedResolution),
+		CreatedAt:                   current,
+		UpdatedAt:                   current,
 	}
 	return repository.CreateCanvasImageTaskIfAbsent(task)
 }
@@ -137,8 +150,10 @@ func CanvasImageTaskResponse(task model.CanvasImageTask) map[string]any {
 		result["bytes"] = task.Bytes
 	}
 	if task.Error != "" || task.ErrorDetail != "" {
-		result["error"] = map[string]any{"message": userFriendlyTaskError(firstVideoTaskValue(task.Error, task.ErrorDetail), "当前模型生成失败，请稍后重试")}
+		result["error"] = map[string]any{"code": task.ErrorCode, "message": userFriendlyGenerationError(task.ErrorCode, userFriendlyTaskError(firstVideoTaskValue(task.Error, task.ErrorDetail), "当前模型生成失败，请稍后重试"))}
 	}
+	result["requested_resolution"] = task.FrontendSelectedResolution
+	result["final_resolution"] = task.ProviderFinalResolution
 	return result
 }
 

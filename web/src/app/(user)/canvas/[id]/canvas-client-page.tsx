@@ -5060,7 +5060,7 @@ function markCanvasTaskMissing(nodes: CanvasNodeData[], nodeId: string, errorDet
 }
 
 function canvasVideoTaskCompleted(task: VideoResponse) {
-    return Boolean(task.video_url || task.url) || ["completed", "complete", "done", "succeeded", "success"].includes((task.status || "").toLowerCase());
+    return Boolean(task.video_url || task.url) || ["completed", "complete", "done", "finished", "succeeded", "success"].includes((task.status || "").toLowerCase());
 }
 
 function canvasVideoTaskFailed(task: VideoResponse) {

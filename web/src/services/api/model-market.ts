@@ -11,7 +11,7 @@ export type MarketModelCard = {
 export type MarketModelVariant = {
     id: string; modelId: string; name: string; priceCents?: number; priceText: string; billingUnit: string;
     pricingMode: "fixed" | "dynamic" | "disabled"; priceFormula: string;
-    personNote: string; remark: string; enabled: boolean; sort: number;
+    personNote: string; remark: string; verificationStatus: "VERIFIED" | "TESTING" | "UNVERIFIED"; enabled: boolean; sort: number;
 };
 
 export async function fetchModelMarket() {

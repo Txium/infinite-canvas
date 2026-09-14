@@ -1,5 +1,5 @@
 {
-  "version": 23,
+  "version": 24,
   "sourceFile": "模型广场V1最终模型数据库_最终接入定价版.xlsx",
   "sourceSheet": "最终接入定价",
   "providerWhitelist": [
@@ -81,7 +81,8 @@
           "sourceUrl": "https://wavespeed.ai/models/openai/gpt-image-2/text-to-image",
           "remark": "按分辨率+质量独立定价",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "VERIFIED"
         },
         {
           "id": "gpt_image_2__02",
@@ -102,7 +103,8 @@
           "sourceUrl": "https://wavespeed.ai/models/openai/gpt-image-2/text-to-image",
           "remark": "按分辨率+质量独立定价",
           "enabled": true,
-          "sort": 20
+          "sort": 20,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "gpt_image_2__03",
@@ -123,7 +125,8 @@
           "sourceUrl": "https://wavespeed.ai/models/openai/gpt-image-2/text-to-image",
           "remark": "按分辨率+质量独立定价",
           "enabled": true,
-          "sort": 30
+          "sort": 30,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "gpt_image_2__04",
@@ -144,7 +147,8 @@
           "sourceUrl": "https://wavespeed.ai/models/openai/gpt-image-2/text-to-image",
           "remark": "按分辨率+质量独立定价",
           "enabled": true,
-          "sort": 40
+          "sort": 40,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "gpt_image_2__05",
@@ -165,7 +169,8 @@
           "sourceUrl": "https://wavespeed.ai/models/openai/gpt-image-2/text-to-image",
           "remark": "按分辨率+质量独立定价",
           "enabled": true,
-          "sort": 50
+          "sort": 50,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "gpt_image_2__06",
@@ -186,7 +191,8 @@
           "sourceUrl": "https://wavespeed.ai/models/openai/gpt-image-2/text-to-image",
           "remark": "按分辨率+质量独立定价",
           "enabled": true,
-          "sort": 60
+          "sort": 60,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "gpt_image_2__07",
@@ -207,7 +213,8 @@
           "sourceUrl": "https://wavespeed.ai/models/openai/gpt-image-2/text-to-image",
           "remark": "按分辨率+质量独立定价",
           "enabled": true,
-          "sort": 70
+          "sort": 70,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "gpt_image_2__08",
@@ -228,7 +235,8 @@
           "sourceUrl": "https://wavespeed.ai/models/openai/gpt-image-2/text-to-image",
           "remark": "按分辨率+质量独立定价",
           "enabled": true,
-          "sort": 80
+          "sort": 80,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "gpt_image_2__09",
@@ -249,8 +257,25 @@
           "sourceUrl": "https://wavespeed.ai/models/openai/gpt-image-2/text-to-image",
           "remark": "按分辨率+质量独立定价",
           "enabled": true,
-          "sort": 90
+          "sort": 90,
+          "verificationStatus": "UNVERIFIED"
         }
+      ],
+      "modes": [
+        "text-to-image",
+        "image-to-image"
+      ],
+      "resolutions": [
+        "1K",
+        "2K",
+        "4K"
+      ],
+      "ratios": [
+        "1:1",
+        "16:9",
+        "9:16",
+        "3:2",
+        "2:3"
       ]
     },
     {
@@ -283,7 +308,8 @@
           "sourceUrl": "https://doc.302.ai/160578879e0",
           "remark": "Imagine是操作，不是独立模型",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "TESTING"
         },
         {
           "id": "midjourney__02",
@@ -304,8 +330,19 @@
           "sourceUrl": "https://doc.302.ai/160578879e0",
           "remark": "Imagine是操作，不是独立模型",
           "enabled": true,
-          "sort": 20
+          "sort": 20,
+          "verificationStatus": "TESTING"
         }
+      ],
+      "modes": [
+        "text-to-image"
+      ],
+      "ratios": [
+        "1:1",
+        "16:9",
+        "9:16",
+        "3:2",
+        "2:3"
       ]
     },
     {
@@ -338,7 +375,8 @@
           "sourceUrl": "https://wavespeed.ai/models/google/nano-banana-2/text-to-image",
           "remark": "固定 1K，防止 4K 请求按低档价格计费",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "nano_banana__02",
@@ -359,7 +397,8 @@
           "sourceUrl": "https://wavespeed.ai/models/google/nano-banana-pro/text-to-image",
           "remark": "固定 2K，防止 4K 请求按低档价格计费",
           "enabled": true,
-          "sort": 20
+          "sort": 20,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -393,7 +432,8 @@
           "sourceUrl": "https://wavespeed.ai/models",
           "remark": "低毛差",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -427,7 +467,8 @@
           "sourceUrl": "https://wavespeed.ai/flux-2-klein-api",
           "remark": "WaveSpeed 4B 文生图端点",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -461,7 +502,8 @@
           "sourceUrl": "https://api.seedance.nz/docs/",
           "remark": "不虚构固定成本",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -495,7 +537,8 @@
           "sourceUrl": "https://doc.302.ai/",
           "remark": "规格保留，核价后再开售",
           "enabled": false,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -529,7 +572,8 @@
           "sourceUrl": "https://api.paipu.net/docs/videos/lec-seed-2-0-900",
           "remark": "LEC 公开价 ¥1.30/次；售价按 6% 充值手续费后约 20% 成本毛利保护",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "VERIFIED"
         },
         {
           "id": "seedance_2__02",
@@ -550,7 +594,8 @@
           "sourceUrl": "https://api.paipu.net/",
           "remark": "900/933只放后台",
           "enabled": true,
-          "sort": 20
+          "sort": 20,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "seedance_2__03",
@@ -571,7 +616,8 @@
           "sourceUrl": "https://api.paipu.net/",
           "remark": "900/933只放后台",
           "enabled": true,
-          "sort": 30
+          "sort": 30,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "seedance_2__04",
@@ -592,7 +638,8 @@
           "sourceUrl": "https://api.paipu.net/",
           "remark": "900/933只放后台",
           "enabled": true,
-          "sort": 40
+          "sort": 40,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "seedance_2__05",
@@ -613,7 +660,8 @@
           "sourceUrl": "https://api.seedance.nz/docs/",
           "remark": "已接官方 /v1/videos；后端按参考素材自动切换 t2v / i2v / multi。该上游动态结算，确定人民币售价前不向用户开放",
           "enabled": true,
-          "sort": 50
+          "sort": 50,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "seedance_2__06",
@@ -634,7 +682,8 @@
           "sourceUrl": "https://api.seedance.nz/docs/",
           "remark": "已接官方 /v1/videos；后端按参考素材自动切换 t2v / i2v / multi。该上游动态结算，确定人民币售价前不向用户开放",
           "enabled": true,
-          "sort": 60
+          "sort": 60,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "seedance_2__07",
@@ -655,7 +704,8 @@
           "sourceUrl": "https://api.seedance.nz/docs/",
           "remark": "已接官方 /v1/videos；后端按参考素材自动切换 t2v / i2v / multi。该上游动态结算，确定人民币售价前不向用户开放",
           "enabled": true,
-          "sort": 70
+          "sort": 70,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_ac_seedance_2_0_933_pro_720p",
@@ -676,7 +726,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 100
+          "sort": 100,
+          "verificationStatus": "TESTING"
         },
         {
           "id": "lec_seedance_2_0",
@@ -697,7 +748,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 102
+          "sort": 102,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_seed_2_0_900",
@@ -718,7 +770,8 @@
           "sourceUrl": "https://api.paipu.net/docs/videos/lec-seed-2-0-900",
           "remark": "2026-09-02 核对 LEC 公开价，由 ¥1.50 降为 ¥1.30/次",
           "enabled": true,
-          "sort": 104
+          "sort": 104,
+          "verificationStatus": "VERIFIED"
         },
         {
           "id": "lec_gt_seedance_2_0_mini",
@@ -739,7 +792,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 105
+          "sort": 105,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_seedance_2_0_mini_431_480p",
@@ -760,7 +814,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 106
+          "sort": 106,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_seedance_2_0_full_431_720p",
@@ -781,7 +836,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 107
+          "sort": 107,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_seedance_2_0_full_933_480p",
@@ -802,7 +858,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 108
+          "sort": 108,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_seedance_2_0_full_933_720p_mx",
@@ -823,7 +880,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 110
+          "sort": 110,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_sd2_seedance_2_0_fast",
@@ -844,7 +902,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 112
+          "sort": 112,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_seedance_2_0_fast_933_720p",
@@ -865,7 +924,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 113
+          "sort": 113,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_seedance_2_0_fast_431_720p",
@@ -886,7 +946,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 115
+          "sort": 115,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_md_seedance_2_0_900_720p",
@@ -907,7 +968,8 @@
           "sourceUrl": "https://api.paipu.net/docs/videos/lec-md-seedance-2-0-900-720p",
           "remark": "2026-09-02 核对 LEC 公开价，由 ¥1.50 降为 ¥1.20/次",
           "enabled": true,
-          "sort": 117
+          "sort": 117,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_am_seedance_2_0_mini",
@@ -928,7 +990,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 119
+          "sort": 119,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_sd2_seedance_2_0",
@@ -949,7 +1012,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 121
+          "sort": 121,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_seedance_2_0_933_stable",
@@ -970,7 +1034,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 122
+          "sort": 122,
+          "verificationStatus": "TESTING"
         },
         {
           "id": "lec_gt_seedance_2_0_full",
@@ -991,7 +1056,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 123
+          "sort": 123,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_ty_seedance_2_0_full_933_q1_720p",
@@ -1012,7 +1078,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 124
+          "sort": 124,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_sd2_seedance_2_0_fast_direct",
@@ -1033,7 +1100,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 127
+          "sort": 127,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_sd2_seedance_2_0_direct",
@@ -1054,7 +1122,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 128
+          "sort": 128,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_ac_seedance_2_0_fast_2_720p",
@@ -1075,8 +1144,26 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 129
+          "sort": 129,
+          "verificationStatus": "UNVERIFIED"
         }
+      ],
+      "modes": [
+        "text-to-video",
+        "image-to-video"
+      ],
+      "resolutions": [
+        "480P",
+        "720P"
+      ],
+      "durations": [
+        "5",
+        "10",
+        "15"
+      ],
+      "ratios": [
+        "16:9",
+        "9:16"
       ]
     },
     {
@@ -1109,7 +1196,8 @@
           "sourceUrl": "https://api.seedance.nz/docs/",
           "remark": "该上游本身动态结算，固定售价可能倒贴",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_seedance_2_5_ht_30s",
@@ -1130,7 +1218,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 101
+          "sort": 101,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_ac_seedance_2_5_10_image",
@@ -1151,7 +1240,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 102
+          "sort": 102,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_seed_2_5_900",
@@ -1172,7 +1262,8 @@
           "sourceUrl": "https://api.paipu.net/docs/videos/lec-seed-2-5-900",
           "remark": "2026-09-02 核对 LEC 公开价，成本已由 ¥2.00 涨为 ¥3.00/次",
           "enabled": true,
-          "sort": 108
+          "sort": 108,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_sd2_seedance_2_5",
@@ -1193,7 +1284,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 116
+          "sort": 116,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_sd2_seedance_2_5_direct",
@@ -1214,7 +1306,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 117
+          "sort": 117,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_ac_seedance_2_5_480p",
@@ -1235,7 +1328,8 @@
           "sourceUrl": "https://api.paipu.net/docs/videos/lec-ac-seedance-2-5-480p",
           "remark": "2026-09-02 修正为 LEC 官方按秒计费，避免按次少扣",
           "enabled": true,
-          "sort": 119
+          "sort": 119,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_ac_seedance_2_5_900",
@@ -1256,7 +1350,8 @@
           "sourceUrl": "https://api.paipu.net/docs/videos/lec-ac-seedance-2-5-900",
           "remark": "2026-09-02 核对 LEC 公开价，由 ¥4.00 降为 ¥3.00/次",
           "enabled": true,
-          "sort": 122
+          "sort": 122,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_ac_seedance_2_5",
@@ -1277,7 +1372,8 @@
           "sourceUrl": "https://api.paipu.net/docs/videos/lec-ac-seedance-2-5",
           "remark": "2026-09-02 修正为 LEC 官方按秒计费；售价按 720p ¥0.82/秒最高成本保护",
           "enabled": true,
-          "sort": 125
+          "sort": 125,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "lec_gt_seedance_2_5_720p",
@@ -1298,7 +1394,8 @@
           "sourceUrl": "https://api.paipu.net/pricing",
           "remark": "已与 LEC 实时模型列表和公开价格表核对",
           "enabled": true,
-          "sort": 128
+          "sort": 128,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -1332,7 +1429,8 @@
           "sourceUrl": "https://doc.302.ai/416447877e0",
           "remark": "售价=成本+8%",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "kling_3__02",
@@ -1353,7 +1451,8 @@
           "sourceUrl": "https://doc.302.ai/416447877e0",
           "remark": "售价=成本+8%",
           "enabled": true,
-          "sort": 20
+          "sort": 20,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "kling_3__03",
@@ -1374,7 +1473,8 @@
           "sourceUrl": "https://doc.302.ai/416447877e0",
           "remark": "售价=成本+8%",
           "enabled": true,
-          "sort": 30
+          "sort": 30,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "kling_3__04",
@@ -1395,7 +1495,8 @@
           "sourceUrl": "https://doc.302.ai/416447877e0",
           "remark": "售价=成本+8%",
           "enabled": true,
-          "sort": 40
+          "sort": 40,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "kling_3__05",
@@ -1416,7 +1517,8 @@
           "sourceUrl": "https://doc.302.ai/416447877e0",
           "remark": "售价=成本+8%",
           "enabled": true,
-          "sort": 50
+          "sort": 50,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "kling_3__06",
@@ -1437,7 +1539,8 @@
           "sourceUrl": "https://doc.302.ai/416447877e0",
           "remark": "售价=成本+8%",
           "enabled": true,
-          "sort": 60
+          "sort": 60,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "kling_3__07",
@@ -1458,7 +1561,8 @@
           "sourceUrl": "https://doc.302.ai/416447877e0",
           "remark": "售价=成本+8%",
           "enabled": true,
-          "sort": 70
+          "sort": 70,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "kling_3__08",
@@ -1479,7 +1583,8 @@
           "sourceUrl": "https://doc.302.ai/416447877e0",
           "remark": "售价=成本+8%",
           "enabled": true,
-          "sort": 80
+          "sort": 80,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "kling_3__09",
@@ -1500,7 +1605,8 @@
           "sourceUrl": "https://doc.302.ai/416489257e0",
           "remark": "售价=成本+8%",
           "enabled": true,
-          "sort": 90
+          "sort": 90,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "kling_3__10",
@@ -1521,7 +1627,8 @@
           "sourceUrl": "https://doc.302.ai/416489257e0",
           "remark": "售价=成本+8%",
           "enabled": true,
-          "sort": 100
+          "sort": 100,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "kling_3__11",
@@ -1542,7 +1649,8 @@
           "sourceUrl": "https://doc.302.ai/416489257e0",
           "remark": "售价=成本+8%",
           "enabled": true,
-          "sort": 110
+          "sort": 110,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "kling_3__12",
@@ -1563,7 +1671,8 @@
           "sourceUrl": "https://doc.302.ai/416489257e0",
           "remark": "售价=成本+8%",
           "enabled": true,
-          "sort": 120
+          "sort": 120,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "kling_3__13",
@@ -1584,7 +1693,8 @@
           "sourceUrl": "https://doc.302.ai/416489257e0",
           "remark": "售价=成本+8%",
           "enabled": true,
-          "sort": 130
+          "sort": 130,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "kling_3__14",
@@ -1605,7 +1715,8 @@
           "sourceUrl": "https://doc.302.ai/416489257e0",
           "remark": "售价=成本+8%",
           "enabled": true,
-          "sort": 140
+          "sort": 140,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "kling_3__15",
@@ -1626,7 +1737,8 @@
           "sourceUrl": "https://doc.302.ai/416489257e0",
           "remark": "售价=成本+8%",
           "enabled": true,
-          "sort": 150
+          "sort": 150,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "kling_3__16",
@@ -1647,7 +1759,8 @@
           "sourceUrl": "https://doc.302.ai/416489257e0",
           "remark": "售价=成本+8%",
           "enabled": true,
-          "sort": 160
+          "sort": 160,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -1681,7 +1794,8 @@
           "sourceUrl": "https://doc.302.ai/361678528e0",
           "remark": "按次线路",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "veo_31__02",
@@ -1702,7 +1816,8 @@
           "sourceUrl": "https://doc.302.ai/361678528e0",
           "remark": "按次线路",
           "enabled": true,
-          "sort": 20
+          "sort": 20,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -1736,7 +1851,8 @@
           "sourceUrl": "https://wavespeed.ai/docs/docs-api/wavespeed-ai/krea-v2-turbo",
           "remark": "Krea 2 Turbo，低价快速档",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "krea_v2__02",
@@ -1757,7 +1873,8 @@
           "sourceUrl": "https://wavespeed.ai/docs/docs-api/wavespeed-ai/krea-v2-medium-text-to-image",
           "remark": "Krea 2 Medium",
           "enabled": true,
-          "sort": 20
+          "sort": 20,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "krea_v2__03",
@@ -1778,7 +1895,8 @@
           "sourceUrl": "https://wavespeed.ai/docs/docs-api/wavespeed-ai/krea-v2-large-text-to-image",
           "remark": "Krea 2 Large",
           "enabled": true,
-          "sort": 30
+          "sort": 30,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -1812,7 +1930,8 @@
           "sourceUrl": "https://wavespeed.ai/models/minimax/h3/reference-to-video",
           "remark": "原生立体声",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "TESTING"
         },
         {
           "id": "hailuo_h3__02",
@@ -1833,7 +1952,8 @@
           "sourceUrl": "https://wavespeed.ai/models/minimax/h3/reference-to-video",
           "remark": "原生立体声",
           "enabled": true,
-          "sort": 20
+          "sort": 20,
+          "verificationStatus": "TESTING"
         },
         {
           "id": "hailuo_h3__03",
@@ -1854,7 +1974,8 @@
           "sourceUrl": "https://wavespeed.ai/models/minimax/h3/reference-to-video",
           "remark": "原生立体声",
           "enabled": true,
-          "sort": 30
+          "sort": 30,
+          "verificationStatus": "TESTING"
         },
         {
           "id": "hailuo_h3__04",
@@ -1875,8 +1996,27 @@
           "sourceUrl": "https://wavespeed.ai/models/minimax/h3/reference-to-video",
           "remark": "原生立体声",
           "enabled": true,
-          "sort": 40
+          "sort": 40,
+          "verificationStatus": "TESTING"
         }
+      ],
+      "modes": [
+        "text-to-video",
+        "image-to-video",
+        "reference-to-video"
+      ],
+      "resolutions": [
+        "480P",
+        "768P",
+        "2K"
+      ],
+      "durations": [
+        "6",
+        "10"
+      ],
+      "ratios": [
+        "16:9",
+        "9:16"
       ]
     },
     {
@@ -1909,7 +2049,8 @@
           "sourceUrl": "https://wavespeed.ai/pricing",
           "remark": "低毛差",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -1919,7 +2060,9 @@
       "category": "3d",
       "description": "将单张物体图片转换为可下载的 GLB 三维模型",
       "icon": "",
-      "modes": ["图片转3D"],
+      "modes": [
+        "图片转3D"
+      ],
       "maxReferenceImages": 1,
       "featured": false,
       "status": "normal",
@@ -1945,7 +2088,8 @@
           "sourceUrl": "https://wavespeed.ai/docs/docs-api/bytedance/bytedance-seed3d-2.0-image-to-3d",
           "remark": "上游 $0.35/次，售价含汇率波动保护",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -1955,7 +2099,9 @@
       "category": "voice",
       "description": "自然清晰的多语言文字转语音，适合短视频口播与配音",
       "icon": "",
-      "modes": ["文字转语音"],
+      "modes": [
+        "文字转语音"
+      ],
       "featured": false,
       "status": "normal",
       "enabled": true,
@@ -1980,7 +2126,8 @@
           "sourceUrl": "https://wavespeed.ai/models/minimax/speech-2.6-hd",
           "remark": "上游 $0.10/千字，售价含汇率波动保护",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -1990,9 +2137,20 @@
       "category": "person",
       "description": "InfiniteTalk 人物与数字人生成",
       "icon": "",
-      "modes": ["图片+音频"],
-      "resolutions": ["480p", "720p"],
-      "durations": ["3", "5", "10", "15", "30"],
+      "modes": [
+        "图片+音频"
+      ],
+      "resolutions": [
+        "480p",
+        "720p"
+      ],
+      "durations": [
+        "3",
+        "5",
+        "10",
+        "15",
+        "30"
+      ],
       "maxReferenceImages": 1,
       "supportsPerson": true,
       "supportsAudioReference": true,
@@ -2020,7 +2178,8 @@
           "sourceUrl": "https://wavespeed.ai/models/wavespeed-ai/infinitetalk",
           "remark": "上游 $0.03/秒，售价含汇率波动保护",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         },
         {
           "id": "infinitetalk__02",
@@ -2041,7 +2200,8 @@
           "sourceUrl": "https://wavespeed.ai/models/wavespeed-ai/infinitetalk",
           "remark": "上游 $0.06/秒，售价含汇率波动保护",
           "enabled": true,
-          "sort": 20
+          "sort": 20,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -2075,7 +2235,8 @@
           "sourceUrl": "https://wavespeed.ai/pricing",
           "remark": "低毛差",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -2109,7 +2270,8 @@
           "sourceUrl": "https://wavespeed.ai/pricing",
           "remark": "后台按Token精确扣费",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -2143,7 +2305,8 @@
           "sourceUrl": "https://wavespeed.ai/pricing",
           "remark": "后台按Token精确扣费",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -2177,7 +2340,8 @@
           "sourceUrl": "https://wavespeed.ai/pricing",
           "remark": "后台按Token精确扣费",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -2211,7 +2375,8 @@
           "sourceUrl": "https://wavespeed.ai/pricing",
           "remark": "后台按Token精确扣费",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -2245,7 +2410,8 @@
           "sourceUrl": "https://wavespeed.ai/pricing",
           "remark": "后台按Token精确扣费",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -2279,7 +2445,8 @@
           "sourceUrl": "https://wavespeed.ai/pricing",
           "remark": "后台按Token精确扣费",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -2313,7 +2480,8 @@
           "sourceUrl": "https://wavespeed.ai/pricing",
           "remark": "后台按Token精确扣费",
           "enabled": true,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -2347,7 +2515,8 @@
           "sourceUrl": "https://302.ai/",
           "remark": "不编价格，核到公开/控制台价再开",
           "enabled": false,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     },
@@ -2381,7 +2550,8 @@
           "sourceUrl": "https://302.ai/",
           "remark": "不编价格，核到公开/控制台价再开",
           "enabled": false,
-          "sort": 10
+          "sort": 10,
+          "verificationStatus": "UNVERIFIED"
         }
       ]
     }
@@ -2395,7 +2565,9 @@
       "upstreamModelId": "openai/gpt-image-2/text-to-image",
       "protocol": "wavespeed",
       "priority": 1,
-      "enabled": true
+      "enabled": true,
+      "adapter": "wavespeed_image",
+      "endpoint": "/predictions/openai/gpt-image-2/text-to-image"
     },
     {
       "id": "route_gpt_image_2__02",
@@ -2405,7 +2577,9 @@
       "upstreamModelId": "openai/gpt-image-2/text-to-image",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_image",
+      "endpoint": "/predictions/openai/gpt-image-2/text-to-image"
     },
     {
       "id": "route_gpt_image_2__03",
@@ -2415,7 +2589,9 @@
       "upstreamModelId": "openai/gpt-image-2/text-to-image",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_image",
+      "endpoint": "/predictions/openai/gpt-image-2/text-to-image"
     },
     {
       "id": "route_gpt_image_2__04",
@@ -2425,7 +2601,9 @@
       "upstreamModelId": "openai/gpt-image-2/text-to-image",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_image",
+      "endpoint": "/predictions/openai/gpt-image-2/text-to-image"
     },
     {
       "id": "route_gpt_image_2__05",
@@ -2435,7 +2613,9 @@
       "upstreamModelId": "openai/gpt-image-2/text-to-image",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_image",
+      "endpoint": "/predictions/openai/gpt-image-2/text-to-image"
     },
     {
       "id": "route_gpt_image_2__06",
@@ -2445,7 +2625,9 @@
       "upstreamModelId": "openai/gpt-image-2/text-to-image",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_image",
+      "endpoint": "/predictions/openai/gpt-image-2/text-to-image"
     },
     {
       "id": "route_gpt_image_2__07",
@@ -2455,7 +2637,9 @@
       "upstreamModelId": "openai/gpt-image-2/text-to-image",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_image",
+      "endpoint": "/predictions/openai/gpt-image-2/text-to-image"
     },
     {
       "id": "route_gpt_image_2__08",
@@ -2465,7 +2649,9 @@
       "upstreamModelId": "openai/gpt-image-2/text-to-image",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_image",
+      "endpoint": "/predictions/openai/gpt-image-2/text-to-image"
     },
     {
       "id": "route_gpt_image_2__09",
@@ -2475,7 +2661,9 @@
       "upstreamModelId": "openai/gpt-image-2/text-to-image",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_image",
+      "endpoint": "/predictions/openai/gpt-image-2/text-to-image"
     },
     {
       "id": "route_midjourney__01",
@@ -2485,7 +2673,9 @@
       "upstreamModelId": "/mj/submit/imagine",
       "protocol": "302_mj",
       "priority": 1,
-      "enabled": true
+      "enabled": true,
+      "adapter": "302_midjourney",
+      "endpoint": "/mj/submit/imagine"
     },
     {
       "id": "route_midjourney__02",
@@ -2495,7 +2685,9 @@
       "upstreamModelId": "/mj-turbo/submit/imagine",
       "protocol": "302_mj",
       "priority": 1,
-      "enabled": true
+      "enabled": true,
+      "adapter": "302_midjourney",
+      "endpoint": "/mj-turbo/submit/imagine"
     },
     {
       "id": "route_nano_banana__01",
@@ -2505,7 +2697,9 @@
       "upstreamModelId": "google/nano-banana-2/text-to-image",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_image",
+      "endpoint": "/predictions/google/nano-banana-2/text-to-image"
     },
     {
       "id": "route_nano_banana__02",
@@ -2515,7 +2709,9 @@
       "upstreamModelId": "google/nano-banana-pro/text-to-image",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_image",
+      "endpoint": "/predictions/google/nano-banana-pro/text-to-image"
     },
     {
       "id": "route_seedream_5__01",
@@ -2525,7 +2721,9 @@
       "upstreamModelId": "bytedance/seedream-v5.0-pro",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_image",
+      "endpoint": "/predictions/bytedance/seedream-v5.0-pro"
     },
     {
       "id": "route_flux_2_klein__01",
@@ -2535,7 +2733,9 @@
       "upstreamModelId": "wavespeed-ai/flux-2-klein-4b/text-to-image",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_image",
+      "endpoint": "/predictions/wavespeed-ai/flux-2-klein-4b/text-to-image"
     },
     {
       "id": "route_qwen_image_3__01",
@@ -2545,7 +2745,9 @@
       "upstreamModelId": "qwen-image-3.0-* / qwen-image-3.0-pro-*",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "openai_compatible",
+      "endpoint": "/chat/completions"
     },
     {
       "id": "route_seedance_2__01",
@@ -2555,7 +2757,9 @@
       "upstreamModelId": "lec-seed-2-0-900",
       "protocol": "custom",
       "priority": 1,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_seedance_2__02",
@@ -2565,7 +2769,9 @@
       "upstreamModelId": "lec-ac-seedance-933-720p",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_seedance_2__03",
@@ -2575,7 +2781,9 @@
       "upstreamModelId": "lec-ac-seedance-933-2-720p",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_seedance_2__04",
@@ -2585,7 +2793,9 @@
       "upstreamModelId": "lec-ac-seedance-933-fd-720p",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_seedance_2__05",
@@ -2595,7 +2805,9 @@
       "upstreamModelId": "seedance-2.0-mini-t2v",
       "protocol": "openai",
       "priority": 1,
-      "enabled": true
+      "enabled": true,
+      "adapter": "openai_video",
+      "endpoint": "/videos"
     },
     {
       "id": "route_seedance_2__06",
@@ -2605,7 +2817,9 @@
       "upstreamModelId": "seedance-2.0-fast-t2v",
       "protocol": "openai",
       "priority": 1,
-      "enabled": true
+      "enabled": true,
+      "adapter": "openai_video",
+      "endpoint": "/videos"
     },
     {
       "id": "route_seedance_2__07",
@@ -2615,7 +2829,9 @@
       "upstreamModelId": "seedance-2.0-standard-t2v",
       "protocol": "openai",
       "priority": 1,
-      "enabled": true
+      "enabled": true,
+      "adapter": "openai_video",
+      "endpoint": "/videos"
     },
     {
       "id": "route_seedance_25__01",
@@ -2625,7 +2841,9 @@
       "upstreamModelId": "seedance-2.5-standard-t2v / i2v / multi",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "openai_video",
+      "endpoint": "/videos"
     },
     {
       "id": "route_kling_3__01",
@@ -2635,7 +2853,9 @@
       "upstreamModelId": "kwaivgi/kling-v3.0-std",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "unverified",
+      "endpoint": "unverified"
     },
     {
       "id": "route_kling_3__02",
@@ -2645,7 +2865,9 @@
       "upstreamModelId": "kwaivgi/kling-v3.0-std",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "unverified",
+      "endpoint": "unverified"
     },
     {
       "id": "route_kling_3__03",
@@ -2655,7 +2877,9 @@
       "upstreamModelId": "kwaivgi/kling-v3.0-std",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "unverified",
+      "endpoint": "unverified"
     },
     {
       "id": "route_kling_3__04",
@@ -2665,7 +2889,9 @@
       "upstreamModelId": "kwaivgi/kling-v3.0-std",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "unverified",
+      "endpoint": "unverified"
     },
     {
       "id": "route_kling_3__05",
@@ -2675,7 +2901,9 @@
       "upstreamModelId": "kwaivgi/kling-v3.0-std",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "unverified",
+      "endpoint": "unverified"
     },
     {
       "id": "route_kling_3__06",
@@ -2685,7 +2913,9 @@
       "upstreamModelId": "kwaivgi/kling-v3.0-std",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "unverified",
+      "endpoint": "unverified"
     },
     {
       "id": "route_kling_3__07",
@@ -2695,7 +2925,9 @@
       "upstreamModelId": "kwaivgi/kling-v3.0-std",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "unverified",
+      "endpoint": "unverified"
     },
     {
       "id": "route_kling_3__08",
@@ -2705,7 +2937,9 @@
       "upstreamModelId": "kwaivgi/kling-v3.0-std",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "unverified",
+      "endpoint": "unverified"
     },
     {
       "id": "route_kling_3__09",
@@ -2715,7 +2949,9 @@
       "upstreamModelId": "kwaivgi/kling-v3.0-pro",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "unverified",
+      "endpoint": "unverified"
     },
     {
       "id": "route_kling_3__10",
@@ -2725,7 +2961,9 @@
       "upstreamModelId": "kwaivgi/kling-v3.0-pro",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "unverified",
+      "endpoint": "unverified"
     },
     {
       "id": "route_kling_3__11",
@@ -2735,7 +2973,9 @@
       "upstreamModelId": "kwaivgi/kling-v3.0-pro",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "unverified",
+      "endpoint": "unverified"
     },
     {
       "id": "route_kling_3__12",
@@ -2745,7 +2985,9 @@
       "upstreamModelId": "kwaivgi/kling-v3.0-pro",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "unverified",
+      "endpoint": "unverified"
     },
     {
       "id": "route_kling_3__13",
@@ -2755,7 +2997,9 @@
       "upstreamModelId": "kwaivgi/kling-v3.0-pro",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "unverified",
+      "endpoint": "unverified"
     },
     {
       "id": "route_kling_3__14",
@@ -2765,7 +3009,9 @@
       "upstreamModelId": "kwaivgi/kling-v3.0-pro",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "unverified",
+      "endpoint": "unverified"
     },
     {
       "id": "route_kling_3__15",
@@ -2775,7 +3021,9 @@
       "upstreamModelId": "kwaivgi/kling-v3.0-pro",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "unverified",
+      "endpoint": "unverified"
     },
     {
       "id": "route_kling_3__16",
@@ -2785,7 +3033,9 @@
       "upstreamModelId": "kwaivgi/kling-v3.0-pro",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "unverified",
+      "endpoint": "unverified"
     },
     {
       "id": "route_veo_31__01",
@@ -2795,7 +3045,9 @@
       "upstreamModelId": "/302/submit/veo3-v2 model=veo3.1",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "unverified",
+      "endpoint": "unverified"
     },
     {
       "id": "route_veo_31__02",
@@ -2805,7 +3057,9 @@
       "upstreamModelId": "/302/submit/veo3-v2 model=veo3.1-pro",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "unverified",
+      "endpoint": "unverified"
     },
     {
       "id": "route_krea_v2__01",
@@ -2815,7 +3069,9 @@
       "upstreamModelId": "wavespeed-ai/krea-v2/turbo",
       "protocol": "wavespeed",
       "priority": 1,
-      "enabled": true
+      "enabled": true,
+      "adapter": "wavespeed_image",
+      "endpoint": "/predictions/wavespeed-ai/krea-v2/turbo"
     },
     {
       "id": "route_krea_v2__02",
@@ -2825,7 +3081,9 @@
       "upstreamModelId": "wavespeed-ai/krea-v2-medium/text-to-image",
       "protocol": "wavespeed",
       "priority": 2,
-      "enabled": true
+      "enabled": true,
+      "adapter": "wavespeed_image",
+      "endpoint": "/predictions/wavespeed-ai/krea-v2-medium/text-to-image"
     },
     {
       "id": "route_krea_v2__03",
@@ -2835,7 +3093,9 @@
       "upstreamModelId": "wavespeed-ai/krea-v2-large/text-to-image",
       "protocol": "wavespeed",
       "priority": 3,
-      "enabled": true
+      "enabled": true,
+      "adapter": "wavespeed_image",
+      "endpoint": "/predictions/wavespeed-ai/krea-v2-large/text-to-image"
     },
     {
       "id": "route_hailuo_h3__01",
@@ -2845,7 +3105,9 @@
       "upstreamModelId": "wavespeed-ai/minimax-h3/text-to-video",
       "protocol": "wavespeed",
       "priority": 1,
-      "enabled": true
+      "enabled": true,
+      "adapter": "wavespeed_video",
+      "endpoint": "/predictions/wavespeed-ai/minimax-h3/text-to-video"
     },
     {
       "id": "route_hailuo_h3__02",
@@ -2855,7 +3117,9 @@
       "upstreamModelId": "wavespeed-ai/minimax-h3/image-to-video",
       "protocol": "wavespeed",
       "priority": 1,
-      "enabled": true
+      "enabled": true,
+      "adapter": "wavespeed_video",
+      "endpoint": "/predictions/wavespeed-ai/minimax-h3/image-to-video"
     },
     {
       "id": "route_hailuo_h3__03",
@@ -2865,7 +3129,9 @@
       "upstreamModelId": "wavespeed-ai/minimax-h3/reference-to-video",
       "protocol": "wavespeed",
       "priority": 1,
-      "enabled": true
+      "enabled": true,
+      "adapter": "wavespeed_video",
+      "endpoint": "/predictions/wavespeed-ai/minimax-h3/reference-to-video"
     },
     {
       "id": "route_hailuo_h3__04",
@@ -2875,7 +3141,9 @@
       "upstreamModelId": "wavespeed-ai/minimax-h3/reference-to-video",
       "protocol": "wavespeed",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_video",
+      "endpoint": "/predictions/wavespeed-ai/minimax-h3/reference-to-video"
     },
     {
       "id": "route_wan_22_ultra_fast__01",
@@ -2885,7 +3153,9 @@
       "upstreamModelId": "wavespeed-ai/wan-2.2/*-ultra-fast",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_person",
+      "endpoint": "/predictions/wavespeed-ai/wan-2.2/*-ultra-fast"
     },
     {
       "id": "route_seed3d_20__01",
@@ -2895,7 +3165,9 @@
       "upstreamModelId": "bytedance/seed3d-2.0/image-to-3d",
       "protocol": "wavespeed",
       "priority": 1,
-      "enabled": true
+      "enabled": true,
+      "adapter": "wavespeed_3d",
+      "endpoint": "/predictions/bytedance/seed3d-2.0/image-to-3d"
     },
     {
       "id": "route_speech_26_hd__01",
@@ -2905,7 +3177,9 @@
       "upstreamModelId": "minimax/speech-2.6-hd",
       "protocol": "wavespeed",
       "priority": 1,
-      "enabled": true
+      "enabled": true,
+      "adapter": "wavespeed_voice",
+      "endpoint": "/predictions/minimax/speech-2.6-hd"
     },
     {
       "id": "route_infinitetalk__01",
@@ -2915,7 +3189,9 @@
       "upstreamModelId": "wavespeed-ai/infinitetalk",
       "protocol": "custom",
       "priority": 1,
-      "enabled": true
+      "enabled": true,
+      "adapter": "wavespeed_person",
+      "endpoint": "/predictions/wavespeed-ai/infinitetalk"
     },
     {
       "id": "route_infinitetalk__02",
@@ -2925,7 +3201,9 @@
       "upstreamModelId": "wavespeed-ai/infinitetalk",
       "protocol": "custom",
       "priority": 1,
-      "enabled": true
+      "enabled": true,
+      "adapter": "wavespeed_person",
+      "endpoint": "/predictions/wavespeed-ai/infinitetalk"
     },
     {
       "id": "route_wan_animate__01",
@@ -2935,7 +3213,9 @@
       "upstreamModelId": "wavespeed-ai/wan-2.2/animate",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_person",
+      "endpoint": "/predictions/wavespeed-ai/wan-2.2/animate"
     },
     {
       "id": "route_claude_opus_48__01",
@@ -2945,7 +3225,9 @@
       "upstreamModelId": "Claude Opus 4.8",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_llm",
+      "endpoint": "/chat/completions"
     },
     {
       "id": "route_claude_sonnet_46__01",
@@ -2955,7 +3237,9 @@
       "upstreamModelId": "anthropic/claude-sonnet-4.6",
       "protocol": "openai",
       "priority": 1,
-      "enabled": true
+      "enabled": true,
+      "adapter": "wavespeed_llm",
+      "endpoint": "/chat/completions"
     },
     {
       "id": "route_gpt_55__01",
@@ -2965,7 +3249,9 @@
       "upstreamModelId": "GPT-5.5",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_llm",
+      "endpoint": "/chat/completions"
     },
     {
       "id": "route_gpt_54_mini__01",
@@ -2975,7 +3261,9 @@
       "upstreamModelId": "openai/gpt-5.4-mini",
       "protocol": "openai",
       "priority": 1,
-      "enabled": true
+      "enabled": true,
+      "adapter": "wavespeed_llm",
+      "endpoint": "/chat/completions"
     },
     {
       "id": "route_gemini_31_pro_preview__01",
@@ -2985,7 +3273,9 @@
       "upstreamModelId": "Gemini 3.1 Pro Preview",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_llm",
+      "endpoint": "/chat/completions"
     },
     {
       "id": "route_qwen_37_max__01",
@@ -2995,7 +3285,9 @@
       "upstreamModelId": "Qwen3.7 Max",
       "protocol": "custom",
       "priority": 1,
-      "enabled": false
+      "enabled": false,
+      "adapter": "wavespeed_llm",
+      "endpoint": "/chat/completions"
     },
     {
       "id": "route_deepseek_v4_pro__01",
@@ -3005,7 +3297,9 @@
       "upstreamModelId": "deepseek/deepseek-v4-pro",
       "protocol": "openai",
       "priority": 1,
-      "enabled": true
+      "enabled": true,
+      "adapter": "wavespeed_llm",
+      "endpoint": "/chat/completions"
     },
     {
       "id": "route_lec_ac_seedance_2_0_933_pro_720p",
@@ -3015,7 +3309,9 @@
       "upstreamModelId": "lec-ac-seedance-2-0-933-pro-720p",
       "protocol": "custom",
       "priority": 10,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_seedance_2_0",
@@ -3025,7 +3321,9 @@
       "upstreamModelId": "lec-seedance-2-0",
       "protocol": "custom",
       "priority": 12,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_seed_2_0_900",
@@ -3035,7 +3333,9 @@
       "upstreamModelId": "lec-seed-2-0-900",
       "protocol": "custom",
       "priority": 14,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_gt_seedance_2_0_mini",
@@ -3045,7 +3345,9 @@
       "upstreamModelId": "lec-gt-seedance-2-0-mini",
       "protocol": "custom",
       "priority": 15,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_seedance_2_0_mini_431_480p",
@@ -3055,7 +3357,9 @@
       "upstreamModelId": "lec-seedance-2-0-mini-431-480p",
       "protocol": "custom",
       "priority": 16,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_seedance_2_0_full_431_720p",
@@ -3065,7 +3369,9 @@
       "upstreamModelId": "lec-seedance-2-0-full-431-720p",
       "protocol": "custom",
       "priority": 17,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_seedance_2_0_full_933_480p",
@@ -3075,7 +3381,9 @@
       "upstreamModelId": "lec-seedance-2-0-full-933-480p",
       "protocol": "custom",
       "priority": 18,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_seedance_2_0_full_933_720p_mx",
@@ -3085,7 +3393,9 @@
       "upstreamModelId": "lec-seedance-2-0-full-933-720p-mx",
       "protocol": "custom",
       "priority": 20,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_sd2_seedance_2_0_fast",
@@ -3095,7 +3405,9 @@
       "upstreamModelId": "lec-sd2-seedance-2-0-fast",
       "protocol": "custom",
       "priority": 22,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_seedance_2_0_fast_933_720p",
@@ -3105,7 +3417,9 @@
       "upstreamModelId": "lec-seedance-2-0-fast-933-720p",
       "protocol": "custom",
       "priority": 23,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_seedance_2_0_fast_431_720p",
@@ -3115,7 +3429,9 @@
       "upstreamModelId": "lec-seedance-2-0-fast-431-720p",
       "protocol": "custom",
       "priority": 25,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_md_seedance_2_0_900_720p",
@@ -3125,7 +3441,9 @@
       "upstreamModelId": "lec-md-seedance-2-0-900-720p",
       "protocol": "custom",
       "priority": 27,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_am_seedance_2_0_mini",
@@ -3135,7 +3453,9 @@
       "upstreamModelId": "lec-am-seedance-2-0-mini",
       "protocol": "custom",
       "priority": 29,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_sd2_seedance_2_0",
@@ -3145,7 +3465,9 @@
       "upstreamModelId": "lec-sd2-seedance-2-0",
       "protocol": "custom",
       "priority": 31,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_seedance_2_0_933_stable",
@@ -3155,7 +3477,9 @@
       "upstreamModelId": "lec-seedance-2-0-933-stable",
       "protocol": "custom",
       "priority": 32,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_gt_seedance_2_0_full",
@@ -3165,7 +3489,9 @@
       "upstreamModelId": "lec-gt-seedance-2-0-full",
       "protocol": "custom",
       "priority": 33,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_ty_seedance_2_0_full_933_q1_720p",
@@ -3175,7 +3501,9 @@
       "upstreamModelId": "lec-ty-seedance-2-0-full-933-q1-720p",
       "protocol": "custom",
       "priority": 34,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_sd2_seedance_2_0_fast_direct",
@@ -3185,7 +3513,9 @@
       "upstreamModelId": "lec-sd2-seedance-2-0-fast-direct",
       "protocol": "custom",
       "priority": 37,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_sd2_seedance_2_0_direct",
@@ -3195,7 +3525,9 @@
       "upstreamModelId": "lec-sd2-seedance-2-0-direct",
       "protocol": "custom",
       "priority": 38,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_ac_seedance_2_0_fast_2_720p",
@@ -3205,7 +3537,9 @@
       "upstreamModelId": "lec-ac-seedance-2-0-fast-2-720p",
       "protocol": "custom",
       "priority": 39,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_seedance_2_5_ht_30s",
@@ -3215,7 +3549,9 @@
       "upstreamModelId": "lec-seedance-2-5-ht-30s",
       "protocol": "custom",
       "priority": 11,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_ac_seedance_2_5_10_image",
@@ -3225,7 +3561,9 @@
       "upstreamModelId": "lec-ac-seedance-2-5-10-image",
       "protocol": "custom",
       "priority": 12,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_seed_2_5_900",
@@ -3235,7 +3573,9 @@
       "upstreamModelId": "lec-seed-2-5-900",
       "protocol": "custom",
       "priority": 18,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_sd2_seedance_2_5",
@@ -3245,7 +3585,9 @@
       "upstreamModelId": "lec-sd2-seedance-2-5",
       "protocol": "custom",
       "priority": 26,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_sd2_seedance_2_5_direct",
@@ -3255,7 +3597,9 @@
       "upstreamModelId": "lec-sd2-seedance-2-5-direct",
       "protocol": "custom",
       "priority": 27,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_ac_seedance_2_5_480p",
@@ -3265,7 +3609,9 @@
       "upstreamModelId": "lec-ac-seedance-2-5-480p",
       "protocol": "custom",
       "priority": 29,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_ac_seedance_2_5_900",
@@ -3275,7 +3621,9 @@
       "upstreamModelId": "lec-ac-seedance-2-5-900",
       "protocol": "custom",
       "priority": 32,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_ac_seedance_2_5",
@@ -3285,7 +3633,9 @@
       "upstreamModelId": "lec-ac-seedance-2-5",
       "protocol": "custom",
       "priority": 35,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     },
     {
       "id": "route_lec_gt_seedance_2_5_720p",
@@ -3295,7 +3645,9 @@
       "upstreamModelId": "lec-gt-seedance-2-5-720p",
       "protocol": "custom",
       "priority": 38,
-      "enabled": true
+      "enabled": true,
+      "adapter": "lec_video",
+      "endpoint": "/v1/videos"
     }
   ]
 }

@@ -1,8 +1,13 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"log"
 	"mime"
@@ -16,30 +21,36 @@ import (
 	"github.com/tigerowo/infinite-canvas/service"
 )
 
+type persistedGeneratedMedia struct {
+	service.UploadedStorageObject
+	Width  int
+	Height int
+}
+
 // persistGeneratedMedia copies provider output bytes unchanged. It never
 // resizes, recompresses, or transcodes customer media.
-func persistGeneratedMedia(userID, remoteURL, prefix string, maxBytes int64) (service.UploadedStorageObject, bool) {
+func persistGeneratedMedia(userID, remoteURL, prefix string, maxBytes int64) (persistedGeneratedMedia, bool) {
 	remoteURL = strings.TrimSpace(remoteURL)
 	if userID == "" || !strings.HasPrefix(remoteURL, "https://") {
-		return service.UploadedStorageObject{}, false
+		return persistedGeneratedMedia{}, false
 	}
 	ctx, cancel, ok := generatedMediaStorageContext(userID)
 	if !ok {
-		return service.UploadedStorageObject{}, false
+		return persistedGeneratedMedia{}, false
 	}
 	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, remoteURL, nil)
 	if err != nil {
-		return service.UploadedStorageObject{}, false
+		return persistedGeneratedMedia{}, false
 	}
 	response, err := service.SafeProxyHTTPClient().Do(request)
 	if err != nil {
 		log.Printf("download generated media for persistence failed: %v", err)
-		return service.UploadedStorageObject{}, false
+		return persistedGeneratedMedia{}, false
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return service.UploadedStorageObject{}, false
+		return persistedGeneratedMedia{}, false
 	}
 	contentType := strings.TrimSpace(strings.Split(response.Header.Get("Content-Type"), ";")[0])
 	extensions, _ := mime.ExtensionsByType(contentType)
@@ -51,7 +62,7 @@ func persistGeneratedMedia(userID, remoteURL, prefix string, maxBytes int64) (se
 	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, maxBytes+1))
 	if err != nil || int64(len(data)) == 0 || int64(len(data)) > maxBytes {
-		return service.UploadedStorageObject{}, false
+		return persistedGeneratedMedia{}, false
 	}
 	if contentType == "" {
 		contentType = http.DetectContentType(data)
@@ -59,9 +70,13 @@ func persistGeneratedMedia(userID, remoteURL, prefix string, maxBytes int64) (se
 	uploaded, err := service.UploadStorageObject(ctx, fmt.Sprintf("%s%s", prefix, extension), contentType, data)
 	if err != nil {
 		log.Printf("persist generated media failed: user=%s err=%v", userID, err)
-		return service.UploadedStorageObject{}, false
+		return persistedGeneratedMedia{}, false
 	}
-	return uploaded, true
+	result := persistedGeneratedMedia{UploadedStorageObject: uploaded}
+	if config, _, decodeErr := image.DecodeConfig(bytes.NewReader(data)); decodeErr == nil {
+		result.Width, result.Height = config.Width, config.Height
+	}
+	return result, true
 }
 
 // Background jobs have no request session. Resolve the actual owner instead of

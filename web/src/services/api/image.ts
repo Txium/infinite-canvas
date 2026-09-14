@@ -65,8 +65,11 @@ export type CanvasImageTask = {
     created_at?: string;
     createdAt?: string;
     completed_at?: string;
-    error?: { message?: string };
+    error?: { code?: string; message?: string };
     error_detail?: string;
+    errorCode?: string;
+    requested_resolution?: string;
+    final_resolution?: string;
 };
 export type CanvasImageTaskOptions = { nodeId?: string; source?: "canvas" | "image-workbench" | "workflow"; sourceId?: string; clientTaskId?: string };
 

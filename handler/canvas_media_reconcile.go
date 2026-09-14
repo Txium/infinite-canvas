@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -14,13 +15,16 @@ import (
 	"github.com/tigerowo/infinite-canvas/service"
 )
 
+var rememberCanvasUpstreamTask = repository.RememberCanvasUpstreamTask
+
 // Persist acceptance before synchronous polling; a restart must never require
 // submitting another paid request. Only opaque upstream IDs stay on the server.
 func rememberWaveSpeedTask(r *http.Request, ctx aiLogContext, upstreamID string) error {
 	var err error
 	for attempt := 0; attempt < 3; attempt++ {
-		err = repository.RememberCanvasUpstreamTask(ctx.UserID, internalBillingID(r), upstreamID, ctx.Channel.ID, ctx.Channel.Name, ctx.Endpoint == "/audio/speech")
+		err = rememberCanvasUpstreamTask(ctx.UserID, internalBillingID(r), upstreamID, ctx.Channel.ID, ctx.Channel.Name, ctx.Endpoint == "/audio/speech")
 		if err == nil {
+			logGenerationAudit(auditUpstreamTaskIDSaved, internalBillingID(r), ctx.Model, ctx.Channel.Name, firstNonEmpty(ctx.Channel.Models...), ctx.Channel.Protocol, ctx.Endpoint, "upstream_task_id", upstreamID)
 			return nil
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -36,6 +40,12 @@ func saveReconcilingCanvasImageTask(task model.CanvasImageTask, detail string) {
 		return
 	}
 	task.Status, task.Error, task.ErrorDetail = "reconciling", "", detail
+	if strings.Contains(strings.ToLower(detail), "timed out") || strings.Contains(detail, "暂未确认") {
+		task.Status = "timed_out_unknown"
+		task.ErrorCode = model.GenerationErrorTimedOutUnknown
+	} else if task.ErrorCode == "" {
+		task.ErrorCode = model.GenerationErrorPollFailed
+	}
 	if _, err := saveCanvasImageTaskWithRetry(task); err != nil {
 		log.Printf("save image reconciliation: %v", err)
 	}
@@ -77,6 +87,7 @@ func reconcileCanvasMedia() {
 	for _, task := range images {
 		outputs, status, detail := pollAcceptedCanvasMedia(task.UserID, task.Model, task.ChannelID, task.UpstreamTaskID)
 		if status == "failed" {
+			task.ErrorCode = model.GenerationErrorUpstreamTaskFailed
 			saveFailedCanvasImageTask(task, "图片生成失败", detail)
 			continue
 		}
@@ -88,14 +99,22 @@ func reconcileCanvasMedia() {
 			continue
 		}
 		task.ImageURL, task.ImageURLs = outputs[0], outputs
+		task.ProviderOriginalResultURL = outputs[0]
 		if stored, ok := persistGeneratedMedia(task.UserID, task.ImageURL, "generated-image-"+task.ID, 40<<20); ok {
 			task.ImageURL, task.StorageKey, task.MimeType, task.Bytes = stored.URL, stored.StorageKey, stored.MimeType, stored.Bytes
+			task.Width, task.Height = stored.Width, stored.Height
+			task.ProviderFinalWidth, task.ProviderFinalHeight = stored.Width, stored.Height
+			if stored.Width > 0 && stored.Height > 0 {
+				task.ProviderFinalResolution = fmt.Sprintf("%dx%d", stored.Width, stored.Height)
+			}
 		}
+		task.CanvasResultURL = task.ImageURL
 		if err := settleAcceptedCanvasMedia(task.UserID, task.Model, task.Endpoint, task.ID); err != nil {
 			log.Printf("settle recovered image: %v", err)
 			continue
 		}
 		task.Status, task.Progress, task.CompletedAt, task.Error, task.ErrorDetail = "completed", 100, taskTime(), "", ""
+		task.ErrorCode = ""
 		if _, err := saveCanvasImageTaskWithRetry(task); err != nil {
 			log.Printf("save recovered image: %v", err)
 		}
@@ -129,9 +148,32 @@ func reconcileCanvasMedia() {
 }
 
 func pollAcceptedCanvasMedia(userID, modelName, channelID, taskID string) ([]string, string, string) {
-	channel, _, err := selectPersistedVideoTaskChannel(model.VideoTask{UserID: userID, Model: modelName, ChannelID: channelID})
-	if err != nil || !isWaveSpeedChannel(channel) {
+	channel, upstreamModel, err := selectPersistedVideoTaskChannel(model.VideoTask{UserID: userID, Model: modelName, ChannelID: channelID})
+	if err != nil {
 		return nil, "reconciling", "原供应商暂不可用"
+	}
+	if is302MidjourneyModel(upstreamModel) {
+		result, status, raw, fetchErr := fetch302MidjourneyTask(channel, upstreamModel, taskID)
+		if fetchErr != nil {
+			if status == http.StatusTooManyRequests || status >= http.StatusInternalServerError || status == 0 {
+				return nil, "reconciling", firstNonEmpty(fetchErr.Error(), raw)
+			}
+			return nil, "failed", firstNonEmpty(fetchErr.Error(), raw)
+		}
+		switch strings.ToUpper(strings.TrimSpace(result.Status)) {
+		case "SUCCESS", "SUCCEEDED", "COMPLETED", "FINISHED":
+			if outputs := unique302MidjourneyURLs(result); len(outputs) > 0 {
+				return outputs, "completed", ""
+			}
+			return nil, "reconciling", "上游任务完成但结果地址暂不可用"
+		case "FAILURE", "FAILED", "CANCEL", "CANCELLED":
+			return nil, "failed", firstNonEmpty(result.FailReason, result.Description, "Midjourney 上游任务失败")
+		default:
+			return nil, "reconciling", result.Status
+		}
+	}
+	if !isWaveSpeedChannel(channel) {
+		return nil, "reconciling", "原供应商暂不支持自动对账"
 	}
 	r, err := http.NewRequest(http.MethodGet, service.BuildModelChannelURL(channel, "/predictions/"+url.PathEscape(taskID)+"/result"), nil)
 	if err != nil {

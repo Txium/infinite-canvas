@@ -11,11 +11,12 @@ import (
 	"time"
 
 	"github.com/tigerowo/infinite-canvas/model"
+	"github.com/tigerowo/infinite-canvas/repository"
 	"github.com/tigerowo/infinite-canvas/service"
 )
 
-const midjourney302PollInterval = 2 * time.Second
-const midjourney302MaxWait = 10 * time.Minute
+var midjourney302PollInterval = 2 * time.Second
+var midjourney302MaxWait = 10 * time.Minute
 
 type midjourney302SubmitResponse struct {
 	Code        int             `json:"code"`
@@ -121,6 +122,10 @@ func copy302MidjourneyImageResponse(w http.ResponseWriter, submitRequest *http.R
 		fail("Midjourney 上游连接失败", 0, err.Error())
 		return
 	}
+	if taskID := internalBillingID(submitRequest); taskID != "" {
+		_ = repository.RecordCanvasImageUpstreamResponse(logContext.UserID, taskID, response.StatusCode, "submitted")
+	}
+	logGenerationAudit(auditUpstreamResponse, internalBillingID(submitRequest), logContext.Model, channel.Name, submitRequest.URL.Path, "302_midjourney", submitRequest.URL.Path, "http_status", response.StatusCode)
 	payload, _ := io.ReadAll(io.LimitReader(response.Body, 512*1024))
 	response.Body.Close()
 	if response.StatusCode >= http.StatusBadRequest {
@@ -138,11 +143,29 @@ func copy302MidjourneyImageResponse(w http.ResponseWriter, submitRequest *http.R
 		fail("Midjourney 没有返回任务 ID", response.StatusCode, string(payload))
 		return
 	}
+	if billingID := internalBillingID(submitRequest); billingID != "" {
+		if err := rememberWaveSpeedTask(submitRequest, logContext, taskID); err != nil {
+			// The upstream has accepted the paid task. Treat a local persistence
+			// failure as uncertain and never refund it as an ordinary rejection.
+			w.Header().Set("X-Upstream-Transport-Error", "1")
+			w.Header().Set("X-Upstream-Status", fmt.Sprint(http.StatusAccepted))
+			saveAIProxyLog(logContext, http.StatusAccepted, string(payload), "upstream accepted but task id persistence failed")
+			Fail(w, "上游已接收 Midjourney 任务，本地正在对账，请勿重复提交")
+			return
+		}
+	}
 
 	deadline := time.Now().Add(midjourney302MaxWait)
 	for time.Now().Before(deadline) {
 		select {
 		case <-submitRequest.Context().Done():
+			if internalBillingID(submitRequest) != "" {
+				w.Header().Set("X-Upstream-Transport-Error", "1")
+				w.Header().Set("X-Upstream-Status", fmt.Sprint(http.StatusGatewayTimeout))
+				saveAIProxyLog(logContext, 0, "", submitRequest.Context().Err().Error())
+				Fail(w, "Midjourney 已提交，上游状态暂未确认，系统将继续对账")
+				return
+			}
 			fail("Midjourney 请求已取消，本次费用已退回", 0, submitRequest.Context().Err().Error())
 			return
 		case <-time.After(midjourney302PollInterval):
@@ -179,6 +202,13 @@ func copy302MidjourneyImageResponse(w http.ResponseWriter, submitRequest *http.R
 			fail(firstNonEmpty(result.FailReason, result.Description, "Midjourney 生成失败"), status, raw)
 			return
 		}
+	}
+	if internalBillingID(submitRequest) != "" {
+		w.Header().Set("X-Upstream-Transport-Error", "1")
+		w.Header().Set("X-Upstream-Status", fmt.Sprint(http.StatusGatewayTimeout))
+		saveAIProxyLog(logContext, http.StatusGatewayTimeout, "", "Midjourney polling timed out; reconciliation continues")
+		Fail(w, "Midjourney 已提交，上游状态暂未确认，系统将继续对账")
+		return
 	}
 	fail("Midjourney 超过 10 分钟仍未返回结果，本次费用已退回", http.StatusGatewayTimeout, "")
 }

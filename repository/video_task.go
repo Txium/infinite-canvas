@@ -95,7 +95,7 @@ func HasActiveVideoTaskForChannel(userID string, channelID string, excludeID str
 	}
 	query := db.Model(&model.VideoTask{}).
 		Where("user_id = ? AND channel_id = ?", userID, channelID).
-		Where("status IN ?", []string{"queued", "in_progress", "processing", "running", "reconciling"})
+		Where("status IN ?", []string{"queued", "in_progress", "processing", "running", "reconciling", "timed_out_unknown"})
 	if excludeID != "" {
 		query = query.Where("id <> ?", excludeID)
 	}
@@ -139,7 +139,7 @@ func ListDueVideoTasks(createdAfter string, limit int) ([]model.VideoTask, error
 		limit = 100
 	}
 	var tasks []model.VideoTask
-	err = db.Where("status IN ? AND created_at >= ?", []string{"queued", "in_progress", "processing", "running", "reconciling"}, createdAfter).
+	err = db.Where("status IN ? AND created_at >= ?", []string{"queued", "in_progress", "processing", "running", "reconciling", "timed_out_unknown"}, createdAfter).
 		Order("created_at ASC").
 		Limit(limit).
 		Find(&tasks).Error

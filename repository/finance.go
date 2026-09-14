@@ -57,7 +57,7 @@ func AdminFinanceSummary(todayStart, period, periodStart, periodEnd string) (mod
 	result.ProviderReserveCents += videoReserve
 	for _, taskModel := range []any{&model.CanvasImageTask{}, &model.CanvasAudioTask{}} {
 		var reserve int64
-		if err := db.Model(taskModel).Where("status IN ?", []string{"queued", "pending", "processing", "running", "submitted", "reconciling"}).
+		if err := db.Model(taskModel).Where("status IN ?", []string{"queued", "pending", "processing", "running", "submitted", "reconciling", "timed_out_unknown"}).
 			Select("COALESCE(SUM(estimated_provider_cost_cents), 0)").Scan(&reserve).Error; err != nil {
 			return result, err
 		}

@@ -30,45 +30,68 @@ var (
 )
 
 type VideoTaskCreateInput struct {
-	UserID                     string
-	UserDisplayName            string
-	Model                      string
-	UpstreamModel              string
-	ChannelID                  string
-	UserChannelID              string
-	ChannelName                string
-	Source                     string
-	SourceID                   string
-	ClientTaskID               string
-	UpstreamTaskID             string
-	UpstreamVideoID            string
-	Status                     string
-	Progress                   int
-	Seconds                    string
-	Size                       string
-	VideoURL                   string
-	Error                      string
-	ErrorDetail                string
-	RequestBody                string
-	ResponseBody               string
-	Credits                    int
-	BillingID                  string
-	BillingStatus              string
-	BillingPath                string
-	SalePriceCents             int64
-	EstimatedProviderCostCents int64
-	UpstreamRefundStatus       string
+	UserID                      string
+	UserDisplayName             string
+	Model                       string
+	UpstreamModel               string
+	Provider                    string
+	Adapter                     string
+	ProviderEndpoint            string
+	UpstreamRequestSent         bool
+	UpstreamRequestStartedAt    string
+	UpstreamHTTPStatus          int
+	ProviderTaskStatus          string
+	ChannelID                   string
+	UserChannelID               string
+	ChannelName                 string
+	Source                      string
+	SourceID                    string
+	ClientTaskID                string
+	UpstreamTaskID              string
+	UpstreamVideoID             string
+	Status                      string
+	Progress                    int
+	Seconds                     string
+	Size                        string
+	VideoURL                    string
+	ProviderOriginalResultURL   string
+	CanvasResultURL             string
+	FrontendSelectedResolution  string
+	BackendResolvedResolution   string
+	ProviderRequestedResolution string
+	ProviderFinalResolution     string
+	ProviderFinalWidth          int
+	ProviderFinalHeight         int
+	ErrorCode                   string
+	Error                       string
+	ErrorDetail                 string
+	RequestBody                 string
+	ResponseBody                string
+	Credits                     int
+	BillingID                   string
+	BillingStatus               string
+	BillingPath                 string
+	SalePriceCents              int64
+	EstimatedProviderCostCents  int64
+	UpstreamRefundStatus        string
 }
 
 type VideoTaskPollUpdate struct {
-	Status       string
-	Progress     int
-	Seconds      string
-	Size         string
-	VideoURL     string
-	Error        string
-	ErrorDetail  string
-	ResponseBody string
+	Status                    string
+	Progress                  int
+	Seconds                   string
+	Size                      string
+	VideoURL                  string
+	ProviderTaskStatus        string
+	ProviderFinalResolution   string
+	ProviderFinalWidth        int
+	ProviderFinalHeight       int
+	ProviderOriginalResultURL string
+	CanvasResultURL           string
+	ErrorCode                 string
+	Error                     string
+	ErrorDetail               string
+	ResponseBody              string
 }
 
 type VideoTaskPollFunc func(model.VideoTask) (VideoTaskPollUpdate, error)
@@ -105,43 +128,59 @@ func buildVideoTask(input VideoTaskCreateInput) model.VideoTask {
 		status = "queued"
 	}
 	task := model.VideoTask{
-		ID:                         firstVideoTaskValue(input.ClientTaskID, input.UpstreamTaskID, input.UpstreamVideoID, "video-task-"+uuid.NewString()),
-		UserID:                     strings.TrimSpace(input.UserID),
-		UserDisplayName:            strings.TrimSpace(input.UserDisplayName),
-		Model:                      strings.TrimSpace(input.Model),
-		UpstreamModel:              strings.TrimSpace(input.UpstreamModel),
-		ChannelID:                  strings.TrimSpace(input.ChannelID),
-		UserChannelID:              strings.TrimSpace(input.UserChannelID),
-		ChannelName:                strings.TrimSpace(input.ChannelName),
-		Source:                     normalizeVideoTaskSource(input.Source),
-		SourceID:                   strings.TrimSpace(input.SourceID),
-		UpstreamTaskID:             strings.TrimSpace(input.UpstreamTaskID),
-		UpstreamVideoID:            strings.TrimSpace(input.UpstreamVideoID),
-		Status:                     status,
-		Progress:                   clampProgress(input.Progress),
-		Seconds:                    strings.TrimSpace(input.Seconds),
-		Size:                       strings.TrimSpace(input.Size),
-		VideoURL:                   strings.TrimSpace(input.VideoURL),
-		Error:                      strings.TrimSpace(input.Error),
-		ErrorDetail:                strings.TrimSpace(input.ErrorDetail),
-		RequestBody:                input.RequestBody,
-		ResponseBody:               input.ResponseBody,
-		LastResponse:               input.ResponseBody,
-		Credits:                    input.Credits,
-		BillingID:                  strings.TrimSpace(input.BillingID),
-		BillingStatus:              strings.TrimSpace(input.BillingStatus),
-		BillingPath:                strings.TrimSpace(input.BillingPath),
-		SalePriceCents:             input.SalePriceCents,
-		EstimatedProviderCostCents: input.EstimatedProviderCostCents,
-		UpstreamRefundStatus:       strings.TrimSpace(input.UpstreamRefundStatus),
-		CreatedAt:                  current,
-		UpdatedAt:                  current,
+		ID:                          firstVideoTaskValue(input.ClientTaskID, input.UpstreamTaskID, input.UpstreamVideoID, "video-task-"+uuid.NewString()),
+		UserID:                      strings.TrimSpace(input.UserID),
+		UserDisplayName:             strings.TrimSpace(input.UserDisplayName),
+		Model:                       strings.TrimSpace(input.Model),
+		UpstreamModel:               strings.TrimSpace(input.UpstreamModel),
+		Provider:                    strings.TrimSpace(input.Provider),
+		Adapter:                     strings.TrimSpace(input.Adapter),
+		ProviderEndpoint:            strings.TrimSpace(input.ProviderEndpoint),
+		UpstreamRequestSent:         input.UpstreamRequestSent,
+		UpstreamRequestStartedAt:    strings.TrimSpace(input.UpstreamRequestStartedAt),
+		UpstreamHTTPStatus:          input.UpstreamHTTPStatus,
+		ProviderTaskStatus:          strings.TrimSpace(input.ProviderTaskStatus),
+		ChannelID:                   strings.TrimSpace(input.ChannelID),
+		UserChannelID:               strings.TrimSpace(input.UserChannelID),
+		ChannelName:                 strings.TrimSpace(input.ChannelName),
+		Source:                      normalizeVideoTaskSource(input.Source),
+		SourceID:                    strings.TrimSpace(input.SourceID),
+		UpstreamTaskID:              strings.TrimSpace(input.UpstreamTaskID),
+		UpstreamVideoID:             strings.TrimSpace(input.UpstreamVideoID),
+		Status:                      status,
+		Progress:                    clampProgress(input.Progress),
+		Seconds:                     strings.TrimSpace(input.Seconds),
+		Size:                        strings.TrimSpace(input.Size),
+		VideoURL:                    strings.TrimSpace(input.VideoURL),
+		ProviderOriginalResultURL:   strings.TrimSpace(input.ProviderOriginalResultURL),
+		CanvasResultURL:             strings.TrimSpace(input.CanvasResultURL),
+		FrontendSelectedResolution:  strings.TrimSpace(input.FrontendSelectedResolution),
+		BackendResolvedResolution:   strings.TrimSpace(input.BackendResolvedResolution),
+		ProviderRequestedResolution: strings.TrimSpace(input.ProviderRequestedResolution),
+		ProviderFinalResolution:     strings.TrimSpace(input.ProviderFinalResolution),
+		ProviderFinalWidth:          input.ProviderFinalWidth,
+		ProviderFinalHeight:         input.ProviderFinalHeight,
+		ErrorCode:                   strings.TrimSpace(input.ErrorCode),
+		Error:                       strings.TrimSpace(input.Error),
+		ErrorDetail:                 strings.TrimSpace(input.ErrorDetail),
+		RequestBody:                 input.RequestBody,
+		ResponseBody:                input.ResponseBody,
+		LastResponse:                input.ResponseBody,
+		Credits:                     input.Credits,
+		BillingID:                   strings.TrimSpace(input.BillingID),
+		BillingStatus:               strings.TrimSpace(input.BillingStatus),
+		BillingPath:                 strings.TrimSpace(input.BillingPath),
+		SalePriceCents:              input.SalePriceCents,
+		EstimatedProviderCostCents:  input.EstimatedProviderCostCents,
+		UpstreamRefundStatus:        strings.TrimSpace(input.UpstreamRefundStatus),
+		CreatedAt:                   current,
+		UpdatedAt:                   current,
 	}
 	if IsCompletedVideoTaskStatus(task.Status) || task.VideoURL != "" {
 		task.Status = "completed"
 		task.Progress = 100
 		task.CompletedAt = current
-	} else if IsFailedVideoTaskStatus(task.Status) || task.Error != "" {
+	} else if IsFailedVideoTaskStatus(task.Status) || (task.Error != "" && task.Status != "timed_out_unknown") {
 		task.Status = "failed"
 		task.CompletedAt = current
 	}
@@ -154,6 +193,13 @@ func buildVideoTask(input VideoTaskCreateInput) model.VideoTask {
 // no task to reconcile after a database write failure.
 func CompleteVideoTaskSubmission(task model.VideoTask, input VideoTaskCreateInput) (model.VideoTask, error) {
 	task.UpstreamModel = strings.TrimSpace(input.UpstreamModel)
+	task.Provider = strings.TrimSpace(input.Provider)
+	task.Adapter = strings.TrimSpace(input.Adapter)
+	task.ProviderEndpoint = strings.TrimSpace(input.ProviderEndpoint)
+	task.UpstreamRequestSent = input.UpstreamRequestSent
+	task.UpstreamRequestStartedAt = strings.TrimSpace(input.UpstreamRequestStartedAt)
+	task.UpstreamHTTPStatus = input.UpstreamHTTPStatus
+	task.ProviderTaskStatus = strings.TrimSpace(input.ProviderTaskStatus)
 	task.ChannelID = strings.TrimSpace(input.ChannelID)
 	task.UserChannelID = strings.TrimSpace(input.UserChannelID)
 	task.ChannelName = strings.TrimSpace(input.ChannelName)
@@ -164,6 +210,13 @@ func CompleteVideoTaskSubmission(task model.VideoTask, input VideoTaskCreateInpu
 	task.Seconds = strings.TrimSpace(input.Seconds)
 	task.Size = strings.TrimSpace(input.Size)
 	task.VideoURL = strings.TrimSpace(input.VideoURL)
+	task.ProviderOriginalResultURL = strings.TrimSpace(input.ProviderOriginalResultURL)
+	task.CanvasResultURL = strings.TrimSpace(input.CanvasResultURL)
+	task.ProviderRequestedResolution = strings.TrimSpace(input.ProviderRequestedResolution)
+	task.ProviderFinalResolution = strings.TrimSpace(input.ProviderFinalResolution)
+	task.ProviderFinalWidth = input.ProviderFinalWidth
+	task.ProviderFinalHeight = input.ProviderFinalHeight
+	task.ErrorCode = strings.TrimSpace(input.ErrorCode)
 	task.Error = strings.TrimSpace(input.Error)
 	task.ErrorDetail = strings.TrimSpace(input.ErrorDetail)
 	task.RequestBody = input.RequestBody
@@ -175,7 +228,7 @@ func CompleteVideoTaskSubmission(task model.VideoTask, input VideoTaskCreateInpu
 		task.Status = "completed"
 		task.Progress = 100
 		task.CompletedAt = task.UpdatedAt
-	} else if task.Error != "" || IsFailedVideoTaskStatus(task.Status) {
+	} else if (task.Error != "" && task.Status != "timed_out_unknown") || IsFailedVideoTaskStatus(task.Status) {
 		task.Status = "failed"
 		task.CompletedAt = task.UpdatedAt
 	}
@@ -189,6 +242,13 @@ func CompleteVideoTaskSubmission(task model.VideoTask, input VideoTaskCreateInpu
 		WakeVideoTaskPoller()
 	}
 	return saved, err
+}
+
+// SaveVideoTaskAudit persists pre-submit routing evidence without changing
+// billing state or pretending that the provider has accepted the request.
+func SaveVideoTaskAudit(task model.VideoTask) (model.VideoTask, error) {
+	task.UpdatedAt = now()
+	return repository.SaveVideoTask(task)
 }
 
 func GetUserVideoTask(userID string, id string) (model.VideoTask, bool, error) {
@@ -252,8 +312,10 @@ func VideoTaskResponse(task model.VideoTask) map[string]any {
 		result["data"] = []map[string]any{{"url": task.VideoURL}}
 	}
 	if IsFailedVideoTaskStatus(task.Status) && (task.Error != "" || task.ErrorDetail != "") {
-		result["error"] = map[string]any{"message": userFriendlyTaskError(firstVideoTaskValue(task.Error, task.ErrorDetail), "当前模型生成失败，请稍后重试")}
+		result["error"] = map[string]any{"code": task.ErrorCode, "message": userFriendlyGenerationError(task.ErrorCode, userFriendlyTaskError(firstVideoTaskValue(task.Error, task.ErrorDetail), "当前模型生成失败，请稍后重试"))}
 	}
+	result["requested_resolution"] = task.FrontendSelectedResolution
+	result["final_resolution"] = task.ProviderFinalResolution
 	return result
 }
 
@@ -329,8 +391,9 @@ func runVideoTaskPoller() {
 				if expired && videoTaskPolledRecently(task, current, time.Minute) {
 					continue
 				}
-				if expired && NormalizeVideoTaskStatus(task.Status) != "reconciling" && !recoverableVideoTask(task) {
-					task.Status = "reconciling"
+				if expired && NormalizeVideoTaskStatus(task.Status) != "timed_out_unknown" && !recoverableVideoTask(task) {
+					task.Status = "timed_out_unknown"
+					task.ErrorCode = model.GenerationErrorTimedOutUnknown
 					if _, err := repository.SaveVideoTask(task); err != nil {
 						log.Printf("mark video task reconciling failed id=%s err=%v", task.ID, err)
 						continue
@@ -387,6 +450,30 @@ func UpdateVideoTaskFromPoll(task model.VideoTask, update VideoTaskPollUpdate) e
 	if strings.TrimSpace(update.VideoURL) != "" {
 		task.VideoURL = strings.TrimSpace(update.VideoURL)
 	}
+	if strings.TrimSpace(update.ProviderTaskStatus) != "" {
+		task.ProviderTaskStatus = strings.TrimSpace(update.ProviderTaskStatus)
+	}
+	if strings.TrimSpace(update.ProviderFinalResolution) != "" {
+		task.ProviderFinalResolution = strings.TrimSpace(update.ProviderFinalResolution)
+	}
+	if update.ProviderFinalWidth > 0 {
+		task.ProviderFinalWidth = update.ProviderFinalWidth
+	}
+	if update.ProviderFinalHeight > 0 {
+		task.ProviderFinalHeight = update.ProviderFinalHeight
+	}
+	if strings.TrimSpace(update.ProviderOriginalResultURL) != "" {
+		task.ProviderOriginalResultURL = strings.TrimSpace(update.ProviderOriginalResultURL)
+	}
+	if strings.TrimSpace(update.CanvasResultURL) != "" {
+		task.CanvasResultURL = strings.TrimSpace(update.CanvasResultURL)
+	}
+	if strings.TrimSpace(update.ErrorCode) != "" {
+		task.ErrorCode = strings.TrimSpace(update.ErrorCode)
+	}
+	if videoResolutionWasDowngraded(task) {
+		task.ErrorCode = model.GenerationErrorProviderResolutionDowngraded
+	}
 	if strings.TrimSpace(update.Error) != "" {
 		task.Error = strings.TrimSpace(update.Error)
 	}
@@ -408,7 +495,10 @@ func UpdateVideoTaskFromPoll(task model.VideoTask, update VideoTaskPollUpdate) e
 		task.CompletedAt = current
 		task.Error = ""
 		task.ErrorDetail = ""
-	} else if task.Error != "" || IsFailedVideoTaskStatus(task.Status) {
+		if task.ErrorCode != model.GenerationErrorProviderResolutionDowngraded {
+			task.ErrorCode = ""
+		}
+	} else if (task.Error != "" && task.Status != "timed_out_unknown") || IsFailedVideoTaskStatus(task.Status) {
 		task.Status = "failed"
 		task.CompletedAt = current
 	}
@@ -417,6 +507,18 @@ func UpdateVideoTaskFromPoll(task model.VideoTask, update VideoTaskPollUpdate) e
 	}
 	_, err := repository.SaveVideoTask(task)
 	return err
+}
+
+func videoResolutionWasDowngraded(task model.VideoTask) bool {
+	requested := strings.ToLower(firstVideoTaskValue(task.ProviderRequestedResolution, task.FrontendSelectedResolution))
+	if !strings.Contains(requested, "1080") || task.ProviderFinalWidth <= 0 || task.ProviderFinalHeight <= 0 {
+		return false
+	}
+	shorter := task.ProviderFinalWidth
+	if task.ProviderFinalHeight < shorter {
+		shorter = task.ProviderFinalHeight
+	}
+	return shorter < 1080
 }
 
 func recoverableVideoTask(task model.VideoTask) bool {
@@ -453,14 +555,16 @@ func finalizeVideoTaskBilling(task *model.VideoTask) error {
 
 func NormalizeVideoTaskStatus(status string) string {
 	switch strings.ToLower(strings.TrimSpace(status)) {
-	case "completed", "complete", "done", "succeeded", "success":
+	case "completed", "complete", "done", "finished", "succeeded", "success":
 		return "completed"
-	case "failed", "fail", "error", "cancelled", "canceled", "timeout", "deleted":
+	case "failed", "fail", "error", "cancelled", "canceled", "deleted":
 		return "failed"
 	case "running", "processing", "in_progress", "in-progress":
 		return "processing"
 	case "reconciling", "waiting_upstream", "waiting-upstream", "manual_review":
 		return "reconciling"
+	case "timeout", "timed_out", "timed-out", "timed_out_unknown":
+		return "timed_out_unknown"
 	case "queued", "queue", "pending", "":
 		return "queued"
 	default:
@@ -489,6 +593,29 @@ func userFriendlyTaskError(value string, fallback string) string {
 	switch message {
 	case "余额不足", "请先登录", "缺少模型名称", "当前模型档位未上架", "动态价格尚未接入真实成本结算，当前不能生成":
 		return message
+	default:
+		return fallback
+	}
+}
+
+func userFriendlyGenerationError(code string, fallback string) string {
+	switch strings.TrimSpace(code) {
+	case model.GenerationErrorModelNotFound, model.GenerationErrorModelNotMapped:
+		return "当前模型尚未完成线路配置，请更换模型或联系管理员"
+	case model.GenerationErrorProviderNotFound, model.GenerationErrorProviderDisabled:
+		return "当前模型渠道暂不可用，请稍后重试"
+	case model.GenerationErrorProviderKeyMissing, model.GenerationErrorUpstreamAuthFailed:
+		return "当前模型渠道认证配置异常，请联系管理员；无需充值或反复重试"
+	case model.GenerationErrorInvalidParams, model.GenerationErrorReferenceImageInvalid:
+		return "生成参数或参考素材不符合当前模型要求，请检查后重试"
+	case model.GenerationErrorUpstreamRequestNotSent:
+		return "请求未发到中转站，请联系管理员检查模型线路"
+	case model.GenerationErrorUpstreamRateLimit:
+		return "上游当前繁忙，系统会保留任务状态，请稍后查看"
+	case model.GenerationErrorTimedOutUnknown:
+		return "上游结果暂未确认，系统仍在后台对账，请勿重复提交"
+	case model.GenerationErrorProviderResolutionDowngraded:
+		return "上游返回画质低于所选规格，任务已进入人工核查"
 	default:
 		return fallback
 	}

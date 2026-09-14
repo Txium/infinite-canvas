@@ -78,6 +78,9 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	requestedModel := modelName
+	frontendResolution := readGenerationResolution(body, contentType)
+	backendResolution := firstNonEmpty(fixedMarketVideoResolution(requestedModel), normalizeMarketVideoResolution(frontendResolution), frontendResolution)
+	logGenerationAudit(auditRequestReceived, readClientVideoTaskID(r), requestedModel, "", "", "", "/videos", "frontend_selected_resolution", frontendResolution)
 	if err := validateFixedMarketVideoResolution(requestedModel, body, contentType); err != nil {
 		Fail(w, err.Error())
 		return
@@ -86,6 +89,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		Fail(w, err.Error())
 		return
 	}
+	logGenerationAudit(auditParamValidationPassed, readClientVideoTaskID(r), requestedModel, "", "", "", "/videos", "backend_resolved_resolution", backendResolution)
 	clientTaskID := readClientVideoTaskID(r)
 	if retryOf := strings.TrimSpace(r.Header.Get("X-Retry-Video-Task-ID")); retryOf != "" {
 		previous, found, lookupErr := service.GetUserVideoTask(user.ID, retryOf)
@@ -122,6 +126,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		failAIChannelSelect(w, err, "AI 接口请求失败")
 		return
 	}
+	logGenerationAudit(auditModelResolved, billingID, requestedModel, "", "", "", "/videos")
 	// Reject known local format errors before freezing funds or creating a task.
 	for _, candidate := range candidates {
 		if isLECVideoChannel(candidate.Channel) && candidate.UpstreamModel == "lec-seed-2-0-900" {
@@ -173,6 +178,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		BillingStatus: map[bool]string{true: "frozen", false: ""}[credits > 0],
 		BillingPath:   "/videos", SalePriceCents: int64(credits),
 		EstimatedProviderCostCents: estimatedProviderCost, UpstreamRefundStatus: "not_required",
+		FrontendSelectedResolution: frontendResolution, BackendResolvedResolution: backendResolution,
 	})
 	if err != nil {
 		if credits > 0 {
@@ -192,8 +198,15 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	var status int
 	var upstreamPath string
 	var logContext aiLogContext
+	requestAttempted := false
+	providerCode, adapter := "", ""
 	for index, candidate := range candidates {
+		requestAttempted = false
 		channel, modelName = candidate.Channel, candidate.UpstreamModel
+		providerCode, adapter = candidate.ProviderCode, candidate.Adapter
+		logGenerationAudit(auditProviderResolved, task.ID, requestedModel, providerCode, modelName, adapter, candidate.Endpoint)
+		logGenerationAudit(auditProviderConfigOK, task.ID, requestedModel, providerCode, modelName, adapter, candidate.Endpoint, "api_key_present", channel.APIKey != "", "base_url_present", strings.TrimSpace(channel.BaseURL) != "")
+		logGenerationAudit(auditAdapterSelected, task.ID, requestedModel, providerCode, modelName, adapter, candidate.Endpoint)
 		attemptBody, attemptContentType := append([]byte(nil), body...), contentType
 		if routed && isSeedanceNZChannel(channel) {
 			modelName = resolveSeedanceNZVideoModel(modelName, attemptBody, attemptContentType)
@@ -205,6 +218,13 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			attemptBody, attemptContentType, err = normalizeVideoCreateBody(attemptBody, attemptContentType, modelName, channel, upstreamPath)
 		}
+		providerResolution := readGenerationResolution(attemptBody, attemptContentType)
+		if err == nil && resolutionDowngradedBeforeSubmit(frontendResolution, providerResolution) {
+			err = fmt.Errorf("PROVIDER_RESOLUTION_DOWNGRADED: 前端选择 %s，但上游 payload 为 %s", frontendResolution, providerResolution)
+		}
+		if err == nil {
+			logGenerationAudit(auditPayloadBuilt, task.ID, requestedModel, providerCode, modelName, adapter, upstreamPath, "provider_payload_resolution", providerResolution)
+		}
 		if err == nil {
 			request, err = http.NewRequest(http.MethodPost, service.BuildModelChannelURL(channel, upstreamPath), bytes.NewReader(attemptBody))
 		}
@@ -214,7 +234,25 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 			if attemptContentType != "" {
 				request.Header.Set("Content-Type", attemptContentType)
 			}
-			payload, status, err = doAIRequest(request, channel)
+			task.Provider = providerCode
+			task.UpstreamModel = modelName
+			task.Adapter = adapter
+			task.ProviderEndpoint = upstreamPath
+			task.ProviderRequestedResolution = firstNonEmpty(providerResolution, backendResolution)
+			task.UpstreamRequestSent = true
+			task.UpstreamRequestStartedAt = auditNow()
+			if saved, saveErr := service.SaveVideoTaskAudit(task); saveErr != nil {
+				err = saveErr
+			} else {
+				task = saved
+				requestAttempted = true
+				logGenerationAudit(auditUpstreamRequestStart, task.ID, requestedModel, providerCode, modelName, adapter, upstreamPath, "provider_payload_resolution", task.ProviderRequestedResolution)
+				payload, status, err = doAIRequest(request, channel)
+				if err == nil {
+					task.UpstreamHTTPStatus = status
+					logGenerationAudit(auditUpstreamResponse, task.ID, requestedModel, providerCode, modelName, adapter, upstreamPath, "http_status", status)
+				}
+			}
 		}
 		if index+1 < len(candidates) && retryableMarketRouteFailure(status, err) {
 			saveAIProxyLog(logContext, status, string(payload), firstNonEmpty(errorString(err), strings.TrimSpace(string(payload))))
@@ -224,6 +262,17 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		break
 	}
 	if err != nil {
+		if !requestAttempted {
+			if strings.Contains(err.Error(), model.GenerationErrorProviderResolutionDowngraded) {
+				task.ErrorCode = model.GenerationErrorProviderResolutionDowngraded
+			} else {
+				task.ErrorCode = model.GenerationErrorUpstreamRequestNotSent
+			}
+			failVideoTaskBeforeUpstreamAcceptance(task, "视频请求未发到中转站，请联系管理员", err.Error())
+			saveAIProxyLog(logContext, 0, "", err.Error())
+			Fail(w, "视频请求未发到中转站，请联系管理员")
+			return
+		}
 		// A transport error can happen after the provider received the request.
 		// Keep funds frozen and require reconciliation; refunding here would make
 		// a retry capable of charging the provider twice.
@@ -234,6 +283,8 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	if status >= http.StatusBadRequest {
 		message := readUpstreamAIErrorMessage(payload, status)
+		task.UpstreamHTTPStatus = status
+		task.ErrorCode = classifyGenerationError(status, message, true)
 		failVideoTaskBeforeUpstreamAcceptance(task, message, strings.TrimSpace(string(payload)))
 		saveAIProxyLog(logContext, status, string(payload), strings.TrimSpace(string(payload)))
 		Fail(w, message)
@@ -241,6 +292,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	transformed := transformVideoCreatePayload(payload, request, channel, modelName)
 	if message := readVideoCreateErrorMessage(payload, transformed, channel, modelName); message != "" {
+		task.ErrorCode = classifyGenerationError(status, message, true)
 		failVideoTaskBeforeUpstreamAcceptance(task, message, message)
 		saveAIProxyLog(logContext, status, string(payload), message)
 		Fail(w, message)
@@ -248,40 +300,56 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	parsed := parseVideoTaskPayload(transformed, modelName)
 	if parsed.UpstreamTaskID == "" && parsed.UpstreamVideoID == "" {
+		task.ErrorCode = model.GenerationErrorResultURLMissing
 		markVideoTaskSubmissionUncertain(task, "上游响应未包含任务 ID: "+string(transformed))
 		saveAIProxyLog(logContext, status, string(transformed), "视频接口没有返回任务 ID")
 		Fail(w, "视频接口没有返回任务 ID")
 		return
 	}
 	task, err = completeVideoTaskSubmissionWithRetry(task, service.VideoTaskCreateInput{
-		UserID:                     user.ID,
-		UserDisplayName:            firstNonEmpty(user.DisplayName, user.Username),
-		Model:                      requestedModel,
-		UpstreamModel:              modelName,
-		ChannelID:                  channel.ID,
-		UserChannelID:              userChannelID,
-		ChannelName:                channel.Name,
-		Source:                     readVideoTaskSource(r),
-		SourceID:                   readVideoTaskSourceID(r),
-		ClientTaskID:               task.ID,
-		UpstreamTaskID:             parsed.UpstreamTaskID,
-		UpstreamVideoID:            parsed.UpstreamVideoID,
-		Status:                     parsed.Status,
-		Progress:                   parsed.Progress,
-		Seconds:                    parsed.Seconds,
-		Size:                       parsed.Size,
-		VideoURL:                   parsed.VideoURL,
-		Error:                      parsed.Error,
-		ErrorDetail:                parsed.ErrorDetail,
-		RequestBody:                logContext.RequestBody,
-		ResponseBody:               string(transformed),
-		Credits:                    credits,
-		BillingID:                  billingID,
-		BillingStatus:              map[bool]string{true: "frozen", false: ""}[credits > 0],
-		BillingPath:                upstreamPath,
-		SalePriceCents:             int64(credits),
-		EstimatedProviderCostCents: estimatedProviderCost,
-		UpstreamRefundStatus:       "not_required",
+		UserID:                      user.ID,
+		UserDisplayName:             firstNonEmpty(user.DisplayName, user.Username),
+		Model:                       requestedModel,
+		UpstreamModel:               modelName,
+		Provider:                    providerCode,
+		Adapter:                     adapter,
+		ProviderEndpoint:            upstreamPath,
+		UpstreamRequestSent:         true,
+		UpstreamRequestStartedAt:    task.UpstreamRequestStartedAt,
+		UpstreamHTTPStatus:          status,
+		ProviderTaskStatus:          parsed.ProviderStatus,
+		ChannelID:                   channel.ID,
+		UserChannelID:               userChannelID,
+		ChannelName:                 channel.Name,
+		Source:                      readVideoTaskSource(r),
+		SourceID:                    readVideoTaskSourceID(r),
+		ClientTaskID:                task.ID,
+		UpstreamTaskID:              parsed.UpstreamTaskID,
+		UpstreamVideoID:             parsed.UpstreamVideoID,
+		Status:                      parsed.Status,
+		Progress:                    parsed.Progress,
+		Seconds:                     parsed.Seconds,
+		Size:                        parsed.Size,
+		VideoURL:                    parsed.VideoURL,
+		ProviderOriginalResultURL:   parsed.VideoURL,
+		CanvasResultURL:             parsed.VideoURL,
+		FrontendSelectedResolution:  frontendResolution,
+		BackendResolvedResolution:   backendResolution,
+		ProviderRequestedResolution: task.ProviderRequestedResolution,
+		ProviderFinalResolution:     firstNonEmpty(parsed.Size, readSizeFromDimensions(map[string]any{"width": parsed.FinalWidth, "height": parsed.FinalHeight})),
+		ProviderFinalWidth:          parsed.FinalWidth,
+		ProviderFinalHeight:         parsed.FinalHeight,
+		Error:                       parsed.Error,
+		ErrorDetail:                 parsed.ErrorDetail,
+		RequestBody:                 logContext.RequestBody,
+		ResponseBody:                string(transformed),
+		Credits:                     credits,
+		BillingID:                   billingID,
+		BillingStatus:               map[bool]string{true: "frozen", false: ""}[credits > 0],
+		BillingPath:                 upstreamPath,
+		SalePriceCents:              int64(credits),
+		EstimatedProviderCostCents:  estimatedProviderCost,
+		UpstreamRefundStatus:        "not_required",
 	})
 	if err != nil {
 		// The provider has already accepted the task. Never release here: doing so
@@ -290,8 +358,18 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		Fail(w, "上游已接收任务，本地正在对账，请勿重复提交")
 		return
 	}
+	logGenerationAudit(auditUpstreamTaskIDSaved, task.ID, requestedModel, providerCode, modelName, adapter, upstreamPath, "upstream_task_id", firstNonEmpty(parsed.UpstreamTaskID, parsed.UpstreamVideoID))
 	saveAIProxyLog(logContext, status, string(transformed), "")
 	OK(w, service.VideoTaskResponse(task))
+}
+
+func resolutionDowngradedBeforeSubmit(frontend, provider string) bool {
+	frontend = strings.ToLower(strings.TrimSpace(frontend))
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	if !strings.Contains(frontend, "1080") || provider == "" {
+		return false
+	}
+	return !strings.Contains(provider, "1080") && !strings.Contains(provider, "1920")
 }
 
 func completeVideoTaskSubmissionWithRetry(task model.VideoTask, input service.VideoTaskCreateInput) (model.VideoTask, error) {
@@ -362,6 +440,12 @@ func fixedMarketVideoResolution(modelName string) string {
 	switch value {
 	case "seedance_2__01", "lec_seedance_2_0":
 		return "720p"
+	case "hailuo_h3__01":
+		return "480p"
+	case "hailuo_h3__02", "hailuo_h3__03":
+		return "768p"
+	case "hailuo_h3__04":
+		return "2k"
 	}
 	if strings.HasPrefix(value, "kling_3__") {
 		var index int
@@ -384,8 +468,12 @@ func normalizeMarketVideoResolution(value string) string {
 		return "480p"
 	case "720", "720p", "medium", "high", "hd", "auto":
 		return "720p"
+	case "768", "768p":
+		return "768p"
 	case "1080", "1080p", "fhd", "pro":
 		return "1080p"
+	case "2k", "2048":
+		return "2k"
 	default:
 		return ""
 	}
@@ -549,7 +637,7 @@ func pollVideoTaskFromUpstream(task model.VideoTask) (service.VideoTaskPollUpdat
 		// The provider has already accepted this task. A missing/temporarily
 		// disabled local route does not prove the upstream task failed, so keep
 		// funds frozen and retry reconciliation after the route is restored.
-		return reconcilingVideoPollUpdate("暂时无法读取原提交线路："+err.Error(), ""), nil
+		return uncertainVideoPollUpdate(task, "暂时无法读取原提交线路："+err.Error(), ""), nil
 	}
 	// A local task ID is never a provider task ID. Sending it upstream creates
 	// false 404 failures and can incorrectly release frozen funds.
@@ -590,7 +678,7 @@ func pollVideoTaskFromUpstream(task model.VideoTask) (service.VideoTaskPollUpdat
 		// generation results. LEC/WaveSpeed can transiently return 404/429/5xx
 		// while the paid task continues and later succeeds. Only an explicit
 		// provider task payload with a failed state may release user funds.
-		return reconcilingVideoPollUpdate(message, string(payload)), nil
+		return uncertainVideoPollUpdate(task, message, string(payload)), nil
 	}
 	transformed := transformVideoStatusPayload(payload, request, channel, upstreamModel)
 	parsed := parseVideoTaskPayload(transformed, upstreamModel)
@@ -607,20 +695,28 @@ func pollVideoTaskFromUpstream(task model.VideoTask) (service.VideoTaskPollUpdat
 		parsed.ErrorDetail = string(payload)
 	}
 	if parsed.VideoURL != "" && (service.IsCompletedVideoTaskStatus(parsed.Status) || parsed.Progress >= 100) {
+		originalURL := parsed.VideoURL
 		if uploaded, ok := persistGeneratedMedia(task.UserID, parsed.VideoURL, "generated-video-"+task.ID, 300<<20); ok {
 			parsed.VideoURL = uploaded.URL
 		}
+		task.ProviderOriginalResultURL = originalURL
 	}
 	saveAIProxyLog(logContext, status, string(transformed), firstNonEmpty(parsed.Error, ""))
 	return service.VideoTaskPollUpdate{
-		Status:       parsed.Status,
-		Progress:     parsed.Progress,
-		Seconds:      parsed.Seconds,
-		Size:         parsed.Size,
-		VideoURL:     parsed.VideoURL,
-		Error:        parsed.Error,
-		ErrorDetail:  parsed.ErrorDetail,
-		ResponseBody: string(transformed),
+		Status:                    parsed.Status,
+		Progress:                  parsed.Progress,
+		Seconds:                   parsed.Seconds,
+		Size:                      parsed.Size,
+		VideoURL:                  parsed.VideoURL,
+		ProviderTaskStatus:        parsed.ProviderStatus,
+		ProviderFinalResolution:   firstNonEmpty(parsed.Size, readSizeFromDimensions(map[string]any{"width": parsed.FinalWidth, "height": parsed.FinalHeight})),
+		ProviderFinalWidth:        parsed.FinalWidth,
+		ProviderFinalHeight:       parsed.FinalHeight,
+		ProviderOriginalResultURL: firstNonEmpty(task.ProviderOriginalResultURL, parsed.VideoURL),
+		CanvasResultURL:           parsed.VideoURL,
+		Error:                     parsed.Error,
+		ErrorDetail:               parsed.ErrorDetail,
+		ResponseBody:              string(transformed),
 	}, nil
 }
 
@@ -630,6 +726,15 @@ func reconcilingVideoPollUpdate(detail string, responseBody string) service.Vide
 		ErrorDetail:  strings.TrimSpace(detail),
 		ResponseBody: responseBody,
 	}
+}
+
+func uncertainVideoPollUpdate(task model.VideoTask, detail string, responseBody string) service.VideoTaskPollUpdate {
+	update := reconcilingVideoPollUpdate(detail, responseBody)
+	if service.NormalizeVideoTaskStatus(task.Status) == "timed_out_unknown" {
+		update.Status = "timed_out_unknown"
+		update.ErrorCode = model.GenerationErrorTimedOutUnknown
+	}
+	return update
 }
 
 // selectPersistedVideoTaskChannel restores the same managed-market provider
@@ -798,10 +903,13 @@ type parsedVideoTaskPayload struct {
 	UpstreamTaskID  string
 	UpstreamVideoID string
 	Status          string
+	ProviderStatus  string
 	Progress        int
 	Seconds         string
 	Size            string
 	VideoURL        string
+	FinalWidth      int
+	FinalHeight     int
 	Error           string
 	ErrorDetail     string
 }
@@ -812,14 +920,18 @@ func parseVideoTaskPayload(payload []byte, modelName string) parsedVideoTaskPayl
 		return parsedVideoTaskPayload{Status: "processing"}
 	}
 	data := normalizeVideoPayloadMap(root)
+	rawStatus := firstNonEmpty(readStringPath(data, "status"), readStringPath(data, "state"), readStringPath(data, "task_status"))
 	result := parsedVideoTaskPayload{
 		UpstreamTaskID:  firstNonEmpty(readStringPath(data, "task_id"), readStringPath(data, "taskId"), readStringPath(data, "id"), readStringPath(data, "request_id")),
 		UpstreamVideoID: firstNonEmpty(readStringPath(data, "video_id"), readStringPath(data, "videoId")),
-		Status:          service.NormalizeVideoTaskStatus(firstNonEmpty(readStringPath(data, "status"), readStringPath(data, "state"), readStringPath(data, "task_status"))),
+		Status:          service.NormalizeVideoTaskStatus(rawStatus),
+		ProviderStatus:  rawStatus,
 		Progress:        readIntPath(data, "progress"),
 		Seconds:         firstNonEmpty(readStringPath(data, "seconds"), readStringPath(data, "duration")),
 		Size:            firstNonEmpty(readStringPath(data, "size"), readSizeFromDimensions(data)),
-		VideoURL:        firstNonEmpty(readStringPath(data, "video_url"), readStringPath(data, "url"), readStringPath(data, "remixed_from_video_id"), readStringPath(data, "output_url"), readStringPath(data, "download_url"), findFirstHTTPURL(data)),
+		VideoURL:        preferredVideoResultURL(data),
+		FinalWidth:      readIntPath(data, "width"),
+		FinalHeight:     readIntPath(data, "height"),
 		Error:           firstNonEmpty(readStringPath(data, "error.message"), readStringPath(data, "error")),
 		ErrorDetail:     "",
 	}
@@ -849,11 +961,50 @@ func parseVideoTaskPayload(payload []byte, modelName string) parsedVideoTaskPayl
 	return result
 }
 
+func preferredVideoResultURL(data map[string]any) string {
+	for _, path := range []string{"original_url", "originalUrl", "download_url", "downloadUrl", "video_url", "videoUrl", "output_url", "outputUrl"} {
+		if value := readStringPath(data, path); strings.HasPrefix(value, "https://") || strings.HasPrefix(value, "http://") {
+			return value
+		}
+	}
+	return findPreferredVideoURL(data)
+}
+
+func findPreferredVideoURL(value any) string {
+	switch typed := value.(type) {
+	case string:
+		text := strings.TrimSpace(typed)
+		if strings.HasPrefix(text, "http://") || strings.HasPrefix(text, "https://") {
+			return text
+		}
+		var parsed any
+		if json.Unmarshal([]byte(text), &parsed) == nil {
+			return findPreferredVideoURL(parsed)
+		}
+	case []any:
+		for _, item := range typed {
+			if result := findPreferredVideoURL(item); result != "" {
+				return result
+			}
+		}
+	case map[string]any:
+		for _, key := range []string{"original_url", "originalUrl", "download_url", "downloadUrl", "video_url", "videoUrl", "output_url", "outputUrl", "outputs", "output", "resultUrls", "result_urls", "videoUrls", "video_urls", "videos", "video_result", "video", "generatedSamples", "generateVideoResponse", "content", "response", "data", "result", "url", "uri"} {
+			if result := findPreferredVideoURL(typed[key]); result != "" {
+				return result
+			}
+		}
+	}
+	return ""
+}
+
 func normalizeVideoPayloadMap(value any) map[string]any {
 	switch typed := value.(type) {
 	case map[string]any:
 		if data, ok := typed["data"].(map[string]any); ok {
 			for key, item := range typed {
+				if key == "data" {
+					continue
+				}
 				if _, exists := data[key]; !exists {
 					data[key] = item
 				}
@@ -863,6 +1014,9 @@ func normalizeVideoPayloadMap(value any) map[string]any {
 		if data, ok := typed["data"].([]any); ok && len(data) > 0 {
 			if item, ok := data[0].(map[string]any); ok {
 				for key, value := range typed {
+					if key == "data" {
+						continue
+					}
 					if _, exists := item[key]; !exists {
 						item[key] = value
 					}

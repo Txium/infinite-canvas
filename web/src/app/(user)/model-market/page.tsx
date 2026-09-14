@@ -11,6 +11,9 @@ import { useConfigStore } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 import { isAdminRole } from "@/services/api/auth";
 
+const verificationLabel = { VERIFIED: "已实测", TESTING: "测试中", UNVERIFIED: "未验证" } as const;
+const verificationColor = { VERIFIED: "green", TESTING: "gold", UNVERIFIED: "default" } as const;
+
 const categories = [
     { value: "all", label: "全部", icon: <Sparkles className="size-4" /> },
     { value: "hot", label: "热门", icon: <Flame className="size-4" /> },
@@ -100,7 +103,8 @@ export default function ModelMarketPage() {
                         <div className="flex items-start justify-between gap-3"><h2 className="font-semibold">{item.name}</h2><Tag color={!item.available ? "orange" : item.status === "normal" ? "green" : item.status === "busy" ? "orange" : "red"}>{!item.available ? "线路配置中" : item.status === "normal" ? "正常" : item.status === "busy" ? "拥堵" : "维护"}</Tag></div>
                         <p className="mt-4 min-h-10 text-sm text-stone-500">{item.description}</p>
                         <div className="mt-4 flex flex-wrap gap-1.5">{item.resolutions.map((value) => <Tag key={value}>{value}</Tag>)}{item.durations.map((value) => <Tag key={value}>{value} 秒</Tag>)}{item.supportsPerson ? <Tag color="purple">人物参考</Tag> : null}{item.supportsFirstLastFrame ? <Tag>首尾帧</Tag> : null}</div>
-                        <Select className="mt-4 w-full" value={variant?.id} onChange={(value) => setSelectedVariants((current) => ({...current,[item.id]:value}))} options={item.variants.map((option) => ({value:option.id,label:item.availableVariantIds.includes(option.id) ? option.name : `${option.name}（线路配置中）`}))} placeholder="选择档位" />
+                        <Select className="mt-4 w-full" value={variant?.id} onChange={(value) => setSelectedVariants((current) => ({...current,[item.id]:value}))} options={item.variants.map((option) => ({value:option.id,label:item.availableVariantIds.includes(option.id) ? `${option.name} · ${verificationLabel[option.verificationStatus || "UNVERIFIED"]}` : `${option.name}（线路配置中）`}))} placeholder="选择档位" />
+                        {variant ? <Tag className="mt-3" color={verificationColor[variant.verificationStatus || "UNVERIFIED"]}>{verificationLabel[variant.verificationStatus || "UNVERIFIED"]}</Tag> : null}
                         <div className="mt-5 flex items-end justify-between gap-3"><div><div className="text-xs text-stone-500">售价</div><div className="mt-1 text-sm font-semibold">{variant ? variant.pricingMode === "fixed" && typeof variant.priceCents === "number" ? `${formatCNY(variant.priceCents)} ${variant.billingUnit}` : variant.pricingMode === "dynamic" ? variant.priceFormula : "暂不上架" : "待定价"}</div></div><Button type="primary" disabled={!variantAvailable} onClick={() => useModel(item,variant)}>{variantAvailable ? "立即使用" : "线路配置中"}</Button></div>
                     </article>;
                 })}</div>}

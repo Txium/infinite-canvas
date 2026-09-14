@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -43,9 +44,12 @@ func CreateCanvasImageTask(w http.ResponseWriter, r *http.Request) {
 		Fail(w, "缺少模型名称")
 		return
 	}
+	frontendResolution := readGenerationResolution(body, contentType)
+	logGenerationAudit(auditRequestReceived, clientTaskID, modelName, "", "", "", endpoint, "frontend_selected_resolution", frontendResolution)
 	channelID = firstNonEmpty(channelID, r.Header.Get("X-Model-Channel-ID"))
 	userChannelID := r.Header.Get(userModelChannelHeader)
-	channel, _, routed, err := service.ResolveMarketRoute(modelName)
+	candidate, routed, err := service.ResolveMarketRouteCandidateForRoute(modelName, "")
+	channel := candidate.Channel
 	resolvedUserChannelID := ""
 	if err == nil && !routed {
 		if strings.TrimSpace(channelID) == "" && strings.TrimSpace(userChannelID) == "" {
@@ -59,22 +63,36 @@ func CreateCanvasImageTask(w http.ResponseWriter, r *http.Request) {
 		failAIChannelSelect(w, err, "AI 接口请求失败")
 		return
 	}
+	if !routed {
+		candidate = service.MarketRouteCandidate{Channel: channel, UpstreamModel: modelName, ProviderCode: channel.Name, Adapter: channel.Protocol, Endpoint: endpoint}
+	}
+	logGenerationAudit(auditModelResolved, clientTaskID, modelName, candidate.ProviderCode, candidate.UpstreamModel, candidate.Adapter, candidate.Endpoint)
+	logGenerationAudit(auditProviderResolved, clientTaskID, modelName, candidate.ProviderCode, candidate.UpstreamModel, candidate.Adapter, candidate.Endpoint)
+	logGenerationAudit(auditProviderConfigOK, clientTaskID, modelName, candidate.ProviderCode, candidate.UpstreamModel, candidate.Adapter, candidate.Endpoint, "api_key_present", channel.APIKey != "", "base_url_present", strings.TrimSpace(channel.BaseURL) != "")
+	logGenerationAudit(auditAdapterSelected, clientTaskID, modelName, candidate.ProviderCode, candidate.UpstreamModel, candidate.Adapter, candidate.Endpoint)
+	logGenerationAudit(auditParamValidationPassed, clientTaskID, modelName, candidate.ProviderCode, candidate.UpstreamModel, candidate.Adapter, candidate.Endpoint, "backend_resolved_resolution", frontendResolution)
 	task, claimed, err := service.CreateCanvasImageTask(service.CanvasImageTaskCreateInput{
-		UserID:          user.ID,
-		UserDisplayName: firstNonEmpty(user.DisplayName, user.Username),
-		Source:          source,
-		SourceID:        sourceID,
-		NodeID:          nodeID,
-		ClientTaskID:    clientTaskID,
-		Model:           modelName,
-		ChannelID:       channel.ID,
-		UserChannelID:   resolvedUserChannelID,
-		ChannelName:     channel.Name,
-		Prompt:          prompt,
-		GenerationType:  strings.TrimPrefix(endpoint, "/images/"),
-		Endpoint:        endpoint,
-		ContentType:     contentType,
-		RequestBody:     summarizeAIRequest(body, contentType),
+		UserID:                     user.ID,
+		UserDisplayName:            firstNonEmpty(user.DisplayName, user.Username),
+		Source:                     source,
+		SourceID:                   sourceID,
+		NodeID:                     nodeID,
+		ClientTaskID:               clientTaskID,
+		Model:                      modelName,
+		Provider:                   candidate.ProviderCode,
+		UpstreamModelID:            candidate.UpstreamModel,
+		Adapter:                    candidate.Adapter,
+		ProviderEndpoint:           candidate.Endpoint,
+		ChannelID:                  channel.ID,
+		UserChannelID:              resolvedUserChannelID,
+		ChannelName:                channel.Name,
+		Prompt:                     prompt,
+		GenerationType:             strings.TrimPrefix(endpoint, "/images/"),
+		Endpoint:                   endpoint,
+		ContentType:                contentType,
+		RequestBody:                summarizeAIRequest(body, contentType),
+		FrontendSelectedResolution: frontendResolution,
+		BackendResolvedResolution:  frontendResolution,
 	})
 	if err != nil {
 		log.Printf("create canvas image task failed: user=%s err=%v", user.ID, err)
@@ -282,18 +300,25 @@ func runCanvasImageTask(task model.CanvasImageTask, user model.AuthUser, body []
 		saveReconcilingCanvasImageTask(task, err.Error())
 		return
 	}
+	if latest, found, readErr := service.GetUserCanvasImageTask(task.UserID, task.ID); readErr == nil && found {
+		task = latest
+	}
 	if status >= http.StatusBadRequest {
 		message := readUpstreamAIErrorMessage(payload, status)
+		task.UpstreamHTTPStatus = status
+		task.ErrorCode = classifyGenerationError(status, message, task.UpstreamRequestSent)
 		saveFailedCanvasImageTask(task, message, string(payload))
 		return
 	}
 	if message := readWrappedTaskError(payload); message != "" {
+		task.ErrorCode = classifyGenerationError(status, message, task.UpstreamRequestSent)
 		saveFailedCanvasImageTask(task, message, string(payload))
 		return
 	}
 	collectAll := isKIESeedreamLayerDecompositionModel(task.Model)
 	imageURLs, mimeType, bytes, err := imageURLsFromAIResponse(payload, responseContentType, collectAll, task.Endpoint == "/chat/completions")
 	if err != nil {
+		task.ErrorCode = model.GenerationErrorResultURLMissing
 		saveFailedCanvasImageTask(task, err.Error(), string(payload))
 		return
 	}
@@ -306,6 +331,7 @@ func runCanvasImageTask(task model.CanvasImageTask, user model.AuthUser, body []
 	task.CompletedAt = taskTime()
 	task.ResponseBody = string(payload)
 	task.ImageURL = imageURLs[0]
+	task.ProviderOriginalResultURL = imageURLs[0]
 	if collectAll {
 		task.ImageURLs = imageURLs
 	}
@@ -318,9 +344,19 @@ func runCanvasImageTask(task model.CanvasImageTask, user model.AuthUser, body []
 	task.ErrorDetail = ""
 	if uploaded, ok := persistGeneratedMedia(task.UserID, task.ImageURL, "generated-image-"+task.ID, 40<<20); ok {
 		task.ImageURL = uploaded.URL
+		task.CanvasResultURL = uploaded.URL
 		task.StorageKey = uploaded.StorageKey
 		task.Bytes = uploaded.Bytes
 		task.MimeType = uploaded.MimeType
+		task.Width = uploaded.Width
+		task.Height = uploaded.Height
+		task.ProviderFinalWidth = uploaded.Width
+		task.ProviderFinalHeight = uploaded.Height
+		if uploaded.Width > 0 && uploaded.Height > 0 {
+			task.ProviderFinalResolution = fmt.Sprintf("%dx%d", uploaded.Width, uploaded.Height)
+		}
+	} else {
+		task.CanvasResultURL = task.ImageURL
 	}
 	if _, err := saveCanvasImageTaskWithRetry(task); err != nil {
 		log.Printf("persist completed canvas image task failed; keep for reconciliation: id=%s err=%v", task.ID, err)
@@ -469,6 +505,9 @@ func saveFailedCanvasImageTask(task model.CanvasImageTask, message string, detai
 	task.Status = "failed"
 	task.CompletedAt = taskTime()
 	task.Error = firstNonEmpty(message, "图片生成失败")
+	if task.ErrorCode == "" {
+		task.ErrorCode = classifyGenerationError(task.UpstreamHTTPStatus, task.Error, task.UpstreamRequestSent)
+	}
 	task.ErrorDetail = detail
 	if _, err := saveCanvasImageTaskWithRetry(task); err != nil {
 		log.Printf("persist failed canvas image task failed id=%s err=%v", task.ID, err)

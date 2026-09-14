@@ -106,7 +106,7 @@ func ListMarketModels(category string, featured bool) ([]model.MarketModelCard, 
 	availableVariants := map[string]bool{}
 	for _, route := range routes {
 		variant := variantByID[route.VariantID]
-		if provider, ok := providerByID[route.ProviderID]; ok && modelProviderReady(provider) && publicVariantPriced(variant) {
+		if provider, ok := providerByID[route.ProviderID]; ok && modelProviderReady(provider) && publicVariantPriced(variant) && completeModelRoute(route) {
 			availableVariants[route.VariantID] = true
 		}
 	}
@@ -131,7 +131,7 @@ func ListMarketModels(category string, featured bool) ([]model.MarketModelCard, 
 			if !availableVariants[variant.ID] {
 				continue
 			}
-			publicVariants = append(publicVariants, model.PublicModelVariant{ID: variant.ID, ModelID: variant.ModelID, Name: variant.Name, PriceCents: variant.PriceCents, PriceText: variant.PriceText, BillingUnit: variant.BillingUnit, PricingMode: variant.PricingMode, PriceFormula: variant.PriceFormula, PersonNote: variant.PersonNote, Remark: variant.Remark, Enabled: variant.Enabled, Sort: variant.Sort})
+			publicVariants = append(publicVariants, model.PublicModelVariant{ID: variant.ID, ModelID: variant.ModelID, Name: variant.Name, PriceCents: variant.PriceCents, PriceText: variant.PriceText, BillingUnit: variant.BillingUnit, PricingMode: variant.PricingMode, PriceFormula: variant.PriceFormula, PersonNote: variant.PersonNote, Remark: variant.Remark, VerificationStatus: normalizedVerificationStatus(variant.VerificationStatus), Enabled: variant.Enabled, Sort: variant.Sort})
 		}
 		if len(publicVariants) == 0 {
 			continue
@@ -486,8 +486,12 @@ func SaveModelVariant(item model.ModelVariant) (model.ModelVariant, error) {
 		item.SourceURL = saved.SourceURL
 		item.Remark = saved.Remark
 		item.Sort = saved.Sort
+		if strings.TrimSpace(item.VerificationStatus) == "" {
+			item.VerificationStatus = saved.VerificationStatus
+		}
 		item.CreatedAt = saved.CreatedAt
 	}
+	item.VerificationStatus = normalizedVerificationStatus(item.VerificationStatus)
 	item.UpdatedAt = now
 	return item, repository.SaveModelVariant(item)
 }
@@ -502,11 +506,18 @@ func SaveModelRoute(item model.ModelRoute) (model.ModelRoute, error) {
 	}
 	item.ModelID = variant.ModelID
 	item.UpstreamModelID, item.Protocol = strings.TrimSpace(item.UpstreamModelID), strings.TrimSpace(item.Protocol)
+	item.Adapter, item.Endpoint = strings.TrimSpace(item.Adapter), strings.TrimSpace(item.Endpoint)
 	if item.UpstreamModelID == "" {
 		return model.ModelRoute{}, errors.New("实际上游模型 ID 不能为空")
 	}
 	if item.Protocol == "" {
 		return model.ModelRoute{}, errors.New("线路协议不能为空")
+	}
+	if item.Adapter == "" {
+		return model.ModelRoute{}, errors.New("线路 Adapter 不能为空")
+	}
+	if item.Endpoint == "" {
+		return model.ModelRoute{}, errors.New("线路 endpoint 不能为空")
 	}
 	if item.Priority <= 0 {
 		item.Priority = 1
@@ -587,7 +598,7 @@ func AdminModelReadiness() (model.ModelReadiness, error) {
 			continue
 		}
 		result.EnabledRouteCount++
-		if providerReady[route.ProviderID] && strings.TrimSpace(route.UpstreamModelID) != "" {
+		if providerReady[route.ProviderID] && completeModelRoute(route) {
 			enabledRoutesByVariant[route.VariantID]++
 		}
 	}
@@ -625,6 +636,9 @@ type MarketRouteCandidate struct {
 	RouteID       string
 	Channel       model.ModelChannel
 	UpstreamModel string
+	ProviderCode  string
+	Adapter       string
+	Endpoint      string
 }
 
 func ResolveMarketRoutes(variantID string) ([]MarketRouteCandidate, bool, error) {
@@ -653,6 +667,9 @@ func ResolveMarketRoutes(variantID string) ([]MarketRouteCandidate, bool, error)
 	}
 	result := make([]MarketRouteCandidate, 0, len(routes))
 	for _, route := range routes {
+		if !completeModelRoute(route) {
+			continue
+		}
 		provider, providerErr := repository.ModelProviderByID(route.ProviderID)
 		provider = withProviderSecret(provider)
 		if providerErr != nil || !modelProviderReady(provider) {
@@ -669,7 +686,7 @@ func ResolveMarketRoutes(variantID string) ([]MarketRouteCandidate, bool, error)
 			baseURL = "https://llm.wavespeed.ai/v1"
 			protocol = "openai"
 		}
-		result = append(result, MarketRouteCandidate{RouteID: route.ID, Channel: model.ModelChannel{ID: provider.ID, Protocol: protocol, Name: provider.Name, BaseURL: baseURL, APIKey: provider.APIKey, Models: []string{route.UpstreamModelID}, Weight: 1, Timeout: provider.Timeout, Enabled: true}, UpstreamModel: route.UpstreamModelID})
+		result = append(result, MarketRouteCandidate{RouteID: route.ID, Channel: model.ModelChannel{ID: provider.ID, Protocol: protocol, Name: provider.Name, BaseURL: baseURL, APIKey: provider.APIKey, Models: []string{route.UpstreamModelID}, Weight: 1, Timeout: provider.Timeout, Enabled: true}, UpstreamModel: route.UpstreamModelID, ProviderCode: provider.Code, Adapter: route.Adapter, Endpoint: route.Endpoint})
 	}
 	if len(result) == 0 {
 		return nil, true, errors.New("指定模型渠道不可用")
@@ -677,19 +694,40 @@ func ResolveMarketRoutes(variantID string) ([]MarketRouteCandidate, bool, error)
 	return result, true, nil
 }
 
+func completeModelRoute(route model.ModelRoute) bool {
+	return strings.TrimSpace(route.UpstreamModelID) != "" && strings.TrimSpace(route.Adapter) != "" && strings.TrimSpace(route.Endpoint) != ""
+}
+
+func normalizedVerificationStatus(value string) string {
+	switch strings.ToUpper(strings.TrimSpace(value)) {
+	case "VERIFIED", "TESTING":
+		return strings.ToUpper(strings.TrimSpace(value))
+	default:
+		return "UNVERIFIED"
+	}
+}
+
 func ResolveMarketRouteForRoute(variantID string, routeID string) (model.ModelChannel, string, bool, error) {
-	candidates, routed, err := ResolveMarketRoutes(variantID)
+	candidate, routed, err := ResolveMarketRouteCandidateForRoute(variantID, routeID)
 	if err != nil || !routed {
 		return model.ModelChannel{}, "", routed, err
+	}
+	return candidate.Channel, candidate.UpstreamModel, true, nil
+}
+
+func ResolveMarketRouteCandidateForRoute(variantID string, routeID string) (MarketRouteCandidate, bool, error) {
+	candidates, routed, err := ResolveMarketRoutes(variantID)
+	if err != nil || !routed {
+		return MarketRouteCandidate{}, routed, err
 	}
 	if routeID != "" {
 		for _, candidate := range candidates {
 			if candidate.RouteID == routeID {
-				return candidate.Channel, candidate.UpstreamModel, true, nil
+				return candidate, true, nil
 			}
 		}
 	}
-	return candidates[0].Channel, candidates[0].UpstreamModel, true, nil
+	return candidates[0], true, nil
 }
 
 func ResolveMarketRoute(variantID string) (model.ModelChannel, string, bool, error) {

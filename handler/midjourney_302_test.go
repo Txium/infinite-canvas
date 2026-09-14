@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/tigerowo/infinite-canvas/model"
 )
@@ -49,5 +52,36 @@ func TestUnique302MidjourneyURLs(t *testing.T) {
 	urls := unique302MidjourneyURLs(midjourney302TaskResponse{ImageURL: "https://example.com/grid.png", ImageURLs: []string{"https://example.com/1.png", "https://example.com/1.png"}})
 	if len(urls) != 2 {
 		t.Fatalf("expected two unique urls, got %#v", urls)
+	}
+}
+
+func Test302MidjourneyPersistsAcceptedTaskBeforePolling(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPost {
+			_, _ = w.Write([]byte(`{"code":1,"result":"mj-task-persisted"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"id":"mj-task-persisted","status":"SUCCESS","imageUrl":"https://example.com/result.png"}`))
+	}))
+	defer server.Close()
+
+	taskID := "canvas_image_task_mj_persistence"
+	persistedID := ""
+	previousRemember := rememberCanvasUpstreamTask
+	rememberCanvasUpstreamTask = func(userID, localTaskID, upstreamID, channelID, channelName string, audio bool) error {
+		persistedID = upstreamID
+		return nil
+	}
+	defer func() { rememberCanvasUpstreamTask = previousRemember }()
+	request, _ := http.NewRequestWithContext(context.WithValue(context.Background(), canvasBillingContextKey{}, taskID), http.MethodPost, server.URL+"/mj/submit/imagine", nil)
+	recorder := httptest.NewRecorder()
+	previousInterval := midjourney302PollInterval
+	midjourney302PollInterval = time.Millisecond
+	defer func() { midjourney302PollInterval = previousInterval }()
+	channel := model.ModelChannel{ID: "provider_302", Name: "302.AI", BaseURL: server.URL, APIKey: "test", Enabled: true}
+	copy302MidjourneyImageResponse(recorder, request, channel, aiLogContext{UserID: "mj-owner", Model: "midjourney__01", Channel: channel, Endpoint: "/images/generations"}, nil, nil)
+	if persistedID != "mj-task-persisted" {
+		t.Fatalf("accepted MJ task was not persisted before polling: %q", persistedID)
 	}
 }

@@ -60,6 +60,8 @@ type ModelRoute struct {
 	ProviderID          string `json:"providerId" gorm:"index"`
 	UpstreamModelID     string `json:"upstreamModelId"`
 	Protocol            string `json:"protocol"`
+	Adapter             string `json:"adapter"`
+	Endpoint            string `json:"endpoint"`
 	Priority            int    `json:"priority" gorm:"index"`
 	Enabled             bool   `json:"enabled"`
 	CatalogStatus       string `json:"catalogStatus" gorm:"index"`
@@ -70,42 +72,44 @@ type ModelRoute struct {
 }
 
 type ModelVariant struct {
-	ID              string `json:"id" gorm:"primaryKey"`
-	ModelID         string `json:"modelId" gorm:"index"`
-	Name            string `json:"name"`
-	ProviderCode    string `json:"providerCode" gorm:"index"`
-	UpstreamModelID string `json:"upstreamModelId"`
-	CostCents       *int64 `json:"costCents"`
-	CostText        string `json:"costText"`
-	PriceCents      *int64 `json:"priceCents"`
-	PriceText       string `json:"priceText"`
-	BillingUnit     string `json:"billingUnit"`
-	PricingMode     string `json:"pricingMode" gorm:"index"`
-	PriceFormula    string `json:"priceFormula"`
-	MarginText      string `json:"marginText"`
-	PersonNote      string `json:"personNote"`
-	RefundPolicy    string `json:"refundPolicy"`
-	SourceURL       string `json:"sourceUrl"`
-	Remark          string `json:"remark"`
-	Enabled         bool   `json:"enabled" gorm:"index"`
-	Sort            int    `json:"sort"`
-	CreatedAt       string `json:"createdAt"`
-	UpdatedAt       string `json:"updatedAt"`
+	ID                 string `json:"id" gorm:"primaryKey"`
+	ModelID            string `json:"modelId" gorm:"index"`
+	Name               string `json:"name"`
+	ProviderCode       string `json:"providerCode" gorm:"index"`
+	UpstreamModelID    string `json:"upstreamModelId"`
+	CostCents          *int64 `json:"costCents"`
+	CostText           string `json:"costText"`
+	PriceCents         *int64 `json:"priceCents"`
+	PriceText          string `json:"priceText"`
+	BillingUnit        string `json:"billingUnit"`
+	PricingMode        string `json:"pricingMode" gorm:"index"`
+	PriceFormula       string `json:"priceFormula"`
+	MarginText         string `json:"marginText"`
+	PersonNote         string `json:"personNote"`
+	RefundPolicy       string `json:"refundPolicy"`
+	SourceURL          string `json:"sourceUrl"`
+	Remark             string `json:"remark"`
+	VerificationStatus string `json:"verificationStatus" gorm:"index"`
+	Enabled            bool   `json:"enabled" gorm:"index"`
+	Sort               int    `json:"sort"`
+	CreatedAt          string `json:"createdAt"`
+	UpdatedAt          string `json:"updatedAt"`
 }
 
 type PublicModelVariant struct {
-	ID           string `json:"id"`
-	ModelID      string `json:"modelId"`
-	Name         string `json:"name"`
-	PriceCents   *int64 `json:"priceCents"`
-	PriceText    string `json:"priceText"`
-	BillingUnit  string `json:"billingUnit"`
-	PricingMode  string `json:"pricingMode"`
-	PriceFormula string `json:"priceFormula"`
-	PersonNote   string `json:"personNote"`
-	Remark       string `json:"remark"`
-	Enabled      bool   `json:"enabled"`
-	Sort         int    `json:"sort"`
+	ID                 string `json:"id"`
+	ModelID            string `json:"modelId"`
+	Name               string `json:"name"`
+	PriceCents         *int64 `json:"priceCents"`
+	PriceText          string `json:"priceText"`
+	BillingUnit        string `json:"billingUnit"`
+	PricingMode        string `json:"pricingMode"`
+	PriceFormula       string `json:"priceFormula"`
+	PersonNote         string `json:"personNote"`
+	Remark             string `json:"remark"`
+	VerificationStatus string `json:"verificationStatus"`
+	Enabled            bool   `json:"enabled"`
+	Sort               int    `json:"sort"`
 }
 
 type MarketModelCard struct {

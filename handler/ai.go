@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tigerowo/infinite-canvas/model"
+	"github.com/tigerowo/infinite-canvas/repository"
 	"github.com/tigerowo/infinite-canvas/service"
 )
 
@@ -157,7 +158,8 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		return
 	}
 	requestedModel := modelName
-	channel, upstreamModel, routed, err := service.ResolveMarketRouteForRoute(requestedModel, strings.TrimSpace(r.Header.Get(marketModelRouteHeader)))
+	candidate, routed, err := service.ResolveMarketRouteCandidateForRoute(requestedModel, strings.TrimSpace(r.Header.Get(marketModelRouteHeader)))
+	channel, upstreamModel := candidate.Channel, candidate.UpstreamModel
 	userChannelID := ""
 	if err == nil && routed {
 		body, err = replaceAIRequestModel(body, contentType, upstreamModel)
@@ -169,6 +171,9 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		log.Printf("AI proxy select channel failed: model=%s err=%v", requestedModel, err)
 		failAIChannelSelect(w, err, "AI 接口请求失败")
 		return
+	}
+	if !routed {
+		candidate = service.MarketRouteCandidate{Channel: channel, UpstreamModel: modelName, ProviderCode: channel.Name, Adapter: channel.Protocol, Endpoint: path}
 	}
 	credits := 0
 	if userChannelID == "" {
@@ -283,12 +288,23 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		request.Header.Set("Content-Type", contentType)
 	}
 	billingID := firstNonEmpty(internalBillingID(r), "request_"+uuid.NewString())
+	logGenerationAudit(auditPayloadBuilt, internalBillingID(r), requestedModel, candidate.ProviderCode, modelName, candidate.Adapter, upstreamPath, "provider_payload_resolution", readGenerationResolution(body, contentType))
 	if credits > 0 {
 		if err := service.FreezeUserCredits(user.ID, requestedModel, credits, upstreamPath, billingID); err != nil {
 			FailError(w, err)
 			return
 		}
 	}
+	if internalBillingID(r) != "" && strings.HasPrefix(path, "/images/") {
+		if err := repository.MarkCanvasImageUpstreamRequest(user.ID, internalBillingID(r), candidate.ProviderCode, modelName, candidate.Adapter, upstreamPath, auditNow(), readGenerationResolution(body, contentType)); err != nil {
+			if credits > 0 {
+				_ = service.ReleaseUserCredits(user.ID, requestedModel, credits, upstreamPath, billingID)
+			}
+			Fail(w, "图片请求未发到中转站，本地审计记录保存失败")
+			return
+		}
+	}
+	logGenerationAudit(auditUpstreamRequestStart, internalBillingID(r), requestedModel, candidate.ProviderCode, modelName, candidate.Adapter, upstreamPath)
 	deferFailureRelease := internalBillingID(r) != ""
 	if is302MidjourneyRequest(channel, modelName, path) {
 		copy302MidjourneyImageResponse(w, request, channel, aiLogContext{
@@ -422,6 +438,10 @@ func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.
 		return
 	}
 	defer response.Body.Close()
+	if taskID := internalBillingID(request); taskID != "" && strings.HasPrefix(logContext.Endpoint, "/images/") {
+		_ = repository.RecordCanvasImageUpstreamResponse(logContext.UserID, taskID, response.StatusCode, "")
+	}
+	logGenerationAudit(auditUpstreamResponse, internalBillingID(request), logContext.Model, channel.Name, firstNonEmpty(channel.Models...), channel.Protocol, request.URL.Path, "http_status", response.StatusCode)
 
 	if response.StatusCode >= http.StatusBadRequest {
 		w.Header().Set("X-Upstream-Status", fmt.Sprint(response.StatusCode))

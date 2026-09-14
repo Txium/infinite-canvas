@@ -214,6 +214,16 @@ func SyncDefaultModelCatalog(version int, models []model.MarketModel, variants [
 				return findQuery.Error
 			}
 			if findQuery.RowsAffected > 0 {
+				// Catalog v24 makes adapter and endpoint explicit. Preserve the
+				// administrator's enabled/disabled choice while backfilling the
+				// immutable routing contract needed by the unified registry.
+				if version >= 24 {
+					saved.Adapter = item.Adapter
+					saved.Endpoint = item.Endpoint
+					if err := tx.Save(&saved).Error; err != nil {
+						return err
+					}
+				}
 				waveSpeedAsyncRoutes := map[string]bool{
 					"route_infinitetalk__01": true,
 					"route_infinitetalk__02": true,

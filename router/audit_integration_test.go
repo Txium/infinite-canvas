@@ -126,6 +126,9 @@ func TestAuditHTTPWorkflow(t *testing.T) {
 		if task.Status != "completed" || task.ImageURL == "" || task.UpstreamTaskID != "mock-prediction" {
 			t.Fatalf("task did not recover transient poll failure: %+v", task)
 		}
+		if !task.UpstreamRequestSent || task.Provider != "wavespeed" || task.UpstreamModelID == "" || task.Adapter != "wavespeed_image" || task.ProviderEndpoint == "" {
+			t.Fatalf("generation audit chain is incomplete: %+v", task)
+		}
 		request("POST", "/api/v1/canvas/image-tasks", a, payload)
 		if creates.Load() != 1 {
 			t.Fatalf("upstream submitted %d times", creates.Load())
