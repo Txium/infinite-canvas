@@ -7,7 +7,8 @@ description: 当前项目后续值得处理的事项
 
 ## 全链路排查与新增能力
 
-- [ ] 本批代码发布staging并验证新增表和表单读回；当前未部署，不以本地检查等同云端可用。
+- [x] 本批代码bd6eddc发布staging，页面和Voice Profile列表读取检查通过。
+- [ ] Voice Profile保存/重新加载验收及Media Worker独立部署；列表读取不替代写入验收。
 - [ ] Media Worker部署及真实FFmpeg短片验收；需要资源方案确认，不自动升级实例。
 - [ ] 持久媒体任务队列/租约/取消与重启恢复；现有独立Worker只运行限时短任务。
 - [ ] 音频具体Adapter、试听/克隆上传与同意流程、TTS结果节点、角色资产库自动绑定；目前只有禁用能力契约和独立Voice Profile档案。
