@@ -12,7 +12,7 @@ import (
 	"github.com/tigerowo/infinite-canvas/repository"
 )
 
-const videoTaskPollInterval = 5 * time.Second
+const videoTaskPollInterval = 10 * time.Second
 
 const videoTaskMaxAge = 20 * time.Minute
 const videoTaskRecoveryAge = 48 * time.Hour

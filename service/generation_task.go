@@ -113,6 +113,9 @@ func appendMissingVideoCallLogs(items []model.AdminGenerationTask, videos []mode
 }
 
 func looksLikeVideoCallLog(entry model.AICallLog) bool {
+	// Polling errors are diagnostics, not new generation attempts. They remain
+	// available in AI logs but must not become synthetic failed paid tasks.
+	if strings.EqualFold(strings.TrimSpace(entry.Method), "GET") { return false }
 	value := strings.ToLower(strings.Join([]string{entry.Endpoint, entry.Model, entry.ChannelName}, " "))
 	return strings.Contains(value, "video") || strings.Contains(value, "hailuo") || strings.Contains(value, "minimax-h3") || strings.Contains(value, "seedance")
 }

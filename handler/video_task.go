@@ -480,7 +480,8 @@ func readVideoTaskSourceID(r *http.Request) string {
 }
 
 func isClientVideoTaskID(id string) bool {
-	return strings.HasPrefix(strings.TrimSpace(id), "client_video_task_")
+	id = strings.TrimSpace(id)
+	return strings.HasPrefix(id, "client_video_task_") || strings.HasPrefix(id, "client_video_retry_")
 }
 
 func serveAIVideoTask(w http.ResponseWriter, r *http.Request, id string) bool {

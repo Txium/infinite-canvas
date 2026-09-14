@@ -5,6 +5,23 @@ const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('typescript');
 
+test('video task listing refreshes wallet only when task state changes', async () => {
+    const filename = path.resolve(__dirname, '../src/services/api/video.ts');
+    const source = ts.createSourceFile(filename, fs.readFileSync(filename, 'utf8'), ts.ScriptTarget.Latest, true);
+    const fn = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'listVideoGenerationTasks');
+    let tasks = [{id:'retry-1',status:'processing',billingStatus:'frozen'}];
+    let refreshes = 0;
+    const context = vm.createContext({ usesAccountProxy:()=>true, aiHeaders:()=>({}), aiApiUrl:()=>'/video-tasks', normalizeVideoResponse:x=>x,
+        useUserStore:{getState:()=>({token:'test'})}, axios:{get:async()=>({data:{code:0,data:tasks}})}, refreshRemoteUser:()=>{refreshes++;}, lastVideoWalletSignature:'' });
+    vm.runInContext(ts.transpileModule(fn.getText(source).replace(/^export /,''), {compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
+    await context.listVideoGenerationTasks({});
+    await context.listVideoGenerationTasks({});
+    assert.equal(refreshes,1);
+    tasks = [{id:'retry-1',status:'completed',billingStatus:'settled'}];
+    await context.listVideoGenerationTasks({});
+    assert.equal(refreshes,2);
+});
+
 test('image-to-video retry keeps its direct image instead of ancestral image config', () => {
     const filename = path.resolve(__dirname, '../src/app/(user)/canvas/[id]/canvas-client-page.tsx');
     const source = ts.createSourceFile(filename, fs.readFileSync(filename, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);

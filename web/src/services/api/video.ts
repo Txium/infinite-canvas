@@ -14,7 +14,7 @@ import { useUserStore } from "@/stores/use-user-store";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 
-export type VideoResponse = { id: string; task_id?: string; video_id?: string; source_id?: string; sourceId?: string; channelId?: string; userChannelId?: string; channelName?: string; channel_id?: string; user_channel_id?: string; channel_name?: string; status?: string; video_url?: string; url?: string; storageKey?: string; progress?: number; error?: { message?: string }; size?: string; seconds?: string; model?: string; created_at?: string | number; createdAt?: string | number; started_at?: string | number; startedAt?: string | number; request_body?: string };
+export type VideoResponse = { id: string; task_id?: string; video_id?: string; source_id?: string; sourceId?: string; channelId?: string; userChannelId?: string; channelName?: string; channel_id?: string; user_channel_id?: string; channel_name?: string; status?: string; billingStatus?: string; video_url?: string; url?: string; storageKey?: string; progress?: number; error?: { message?: string }; size?: string; seconds?: string; model?: string; created_at?: string | number; createdAt?: string | number; started_at?: string | number; startedAt?: string | number; request_body?: string };
 type ApiVideoEnvelope = { code: number; data?: VideoResponse | VideoResponse[] | null; msg?: string; message?: string };
 type ApiVideoResponse = VideoResponse | ApiVideoEnvelope;
 type ReferenceMediaUploadEnvelope = { code: number; data?: { url?: string } | null; msg?: string };
@@ -143,6 +143,7 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
             ? await withVideoCreateTimeout((await import("@/services/api/direct-ai")).createDirectVideoTask(config, directProvider, body), "视频任务提交超时，请稍后在任务记录中查看")
             : unwrapVideoResponseForConfig(config, model, (await axios.post<ApiVideoResponse>(createUrl, requestBody, { headers: requestHeaders, timeout: VIDEO_CREATE_TIMEOUT_MS })).data);
         if (!created.id && !created.video_id) throw new Error("视频接口没有返回任务 ID");
+        refreshRemoteUser(config);
         if (typeof created.progress === "number") onProgress?.(created.progress, created);
         return { task: created, pollId: videoPollId(model, created), startedAt, requestBody: body };
     } catch (error) {
@@ -245,8 +246,16 @@ export async function listVideoGenerationTasks(config: AiConfig, source: "video-
     if (!useUserStore.getState().token) return [];
     const payload = (await axios.get<ApiVideoEnvelope>("/api/v1/video-tasks", { headers: aiHeaders(config), params: { source } })).data;
     if (payload.code !== 0) throw new VideoRequestError(payload.msg || payload.message || "读取视频任务失败", payload);
-    return Array.isArray(payload.data) ? payload.data.map(normalizeVideoResponse) : [];
+    const tasks = Array.isArray(payload.data) ? payload.data.map(normalizeVideoResponse) : [];
+    const signature = JSON.stringify(tasks.map(task => [task.id, task.status, task.billingStatus]));
+    if (signature !== lastVideoWalletSignature) {
+        lastVideoWalletSignature = signature;
+        refreshRemoteUser(config);
+    }
+    return tasks;
 }
+
+let lastVideoWalletSignature = "";
 
 export async function deleteVideoGenerationTask(config: AiConfig, task?: VideoResponse | null) {
     if (!usesAccountProxy(config) || !task) return;

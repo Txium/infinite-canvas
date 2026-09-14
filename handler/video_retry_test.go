@@ -23,6 +23,9 @@ func TestVideoRetryRequiresConfirmedFailureAndReleasedFunds(t *testing.T) {
 
 func TestVideoRetryIDIsStableAndDistinct(t *testing.T) {
 	one := videoRetryTaskID("user", "old")
+	if !isClientVideoTaskID(one) {
+		t.Fatal("retry IDs must be recognized as local task identifiers")
+	}
 	if one == "old" || one != videoRetryTaskID("user", "old") {
 		t.Fatal("retry is not idempotent")
 	}
