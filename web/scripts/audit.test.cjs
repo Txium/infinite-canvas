@@ -60,6 +60,8 @@ test('selected media toolbar stays above the node and out of the prompt panel', 
     const canvas = fs.readFileSync(path.resolve(__dirname, '../src/app/(user)/canvas/[id]/canvas-client-page.tsx'), 'utf8');
     const toolbar = fs.readFileSync(path.resolve(__dirname, '../src/app/(user)/canvas/components/canvas-node-hover-toolbar.tsx'), 'utf8');
     assert.match(canvas, /\|\| \(activeNodeId \? nodeById\.get\(activeNodeId\) : null\)/);
+    assert.match(canvas, /node=\{nodeImageSettingsOpen \? null : toolbarNode\}/);
+    assert.doesNotMatch(canvas, /node=\{isNodeDragging \|\| nodeImageSettingsOpen/);
     assert.match(toolbar, /-translate-y-full/);
     assert.match(toolbar, /flex-nowrap/);
     assert.doesNotMatch(toolbar, /toolbarBelow/);

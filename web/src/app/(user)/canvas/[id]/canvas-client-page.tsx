@@ -4080,7 +4080,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     onMediaProcess={setMediaWorkbenchNode}
                     onBindCharacter={(nodeId,characterId)=>setNodes(prev=>prev.map(n=>n.id===nodeId?{...n,metadata:{...n.metadata,characterId}}:n))}
                     onImagePreset={addImagePreset}
-                    node={isNodeDragging || nodeImageSettingsOpen ? null : toolbarNode}
+                    node={nodeImageSettingsOpen ? null : toolbarNode}
                     viewport={viewport}
                     onKeep={keepNodeToolbar}
                     onLeave={hideNodeToolbar}
