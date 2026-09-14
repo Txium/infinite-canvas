@@ -2,7 +2,7 @@ import { useUserStore } from "@/stores/use-user-store";
 import { downloadRemoteMedia, resolveMediaUrl } from "@/services/file-storage";
 
 export type MediaProbe = { duration: number; fps: number; frameTimes: number[]; width: number; height: number; codec: string; bitrate?: string; bytes: number; audioCodec?: string; subtitleTracks: number };
-export type MediaAction = "probe" | "first" | "last" | "frame" | "clip" | "audio" | "subtitles";
+export type MediaAction = "probe" | "first" | "last" | "frame" | "clip" | "audio" | "mute" | "subtitles" | "thumbnails";
 
 export async function loadProcessingSource(storageKey?: string, content = "") {
     const token = useUserStore.getState().token;

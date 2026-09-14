@@ -6,6 +6,8 @@ import os
 import subprocess
 import tempfile
 import threading
+import shutil
+import time
 from email.parser import BytesParser
 from email.policy import default
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -14,6 +16,33 @@ from pathlib import Path
 MAX_BYTES = 100 << 20
 SLOT = threading.BoundedSemaphore(1)
 FORMATS = "mov,matroska,webm,avi"
+TEMP_ROOT = Path(tempfile.gettempdir()) / "canvas-media-worker"
+TEMP_TTL = 3600
+ACTIVE_DIRS = set()
+TEMP_LOCK = threading.Lock()
+
+
+def cleanup_temporary(now=None):
+    """Only expired worker-owned job directories; never originals or final storage."""
+    now = time.time() if now is None else now
+    if not TEMP_ROOT.exists() or TEMP_ROOT.is_symlink():
+        return
+    root = TEMP_ROOT.resolve()
+    with TEMP_LOCK:
+        for item in root.iterdir():
+            if item.name in ACTIVE_DIRS or not item.name.startswith("job-") or item.is_symlink() or not item.is_dir():
+                continue
+            if item.resolve().parent == root and now - item.stat().st_mtime > TEMP_TTL:
+                shutil.rmtree(item)
+
+
+def cleanup_loop():
+    while True:
+        try:
+            cleanup_temporary()
+        except OSError:
+            pass
+        time.sleep(60)
 
 
 def run(args):
@@ -57,6 +86,9 @@ def build_command(source, output, action, meta, start, end, precise=False):
         if not 0 <= position < meta["duration"]:
             raise ValueError("截帧时间超出视频范围")
         args += ["-ss", str(position), "-map", "0:v:0", "-frames:v", "1", "-c:v", "png"]
+    elif action == "thumbnails":
+        interval = max(meta["duration"] / 8, .001)
+        args += ["-map", "0:v:0", "-vf", f"fps=1/{interval},scale=160:90:force_original_aspect_ratio=decrease,pad=160:90:(ow-iw)/2:(oh-ih)/2,tile=8x1", "-frames:v", "1", "-c:v", "png"]
     elif action == "clip":
         if not 0 <= start < end <= meta["duration"]:
             raise ValueError("请设置有效起止时间")
@@ -66,7 +98,9 @@ def build_command(source, output, action, meta, start, end, precise=False):
     elif action == "audio":
         if not meta["audioCodec"]:
             raise ValueError("原视频没有音频轨")
-        args += ["-map", "0:a:0", "-vn", "-c:a", "copy" if meta["audioCodec"] == "aac" else "aac"]
+        args += ["-map", "0:a:0", "-vn", "-c:a", "copy" if meta["audioCodec"] in ("aac", "mp3") else "aac"]
+    elif action == "mute":
+        args += ["-map", "0:v:0", "-c:v", "copy", "-an", "-sn", "-movflags", "+faststart"]
     elif action == "subtitles":
         if not meta["subtitleTracks"]:
             raise ValueError("没有独立字幕轨；烧录在画面中的字幕不能用此功能移除")
@@ -111,26 +145,38 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("上传未完成")
             form = BytesParser(policy=default).parsebytes(("Content-Type: " + content_type + "\r\nMIME-Version: 1.0\r\n\r\n").encode() + body)
             values = {part.get_param("name", header="content-disposition"): part.get_payload(decode=True) for part in form.iter_parts()}
-            with tempfile.TemporaryDirectory(prefix="canvas-media-") as directory:
+            TEMP_ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
+            if TEMP_ROOT.is_symlink():
+                raise ValueError("临时目录无效")
+            cleanup_temporary()
+            with tempfile.TemporaryDirectory(prefix="job-", dir=TEMP_ROOT) as directory:
+                with TEMP_LOCK:
+                    ACTIVE_DIRS.add(Path(directory).name)
                 source = Path(directory) / "input"
                 source.write_bytes(values.get("file", b""))
                 meta = probe(source)
                 action = values.get("action", b"probe").decode()
                 if action == "probe":
                     return self.reply(200, meta)
-                extension = "png" if action in ("first", "last", "frame") else "m4a" if action == "audio" else "mp4"
+                extension = "png" if action in ("first", "last", "frame", "thumbnails") else "m4a" if action == "audio" else "mp4"
+                if action == "audio" and meta["audioCodec"] == "mp3":
+                    extension = "mp3"
                 output = Path(directory) / ("output." + extension)
                 run(build_command(source, output, action, meta, float(values.get("start", b"0")), float(values.get("end", b"0")), values.get("precise") == b"true"))
                 if not output.exists() or not 0 < output.stat().st_size <= MAX_BYTES:
                     raise ValueError("未得到有效输出；请调整时间范围或缩短片段")
-                return self.reply(200, output.read_bytes(), {"png": "image/png", "m4a": "audio/mp4", "mp4": "video/mp4"}[extension])
+                return self.reply(200, output.read_bytes(), {"png": "image/png", "m4a": "audio/mp4", "mp3": "audio/mpeg", "mp4": "video/mp4"}[extension])
         except (ValueError, KeyError, TypeError, AttributeError, OSError, subprocess.TimeoutExpired):
             self.reply(400, {"msg": "处理失败：请检查视频格式、音轨和时间范围；最长10分钟/100MB，原文件保留"})
         finally:
+            if "directory" in locals():
+                with TEMP_LOCK:
+                    ACTIVE_DIRS.discard(Path(directory).name)
             SLOT.release()
 
 
 if __name__ == "__main__":
     if len(os.environ.get("MEDIA_WORKER_TOKEN", "")) < 32:
         raise SystemExit("MEDIA_WORKER_TOKEN must contain at least 32 characters")
+    threading.Thread(target=cleanup_loop, daemon=True).start()
     ThreadingHTTPServer((os.environ.get("BIND_HOST", "127.0.0.1"), int(os.environ.get("PORT", "8090"))), Handler).serve_forever()

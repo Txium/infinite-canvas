@@ -12,6 +12,7 @@ import { CanvasNodeType, type CanvasNodeData, type ViewportTransform } from "../
 import { isCanvasImageNodeType, isPanoramaNodeType } from "../utils/canvas-panorama";
 import { ImageToolSettingsModal, type ImageToolbarSettingsTool } from "./canvas-image-toolbar-settings-modal";
 import { IMAGE_CREATION_PRESETS } from "../utils/image-creation-presets";
+import { CanvasAudioAIPanel } from "./canvas-audio-ai-panel";
 import { IMAGE_QUICK_TOOLS_STORAGE_KEY, PANORAMA_QUICK_TOOLS_STORAGE_KEY, buildImageToolbarTools, defaultImageQuickToolIds, defaultPanoramaQuickToolIds, readImageQuickToolsConfig, type ImageQuickToolId } from "./canvas-image-toolbar-tools";
 
 type CanvasNodeHoverToolbarProps = {
@@ -93,6 +94,7 @@ export function CanvasNodeHoverToolbar({
     const [draftShowImageToolLabels, setDraftShowImageToolLabels] = useState(true);
     const [imageToolSettingsOpen, setImageToolSettingsOpen] = useState(false);
     const [creationOpen, setCreationOpen] = useState(false);
+    const [audioAIOpen, setAudioAIOpen] = useState(false);
     const { message } = App.useApp();
     const copyText = useCopyText();
     const isPanorama = isPanoramaNodeType(node?.type);
@@ -164,7 +166,8 @@ export function CanvasNodeHoverToolbar({
         { id: "delete", title: "移除节点", label: "删除", icon: <Trash2 className="size-4" />, onClick: () => onDelete(node), danger: true },
     ];
     const nodeToolbarTools: ToolbarTool[] = [
-        ...(isImage ? [{ id: "creation", title: "分镜、特写、三视图与全景", label: "图片创作", icon: <ImageIcon className="size-4" />, onClick: () => setCreationOpen(true) }] : []),
+        ...((isImage || isVideo || isAudio) ? [{id:"audioAI",title:"角色音色档案与待接入AI能力",label:"音色与AI",icon:<Music2 className="size-4"/>,onClick:()=>setAudioAIOpen(true)}] : []),
+        ...(isImage ? [{ id: "creation", title: "人像质感、打光、分镜、特写、三视图与全景", label: "图片创作", icon: <ImageIcon className="size-4" />, onClick: () => setCreationOpen(true) }] : []),
         ...(hasVideo ? [{ id: "mediaProcess", title: "截帧、裁剪与音频提取", label: "视频处理", icon: <Video className="size-4" />, onClick: () => onMediaProcess(node) }] : []),
         ...(canRetry ? [{ id: "retry", title: "重新生成", label: "重试", icon: <RefreshCw className="size-4" />, onClick: () => onRetry(node) }] : []),
         ...(hasImage || hasVideo || isText ? [{ id: "saveAsset", title: "加入我的素材", label: "存素材", icon: <FolderPlus className="size-4" />, onClick: () => onSaveAsset(node) }] : []),
@@ -182,8 +185,8 @@ export function CanvasNodeHoverToolbar({
         ...(isAudio ? [{ id: "uploadAudio", title: hasAudio ? "替换音频" : "上传音频", label: hasAudio ? "替换音频" : "上传音频", icon: <Music2 className="size-4" />, onClick: () => onUpload(node) }] : []),
         ...(hasImage ? imageTools.map((tool) => ({ id: tool.id, title: tool.title, label: tool.label, icon: tool.icon, active: tool.active, onClick: tool.onClick })) : []),
     ];
-    const toolbarTools = hasImage ? [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => tool.id === "creation" || tool.id === "uploadImageToCloud" || quickImageToolIdSet.has(tool.id as ImageQuickToolId)) : [...baseToolbarTools, ...nodeToolbarTools];
-    const selectableImageToolbarTools = [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => tool.id !== "creation" && tool.id !== "retry" && tool.id !== "uploadImageToCloud") as ImageToolbarSettingsTool[];
+    const toolbarTools = hasImage ? [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => tool.id === "audioAI" || tool.id === "creation" || tool.id === "uploadImageToCloud" || quickImageToolIdSet.has(tool.id as ImageQuickToolId)) : [...baseToolbarTools, ...nodeToolbarTools];
+    const selectableImageToolbarTools = [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => tool.id !== "audioAI" && tool.id !== "creation" && tool.id !== "retry" && tool.id !== "uploadImageToCloud") as ImageToolbarSettingsTool[];
 
     const closeImageToolSettings = () => {
         setImageToolSettingsOpen(false);
@@ -221,7 +224,7 @@ export function CanvasNodeHoverToolbar({
                 style={{ left, top: toolbarBelow ? viewport.y + (node.position.y + node.height) * viewport.k + 14 : top, translate: toolbarBelow ? "-50% 0" : undefined, maxWidth: "min(800px, calc(100vw - 32px))" }}
                 onMouseEnter={() => onKeep(node.id)}
                 onMouseLeave={() => {
-                    if (!imageToolSettingsOpen && !creationOpen) onLeave();
+                    if (!imageToolSettingsOpen && !creationOpen && !audioAIOpen) onLeave();
                 }}
                 onMouseDown={(event) => event.stopPropagation()}
                 onPointerDown={(event) => event.stopPropagation()}
@@ -231,11 +234,16 @@ export function CanvasNodeHoverToolbar({
                 ))}
                 {hasImage ? <ToolbarAction id="more" title="配置快捷工具" label="更多" icon={<Ellipsis className="size-4" />} active={imageToolSettingsOpen} onClick={openImageToolSettings} showLabel={showImageToolLabels} /> : null}
             </div>
+            {audioAIOpen && <CanvasAudioAIPanel characterId={node.id} characterName={node.title||"角色"} onClose={()=>setAudioAIOpen(false)}/>}
             <Modal open={creationOpen} title="图片创作" footer={null} onCancel={()=>setCreationOpen(false)}>
                 <p className="mb-3">创建连接参考图的新节点，不会立即扣费。你可以修改提示词、选择模型后再生成。</p>
                 <div className="flex flex-wrap gap-3">
                     {[...IMAGE_CREATION_PRESETS,{id:"panorama",name:"360×180 球形全景（720全景）"}].map(preset=><button key={preset.id} className="rounded border border-current px-3 py-2" onClick={()=>{onImagePreset(node,preset.id);setCreationOpen(false);}}>{preset.name}</button>)}
                 </div>
+                {hasImage && <div className="mt-4 flex flex-wrap gap-3">
+                    {imageTools.filter(tool=>["angle","maskEdit","split","upscale","superResolve"].includes(tool.id)).map(tool=><button key={tool.id} className="rounded border border-current px-3 py-2" onClick={()=>{setCreationOpen(false);tool.onClick();}}>{tool.label}</button>)}
+                </div>}
+                <p className="mt-3 text-xs opacity-70">人像质感和打光为参考图生成工作流，效果取决于所选模型；不是无损滤镜。九宫格分镜生成整张分镜图，宫格切分将现有图片拆为节点。AI超分不等于普通像素放大。</p>
             </Modal>
             {hasImage ? (
                 <ImageToolSettingsModal

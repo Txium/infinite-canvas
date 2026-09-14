@@ -5,6 +5,12 @@ description: 当前后端主要数据表与字段说明
 
 # 数据库说明
 
+## 新增媒体架构（待发布迁移）
+
+- `voice_profiles`：复合主键 `user_id + character_id`；character_name、voice_provider、voice_id、voice_prompt、default_speed/emotion/style、updated_at。所有读写由服务端登录身份限定，用户维度为主键前缀，不存API Key。
+- `media_ai_tasks`：ID主键；user_id和status索引；operation、source_node_id、adapter、provider_task_id、outputs/segments JSON序列化、error_code、created_at/updated_at。当前只预留结构；禁用能力不会创建任务。不是现有生图/视频/钱包任务的替代品。
+- 新表加入GORM AutoMigrate；本批没有执行云端迁移。功能边界见 [媒体能力](../progress/media-capabilities.md)。
+
 本文档只记录后端当前已经使用的主要数据表。
 
 ## 数据库

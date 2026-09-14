@@ -84,8 +84,8 @@ export const imageToolDefinitions: ImageToolDefinition[] = [
     {
         id: "maskEdit",
         defaultVisible: true,
-        panelLabel: "局部编辑",
-        label: "局部编辑",
+        panelLabel: "元素编辑",
+        label: "元素编辑",
         title: "对图片进行局部修改",
         icon: () => <Brush className="size-4" />,
         run: (node, handlers) => handlers.onMaskEdit(node),
@@ -102,8 +102,8 @@ export const imageToolDefinitions: ImageToolDefinition[] = [
     {
         id: "split",
         defaultVisible: true,
-        panelLabel: "切图",
-        label: "切图",
+        panelLabel: "宫格切分",
+        label: "宫格切分",
         title: "按行列切分图片",
         icon: () => <Grid2x2 className="size-4" />,
         run: (node, handlers) => handlers.onSplit(node),

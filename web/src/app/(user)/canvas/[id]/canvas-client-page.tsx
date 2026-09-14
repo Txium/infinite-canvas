@@ -2015,24 +2015,28 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         [message],
     );
 
-    async function addProcessedMedia(blob: Blob, action: MediaAction, time: number, continueVideo: boolean, mediaMeta: MediaProbe) {
+    async function addProcessedMedia(blob: Blob, action: MediaAction, time: number, continueVideo: boolean|"image", mediaMeta: MediaProbe) {
         const source = mediaWorkbenchNode;
         if (!source) return;
         const isImage = blob.type.startsWith("image/");
-        const uploaded = isImage ? await uploadImage(blob) : await uploadAssetMediaFile(new File([blob], action === "audio" ? "audio.m4a" : "clip.mp4", {type:blob.type}));
+        const uploaded = isImage ? await uploadImage(blob) : await uploadAssetMediaFile(new File([blob], action === "audio" ? (blob.type==="audio/mpeg"?"audio.mp3":"audio.m4a") : "clip.mp4", {type:blob.type}));
         const id = nanoid();
         const size = fitNodeSize(uploaded.width || 320, uploaded.height || 180);
         const lastChild = nodesRef.current.filter(n=>n.metadata?.sourceVideoId===source.id).reduce((bottom,n)=>Math.max(bottom,n.position.y+n.height+36),source.position.y);
         const result: CanvasNodeData = {id, type:isImage?CanvasNodeType.Image:action==="audio"?CanvasNodeType.Audio:CanvasNodeType.Video,
-            title:({first:"首帧",last:"尾帧",frame:"当前帧",clip:"视频片段",audio:"提取音频",subtitles:"移除字幕轨",probe:"媒体"})[action],
+            title:({first:"首帧",last:"尾帧",frame:"当前帧",clip:"视频片段",audio:"提取音频",mute:"无声视频",subtitles:"移除字幕轨",probe:"媒体",thumbnails:"时间轴预览"})[action],
             position:{x:source.position.x+source.width+96,y:lastChild}, width:size.width,height:action==="audio"?120:size.height,
             metadata:{...uploaded,content:uploaded.url,naturalWidth:uploaded.width,naturalHeight:uploaded.height,status:"success",sourceVideoId:source.id,sourceTime:action==="frame"?time:action==="first"?0:action==="last"?Math.max(0,mediaMeta.duration-.08):undefined,mediaOperation:action,...(action==="audio"?{durationMs:Math.round(mediaMeta.duration*1000),mediaCodec:"aac"}:{})}};
         const extra:CanvasNodeData[] = [result];
+        result.metadata={...result.metadata,source_video_node_id:source.id,timestamp:result.metadata?.sourceTime,operation:action==="first"?"first_frame":action==="last"?"last_frame":action==="frame"?"current_frame":action,output_url:uploaded.url};
+        if(action==="audio")result.metadata.mediaCodec=blob.type==="audio/mpeg"?"mp3":"aac";
         const edges=[{id:nanoid(),fromNodeId:source.id,toNodeId:id}];
         if(continueVideo && isImage) {
             const nextId=nanoid();
-            extra.push({id:nextId,type:CanvasNodeType.Video,title:"下一镜",position:{x:result.position.x+result.width+96,y:result.position.y},width:320,height:180,
-                metadata:{status:"idle",generationMode:"video",firstFrameNodeId:id,model:source.metadata?.model,channelId:source.metadata?.channelId,prompt:"承接首帧中的人物、服装与场景，描述下一镜的动作和运镜。"}});
+            const imageReference=continueVideo==="image";
+            const imageConfig=imageReference?buildGenerationConfig(effectiveConfig,result,"image"):undefined;
+            extra.push({id:nextId,type:imageReference?CanvasNodeType.Image:CanvasNodeType.Video,title:imageReference?"当前帧参考生图":"下一镜",position:{x:result.position.x+result.width+96,y:result.position.y},width:320,height:180,
+                metadata:imageReference?{status:"idle",generationMode:"image",model:imageConfig?.model,channelId:imageConfig?.activeChannelId,prompt:"以连接的原视频高清帧为参考，描述需要生成的画面，保持主体身份与场景一致。"}:{status:"idle",generationMode:"video",firstFrameNodeId:id,model:source.metadata?.model,channelId:source.metadata?.channelId,prompt:"承接首帧中的人物、服装与场景，描述下一镜的动作和运镜。"}});
             edges.push({id:nanoid(),fromNodeId:id,toNodeId:nextId});
             setDialogNodeId(nextId);
         }
@@ -2046,9 +2050,11 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         if(!preset && !panorama) return;
         const id=nanoid();
         const config=buildGenerationConfig(effectiveConfig,source,"image");
+        const size=preset?.size==="source" ? (source.metadata?.size || config.size || "1:1") : preset?.size || "2:1";
+        const prompt=preset?.prompt||"保持参考图场景风格，补全四周、天空与地面的完整球形环境。";
         const output:CanvasNodeData={id,type:panorama?CanvasNodeType.Panorama:CanvasNodeType.Image,title:preset?.name||"球形全景",
             position:{x:source.position.x+source.width+96,y:source.position.y},width:340,height:220,
-            metadata:{status:"idle",generationMode:"image",model:config.model,channelId:config.activeChannelId,size:preset?.size||"2:1",prompt:preset?.prompt||"保持参考图场景风格，补全四周、天空与地面的完整球形环境。",...(panorama?{panoramaSourcePrompt:"保持参考图场景风格，补全四周、天空与地面的完整球形环境。"}:{})}};
+            metadata:{status:"idle",generationMode:"image",model:config.model,channelId:config.activeChannelId,size,prompt,...(panorama?{panoramaSourcePrompt:prompt}:{})}};
         setNodes(prev=>[...prev,output]);
         setConnections(prev=>[...prev,{id:nanoid(),fromNodeId:source.id,toNodeId:id}]);
         setSelectedNodeIds(new Set([id]));setDialogNodeId(id);

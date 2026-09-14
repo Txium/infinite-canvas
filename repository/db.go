@@ -71,6 +71,8 @@ func DB() (*gorm.DB, error) {
 			&model.RefundOrder{},
 			&model.Prompt{},
 			&model.Asset{},
+			&model.VoiceProfile{},
+			&model.MediaAITask{},
 			&model.Setting{},
 			&model.CreativeWorkflow{},
 			&model.UserConfig{},

@@ -34,6 +34,10 @@ export type CameraControlOptions = {
 
 export type CanvasNodeMetadata = {
     sourceVideoId?: string;
+    source_video_node_id?: string;
+    timestamp?: number;
+    operation?: string;
+    output_url?: string;
     sourceTime?: number;
     mediaOperation?: string;
     mediaCodec?: string;
