@@ -13,16 +13,17 @@ const (
 
 // VoiceProfile belongs to one user and one character; provider credentials never belong here.
 type VoiceProfile struct {
-	UserID         string    `json:"-" gorm:"primaryKey;size:64"`
-	CharacterID    string    `json:"character_id" gorm:"primaryKey;size:128"`
-	CharacterName  string    `json:"character_name"`
-	VoiceProvider  string    `json:"voice_provider"`
-	VoiceID        string    `json:"voice_id"`
-	VoicePrompt    string    `json:"voice_prompt"`
-	DefaultSpeed   float64   `json:"default_speed"`
-	DefaultEmotion string    `json:"default_emotion"`
-	DefaultStyle   string    `json:"default_style"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	UserID          string    `json:"-" gorm:"primaryKey;size:64"`
+	CharacterID     string    `json:"character_id" gorm:"primaryKey;size:128"`
+	CharacterName   string    `json:"character_name"`
+	ReferenceImages []string  `json:"reference_images" gorm:"serializer:json"`
+	VoiceProvider   string    `json:"voice_provider"`
+	VoiceID         string    `json:"voice_id"`
+	VoicePrompt     string    `json:"voice_prompt"`
+	DefaultSpeed    float64   `json:"default_speed"`
+	DefaultEmotion  string    `json:"default_emotion"`
+	DefaultStyle    string    `json:"default_style"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 type SpeechSegment struct {

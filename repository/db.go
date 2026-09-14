@@ -64,6 +64,9 @@ func DB() (*gorm.DB, error) {
 		if dbErr != nil {
 			return
 		}
+		if dbErr = applyMediaMigrations(db); dbErr != nil {
+			return
+		}
 		dbErr = db.AutoMigrate(
 			&model.User{},
 			&model.CreditLog{},

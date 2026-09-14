@@ -11,7 +11,7 @@ export async function loadProcessingSource(storageKey?: string, content = "") {
     if (!state.data?.configured) throw new Error("媒体Worker尚未部署。请管理员配置 MEDIA_WORKER_URL 和 MEDIA_WORKER_TOKEN；此功能不调用付费模型。");
     const url = await resolveMediaUrl(storageKey, content);
     const blob = url.startsWith("blob:") || url.startsWith("data:") ? await fetch(url).then(r=>r.blob()) : await downloadRemoteMedia(url);
-    if (blob.size > 99 * 1024 * 1024) throw new Error("当前支持100MB以内的原视频");
+    if (blob.size > 24 * 1024 * 1024) throw new Error("免费测试Worker支持24MB以内的原视频，请先选择短片段");
     return blob;
 }
 
@@ -25,7 +25,7 @@ export async function processOriginalMedia(file: Blob, action: MediaAction, star
     const response = await fetch("/api/v1/media-worker/process", {method:"POST", headers:{Authorization:`Bearer ${useUserStore.getState().token}`}, body, signal:AbortSignal.timeout(155000)});
     if (!response.ok) {
         const error = await response.json().catch(()=>({msg:"媒体处理连接失败"}));
-        throw new Error(error.msg || "媒体处理失败");
+        throw new Error(`${error.error_code ? `[${error.error_code}] ` : ""}${error.msg || "媒体处理失败"}`);
     }
     return response;
 }

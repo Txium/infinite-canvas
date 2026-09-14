@@ -15,7 +15,9 @@
 - 独立Media Worker接收API转发的原文件，不调用Provider，不进入钱包。单任务并发、100MB/10分钟上限、子进程120秒超时；Web/API不执行FFmpeg。
 - Worker工作目录区分于对象存储的原始/最终文件。正常任务立即清理；异常退出残留job目录1小时TTL，每分钟清理一次并跳过当前活跃任务。浏览器缩略图URL关闭面板时释放；没有永久缩略图云缓存。
 
-**部署依赖仍未满足：MEDIA_WORKER_URL/TOKEN及独立FFmpeg服务未配置，所以线上媒体运算目前不可用。** 不自动升级当前免费实例。尚未建立持久Media作业队列、租约及进程重启后继续处理；短任务仍是独立Worker内同步响应。
+**Media Worker已部署并连接staging。** 独立免费服务`infinite-canvas-media-staging`，每月实例固定费用$0，0.1CPU/512MB，支持单任务、前端24MB原文件（Worker含multipart上限25MB）。无付费升级或GPU。免费配额/流量限制仍适用，可能休眠和冷启动。
+
+Worker健康检查确认FFmpeg/ffprobe可用；staging工作台已读取原视频24fps、1280×720、HEVC、15.105秒。未执行模型生成。真实截帧/裁剪效果由用户验收。尚未建立持久Media作业队列、租约及进程重启后继续处理；短任务仍是独立Worker内同步响应，异常/超时不影响Web进程，清理专属临时目录。
 
 ## P2/P3 接口预留
 
@@ -32,7 +34,7 @@ POST `/api/v1/media-ai/tasks` 解析MediaAIRequest，通过明确operation选择
 
 ## 角色音色
 
-图片/音频/视频节点工具栏「音色与AI」提供Voice Profile表单和已有档案选择。默认以当前节点ID作为character_id，也允许填写统一角色ID；未自动改造现有角色资产库。
+图片/音频/视频节点工具栏「音色与AI」提供Voice Profile表单和已有档案选择。新增角色使用独立char_随机ID，不再默认节点ID。保存后节点metadata.characterId绑定角色；其他节点可选择同一档案再保存。档案含参考图URL列表与音色资料。旧档案保留，不自动重命名。参考图目前为已上传URL输入，尚无专用图片上传/缩略图管理器。
 
 GET/POST `/api/v1/voice-profiles` 查询/保存当前用户的档案。复合主键(user_id, character_id)隔离用户；不接受客户端指定用户ID。保存不验证Voice ID、不生成试听，也不允许填写Provider Key。
 

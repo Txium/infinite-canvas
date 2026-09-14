@@ -30,6 +30,7 @@ type CanvasNodeHoverToolbarProps = {
     onDownload: (node: CanvasNodeData) => void;
     onMediaProcess: (node: CanvasNodeData) => void;
     onImagePreset: (node: CanvasNodeData, preset: string) => void;
+    onBindCharacter: (nodeId:string, characterId:string)=>void;
     onSaveAsset: (node: CanvasNodeData) => void;
     onUploadMediaToCloud: (node: CanvasNodeData) => void;
     onUploadImageToCloud: (node: CanvasNodeData) => void;
@@ -71,6 +72,7 @@ export function CanvasNodeHoverToolbar({
     onDownload,
     onMediaProcess,
     onImagePreset,
+    onBindCharacter,
     onSaveAsset,
     onUploadMediaToCloud,
     onUploadImageToCloud,
@@ -234,7 +236,7 @@ export function CanvasNodeHoverToolbar({
                 ))}
                 {hasImage ? <ToolbarAction id="more" title="配置快捷工具" label="更多" icon={<Ellipsis className="size-4" />} active={imageToolSettingsOpen} onClick={openImageToolSettings} showLabel={showImageToolLabels} /> : null}
             </div>
-            {audioAIOpen && <CanvasAudioAIPanel characterId={node.id} characterName={node.title||"角色"} onClose={()=>setAudioAIOpen(false)}/>}
+            {audioAIOpen && <CanvasAudioAIPanel key={node.id} characterId={node.metadata?.characterId} characterName={node.title||"角色"} onBind={id=>onBindCharacter(node.id,id)} onClose={()=>setAudioAIOpen(false)}/>}
             <Modal open={creationOpen} title="图片创作" footer={null} onCancel={()=>setCreationOpen(false)}>
                 <p className="mb-3">创建连接参考图的新节点，不会立即扣费。你可以修改提示词、选择模型后再生成。</p>
                 <div className="flex flex-wrap gap-3">

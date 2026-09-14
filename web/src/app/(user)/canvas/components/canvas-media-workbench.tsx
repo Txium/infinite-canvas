@@ -50,6 +50,7 @@ export function CanvasMediaWorkbench({node, onClose, onOutput}:{node:CanvasNodeD
             {busy && <p role="status">正在处理，请勿重复提交；不消耗模型余额。</p>}
             {url && <video ref={player} src={url} controls className="w-full max-h-[45vh]" onTimeUpdate={e=>setTime(e.currentTarget.currentTime)}/>}
             {meta && <>
+                {!meta.audioCodec && <p role="status">VIDEO_HAS_NO_AUDIO：原视频没有音频轨，不能提取音频。仍可截帧或裁剪。</p>}
                 <Button disabled={busy} onClick={()=>void run("thumbnails")}>加载低清时间轴缩略图</Button>
                 {thumbnailUrl && <div className="grid grid-cols-8">{Array.from({length:8},(_,i)=><button key={i} title={`${(meta.duration*i/8).toFixed(2)}秒`} aria-label={`跳转缩略图${i+1}`} onClick={()=>seek(meta.duration*i/8)} style={{aspectRatio:"16 / 9",backgroundImage:`url(${thumbnailUrl})`,backgroundSize:"800% 100%",backgroundPosition:`${i/7*100}% 0`}}/>)}</div>}
                 <input aria-label="视频处理时间轴" type="range" className="w-full" min={0} max={meta.duration} step={.001} value={time} onChange={e=>seek(Number(e.target.value))}/>

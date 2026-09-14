@@ -7,6 +7,9 @@ description: 当前后端主要数据表与字段说明
 
 ## 新增媒体架构（待发布迁移）
 
+- 正式版本迁移：repository/migrations/001_media_profiles.sql，由当前配置的PostgreSQL连接在事务中应用；advisory lock串行化，canvas_schema_migrations记录已应用版本，重复启动跳过。SQLite继续使用GORM测试，不冒充PostgreSQL执行证据。
+- Voice Profile新增reference_images(JSON序列化文本)，角色ID独立于节点ID；节点保存characterId引用，继续按当前用户隔离。
+
 - `voice_profiles`：复合主键 `user_id + character_id`；character_name、voice_provider、voice_id、voice_prompt、default_speed/emotion/style、updated_at。所有读写由服务端登录身份限定，用户维度为主键前缀，不存API Key。
 - `media_ai_tasks`：ID主键；user_id和status索引；operation、source_node_id、adapter、provider_task_id、outputs/segments JSON序列化、error_code、created_at/updated_at。当前只预留结构；禁用能力不会创建任务。不是现有生图/视频/钱包任务的替代品。
 - 新表加入GORM AutoMigrate；本批没有执行云端迁移。功能边界见 [媒体能力](../progress/media-capabilities.md)。

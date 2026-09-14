@@ -20,5 +20,5 @@ func SaveVoiceProfile(item model.VoiceProfile) error {
 	if err != nil {
 		return err
 	}
-	return db.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "user_id"}, {Name: "character_id"}}, DoUpdates: clause.AssignmentColumns([]string{"character_name", "voice_provider", "voice_id", "voice_prompt", "default_speed", "default_emotion", "default_style", "updated_at"})}).Create(&item).Error
+	return db.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "user_id"}, {Name: "character_id"}}, DoUpdates: clause.AssignmentColumns([]string{"character_name", "reference_images", "voice_provider", "voice_id", "voice_prompt", "default_speed", "default_emotion", "default_style", "updated_at"})}).Create(&item).Error
 }

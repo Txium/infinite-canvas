@@ -1,7 +1,7 @@
 import { useUserStore } from "@/stores/use-user-store";
 
 export type MediaCapability = {operation:string;name:string;status:"COMING_SOON"|"DISABLED"};
-export type VoiceProfile = {character_id:string;character_name:string;voice_provider:string;voice_id:string;voice_prompt:string;default_speed:number;default_emotion:string;default_style:string};
+export type VoiceProfile = {character_id:string;character_name:string;reference_images?:string[];voice_provider:string;voice_id:string;voice_prompt:string;default_speed:number;default_emotion:string;default_style:string};
 
 async function request<T>(path:string, body?:unknown):Promise<T> {
  const token=useUserStore.getState().token;

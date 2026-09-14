@@ -5,6 +5,13 @@ description: 当前版本已实现但仍需人工验证的变更项
 
 # 待测试
 
+## 免费Media Worker接通
+
+- 独立Worker `srv-dajpevek1f9s738u5920` / `dep-dajpevmk1f9s738u5a9g` Live；健康检查FFmpeg/ffprobe均可用。staging URL/TOKEN已配置，令牌未写仓库或公开日志。
+- 原画布工作台经API读取现有15秒视频元数据成功，余额仍¥8.22；用户自行验收输出。无轨视频提音频明确VIDEO_HAS_NO_AUDIO，mute是另一个无声视频操作，不是音频结果。
+- 免费实例$0/月，不买GPU，前端24MB/Worker25MB单任务，冷启动可能较慢。
+- 角色稳定ID、跨节点关联、reference_images与版本化PostgreSQL迁移已补，发布后检查迁移日志及表单读回。
+
 ## 本批staging发布回执
 
 - `bd6eddc` / `dep-dajp02fqj5pc73eh17v0` 云端构建、启动并Live；新工具入口及十种禁用AI能力现场可见，Voice Profile列表读取无错误。档案POST及重新读取仍待验收。

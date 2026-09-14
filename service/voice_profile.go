@@ -6,6 +6,7 @@ import (
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/repository"
 	"math"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -19,6 +20,15 @@ func CurrentVoiceProfiles(ctx context.Context) ([]model.VoiceProfile, error) {
 }
 
 func ValidateVoiceProfile(p *model.VoiceProfile) error {
+	if len(p.ReferenceImages) > 8 {
+		return errors.New("角色最多保存8张参考图")
+	}
+	for _, ref := range p.ReferenceImages {
+		u, err := url.Parse(ref)
+		if err != nil || len(ref) > 2048 || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+			return errors.New("请使用已上传的HTTP图片地址，不保存本地临时链接")
+		}
+	}
 	p.CharacterID = strings.TrimSpace(p.CharacterID)
 	if p.CharacterID == "" || len(p.CharacterID) > 128 || len(p.CharacterName) > 200 || len(p.VoicePrompt) > 4000 || len(p.VoiceProvider) > 128 || len(p.VoiceID) > 256 || len(p.DefaultEmotion) > 200 || len(p.DefaultStyle) > 500 {
 		return errors.New("角色或音色字段长度无效")

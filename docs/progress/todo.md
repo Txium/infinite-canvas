@@ -7,6 +7,9 @@ description: 当前项目后续值得处理的事项
 
 ## 全链路排查与新增能力
 
+- [x] 独立免费Media Worker Live并接通staging，原视频ffprobe数据实际读回。
+- [ ] 用户验收首/尾/当前帧、裁剪、音频输出、字幕轨移除；免费实例资源受限，不等于所有长视频都支持。
+
 - [x] 本批代码bd6eddc发布staging，页面和Voice Profile列表读取检查通过。
 - [ ] Voice Profile保存/重新加载验收及Media Worker独立部署；列表读取不替代写入验收。
 - [ ] Media Worker部署及真实FFmpeg短片验收；需要资源方案确认，不自动升级实例。
