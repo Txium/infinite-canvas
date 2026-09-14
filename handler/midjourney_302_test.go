@@ -62,6 +62,13 @@ func Test302MidjourneyResolvesSubmitPath(t *testing.T) {
 	}
 }
 
+func TestCanvasMediaReconciliationKeepsPersistedMidjourneyUpstreamModel(t *testing.T) {
+	task := model.VideoTask{Model: "midjourney__01", UpstreamModel: "/mj/submit/imagine"}
+	if upstream := videoTaskUpstreamModel(task); upstream != "/mj/submit/imagine" || !is302MidjourneyModel(upstream) {
+		t.Fatalf("persisted Midjourney route was lost: %q", upstream)
+	}
+}
+
 func TestUnique302MidjourneyURLs(t *testing.T) {
 	urls := unique302MidjourneyURLs(midjourney302TaskResponse{ImageURL: "https://example.com/grid.png", ImageURLs: []string{"https://example.com/1.png", "https://example.com/1.png"}})
 	if len(urls) != 2 {

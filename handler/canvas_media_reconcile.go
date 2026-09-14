@@ -85,7 +85,7 @@ func reconcileCanvasMedia() {
 		return
 	}
 	for _, task := range images {
-		outputs, status, detail := pollAcceptedCanvasMedia(task.UserID, task.Model, task.ChannelID, task.UpstreamTaskID)
+		outputs, status, detail := pollAcceptedCanvasMedia(task.UserID, task.Model, task.UpstreamModelID, task.ChannelID, task.UpstreamTaskID)
 		if providerStatus := strings.TrimSpace(detail); providerStatus != "" {
 			task.ProviderTaskStatus = providerStatus
 		}
@@ -127,7 +127,7 @@ func reconcileCanvasMedia() {
 		}
 	}
 	for _, task := range audios {
-		outputs, status, detail := pollAcceptedCanvasMedia(task.UserID, task.Model, task.ChannelID, task.UpstreamTaskID)
+		outputs, status, detail := pollAcceptedCanvasMedia(task.UserID, task.Model, "", task.ChannelID, task.UpstreamTaskID)
 		if status == "failed" {
 			saveFailedCanvasAudioTask(task, "音频生成失败", detail)
 			continue
@@ -154,8 +154,13 @@ func reconcileCanvasMedia() {
 	}
 }
 
-func pollAcceptedCanvasMedia(userID, modelName, channelID, taskID string) ([]string, string, string) {
-	channel, upstreamModel, err := selectPersistedVideoTaskChannel(model.VideoTask{UserID: userID, Model: modelName, ChannelID: channelID})
+func pollAcceptedCanvasMedia(userID, modelName, upstreamModelID, channelID, taskID string) ([]string, string, string) {
+	channel, upstreamModel, err := selectPersistedVideoTaskChannel(model.VideoTask{
+		UserID:        userID,
+		Model:         modelName,
+		UpstreamModel: firstNonEmpty(upstreamModelID, modelName),
+		ChannelID:     channelID,
+	})
 	if err != nil {
 		return nil, "reconciling", "原供应商暂不可用"
 	}
