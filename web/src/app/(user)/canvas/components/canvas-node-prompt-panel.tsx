@@ -151,13 +151,16 @@ function buildNodeConfig(globalConfig: AiConfig, node: CanvasNodeData, mode: Can
     const defaultModel = mode === "image" ? globalConfig.imageModel : mode === "video" ? globalConfig.videoModel : mode === "audio" ? globalConfig.audioModel : globalConfig.textModel;
     const availableModels = mode === "image" ? globalConfig.imageModels : mode === "video" ? globalConfig.videoModels : mode === "audio" ? globalConfig.audioModels : globalConfig.textModels;
     const savedModel = node.metadata?.model || "";
+    const savedMarketModel = globalConfig.channelMode === "remote"
+        ? globalConfig.marketModels.find((item) => item.id === savedModel && item.capability === mode)
+        : undefined;
     const channelId = node.metadata?.channelId || "";
     const imageChannelId = mode === "image" ? channelId || globalConfig.imageChannelId : globalConfig.imageChannelId;
     const videoChannelId = mode === "video" ? channelId || globalConfig.videoChannelId : globalConfig.videoChannelId;
     const textChannelId = mode === "text" ? channelId || globalConfig.textChannelId : globalConfig.textChannelId;
     const audioChannelId = mode === "audio" ? channelId || globalConfig.audioChannelId : globalConfig.audioChannelId;
     const activeChannelId = mode === "image" ? imageChannelId : mode === "video" ? videoChannelId : mode === "text" ? textChannelId : mode === "audio" ? audioChannelId || globalConfig.activeChannelId : globalConfig.activeChannelId;
-    const model = (availableModels.includes(savedModel) ? savedModel : "") || defaultModel || availableModels[0] || (mode === "audio" ? defaultConfig.audioModel : globalConfig.model || defaultConfig.model);
+    const model = (savedMarketModel || availableModels.includes(savedModel) ? savedModel : "") || defaultModel || availableModels[0] || (mode === "audio" ? defaultConfig.audioModel : globalConfig.model || defaultConfig.model);
     const fixedVideoResolution = mode === "video" ? fixedMarketVideoResolution(model) : "";
     return {
         ...globalConfig,

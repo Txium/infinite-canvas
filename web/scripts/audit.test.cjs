@@ -48,6 +48,12 @@ test('canvas retries create a fresh task and send the previous video task as ret
     assert.ok(api.includes('"X-Retry-Video-Task-ID": createOptions.retryOfTaskId'));
 });
 
+test('canvas media nodes retain cloud market model selections', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, '../src/app/(user)/canvas/components/canvas-node-prompt-panel.tsx'), 'utf8');
+    assert.match(source, /globalConfig\.marketModels\.find\(\(item\) => item\.id === savedModel && item\.capability === mode\)/);
+    assert.match(source, /savedMarketModel \|\| availableModels\.includes\(savedModel\)/);
+});
+
 // Exercise the real TypeScript modules with mocked HTTP, without paid calls.
 function loadModule(relative, mocks) {
     const filename = path.resolve(__dirname, '..', relative);
