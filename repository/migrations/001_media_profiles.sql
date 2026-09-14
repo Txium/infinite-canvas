@@ -20,3 +20,15 @@ CREATE TABLE IF NOT EXISTS media_ai_tasks (
 );
 CREATE INDEX IF NOT EXISTS idx_media_ai_tasks_user_id ON media_ai_tasks(user_id);
 CREATE INDEX IF NOT EXISTS idx_media_ai_tasks_status ON media_ai_tasks(status);
+ALTER TABLE voice_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE media_ai_tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE canvas_schema_migrations ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON voice_profiles, media_ai_tasks, canvas_schema_migrations FROM PUBLIC;
+DO $$ BEGIN
+ IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN
+  REVOKE ALL ON voice_profiles, media_ai_tasks, canvas_schema_migrations FROM anon;
+ END IF;
+ IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN
+  REVOKE ALL ON voice_profiles, media_ai_tasks, canvas_schema_migrations FROM authenticated;
+ END IF;
+END $$;
