@@ -996,7 +996,10 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             setNodes((prev) => [...prev, newNode]);
             if (type === CanvasNodeType.Video || type === CanvasNodeType.Audio || type === CanvasNodeType.Image || type === CanvasNodeType.Panorama || type === CanvasNodeType.Config) {
                 const selectedResourceIds = nodesRef.current
-                    .filter((node) => selectedNodeIds.has(node.id))
+                    // Toolbar actions can run in the same frame as selection.
+                    // Read the ref so a freshly selected media node is not lost
+                    // to the callback's previous-render selection snapshot.
+                    .filter((node) => selectedNodeIdsRef.current.has(node.id))
                     .filter((node) =>
                         (node.type === CanvasNodeType.Text && Boolean(node.metadata?.content || node.metadata?.prompt)) ||
                         (isCanvasImageNodeType(node.type) && Boolean(node.metadata?.content)) ||
@@ -1017,7 +1020,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             setSelectedConnectionId(null);
             if (type !== CanvasNodeType.Text && type !== CanvasNodeType.Audio && type !== CanvasNodeType.Director) setDialogNodeId(newNode.id);
         },
-        [effectiveConfig.canvasImageCount, effectiveConfig.count, effectiveConfig.imageModel, effectiveConfig.model, effectiveConfig.size, getCanvasCenter, selectedNodeIds],
+        [effectiveConfig.canvasImageCount, effectiveConfig.count, effectiveConfig.imageModel, effectiveConfig.model, effectiveConfig.size, getCanvasCenter],
     );
 
     const deleteCanvasTaskRecords = useCallback(
