@@ -21,6 +21,7 @@ export function isMiniMaxH3Config(config: AiConfig, modelName: string) {
 
 export function normalizeMiniMaxH3Resolution(value: string) {
     const resolution = value.trim().toLowerCase().replace(/p$/, "");
+    if (resolution === "480") return "480P";
     return ["1080", "2k", "4k"].includes(resolution) ? "2K" : "768P";
 }
 

@@ -86,6 +86,17 @@ function deferred() {
     return { promise, resolve, reject };
 }
 
+test('Hailuo H3 480P variant keeps 480P in the provider payload', () => {
+    const minimax = loadModule('src/lib/minimax-video.ts', {
+        '@/lib/seedance-video': { normalizeSeedanceRatio: (value) => value },
+        '@/stores/use-config-store': { channelProtocolForConfig: () => 'openai' },
+    });
+    const marketResolution = loadModule('src/lib/market-video-resolution.ts', {});
+    assert.equal(minimax.normalizeMiniMaxH3Resolution('480'), '480P');
+    assert.equal(minimax.normalizeMiniMaxH3Resolution('768'), '768P');
+    assert.equal(marketResolution.fixedMarketVideoResolution('hailuo_h3__01'), '480p');
+});
+
 const { buildGenerationConfig } = loadModule('src/app/(user)/canvas/utils/generation-config.ts', {
     '@/stores/use-config-store': { defaultConfig: {}, normalizeLocalChannels: (config) => config.channels || [], modelMatchesCapability: () => true },
     '@/lib/market-video-resolution': { fixedMarketVideoResolution: () => '', resolutionConfigValue: (value) => value },
