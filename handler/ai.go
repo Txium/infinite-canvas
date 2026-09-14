@@ -784,6 +784,9 @@ func agnesVideoQueryID(modelName string, path string) (string, bool) {
 }
 
 func resolveAIProxyPath(channel model.ModelChannel, modelName string, path string) string {
+	if is302MidjourneyRequest(channel, modelName, path) {
+		return modelName
+	}
 	if isWaveSpeedChannel(channel) {
 		if path == "/images/generations" || path == "/images/edits" || path == "/videos" || path == "/audio/speech" {
 			return "/" + strings.TrimLeft(strings.TrimSpace(modelName), "/")

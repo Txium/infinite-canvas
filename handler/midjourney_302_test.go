@@ -48,6 +48,20 @@ func TestNormalize302MidjourneyRejectsMultipart(t *testing.T) {
 	}
 }
 
+func Test302MidjourneyResolvesSubmitPath(t *testing.T) {
+	channel := model.ModelChannel{ID: "provider_302", BaseURL: "https://api.302.ai"}
+	for _, endpoint := range []string{"/mj/submit/imagine", "/mj-turbo/submit/imagine"} {
+		resolvedPath := resolveAIProxyPath(channel, endpoint, "/images/generations")
+		if resolvedPath != endpoint {
+			t.Fatalf("expected %s, got %s", endpoint, resolvedPath)
+		}
+		resolvedURL := resolveAIProxyURL(channel, endpoint, resolvedPath)
+		if resolvedURL != channel.BaseURL+endpoint {
+			t.Fatalf("unexpected Midjourney URL %s", resolvedURL)
+		}
+	}
+}
+
 func TestUnique302MidjourneyURLs(t *testing.T) {
 	urls := unique302MidjourneyURLs(midjourney302TaskResponse{ImageURL: "https://example.com/grid.png", ImageURLs: []string{"https://example.com/1.png", "https://example.com/1.png"}})
 	if len(urls) != 2 {
