@@ -1,5 +1,9 @@
 # 云端媒体能力交付边界
 
+## 最新部署结果
+
+Web `56cb767` / `dep-dajpm8lg1s2s73bn218g` 已Live。独立免费Media Worker已接通，健康检查FFmpeg/ffprobe可用，原视频元数据在工作台读回。Supabase PostgreSQL正式迁移001_media_profiles已执行并记录日志；角色档案POST及整页刷新读回通过。Production独立Neon数据库未修改。仍未部署任何AI音频/GPU模型，未消费上游余额。以下早期「未验证/未迁移」条目以此回执为准，真实媒体输出效果仍由用户验收。
+
 本批已发布staging：`bd6eddc`，Render部署`dep-dajp02fqj5pc73eh17v0`确认Live。新音色面板通过能力与档案GET加载十项待接入能力，无读取错误；未执行档案写入验收。不购买实例/GPU/存储，不调用付费模型。Production不变。
 
 ## P0/P1 基础处理

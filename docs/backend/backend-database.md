@@ -7,6 +7,8 @@ description: 当前后端主要数据表与字段说明
 
 ## 新增媒体架构（待发布迁移）
 
+本批已在staging实际应用001_media_profiles并验证角色档案写入/读回；staging主机为Supabase PostgreSQL连接池，不是Neon。Production独立Neon主机未修改。新增三表启用RLS并撤销PUBLIC及Supabase客户端角色权限，后端继续按登录用户隔离访问。
+
 - 正式版本迁移：repository/migrations/001_media_profiles.sql，由当前配置的PostgreSQL连接在事务中应用；advisory lock串行化，canvas_schema_migrations记录已应用版本，重复启动跳过。SQLite继续使用GORM测试，不冒充PostgreSQL执行证据。
 - Voice Profile新增reference_images(JSON序列化文本)，角色ID独立于节点ID；节点保存characterId引用，继续按当前用户隔离。
 

@@ -7,6 +7,10 @@ description: 当前版本已实现但仍需人工验证的变更项
 
 ## 免费Media Worker接通
 
+- 最终Web版本`56cb767` / Render `dep-dajpm8lg1s2s73bn218g` Live，日志确认`MEDIA_SCHEMA_MIGRATION_APPLIED version=001_media_profiles driver=postgres`。
+- 实际staging数据库是Supabase PostgreSQL（连接池），Production为另一Neon主机；本次只应用staging迁移，正式环境只读核对。
+- 测试画布新增「部署验收角色（未配置音色）」档案，POST保存成功；整页刷新后同一char_角色ID和名称读回，节点关联保留。未创建试听或付费任务。
+
 - 独立Worker `srv-dajpevek1f9s738u5920` / `dep-dajpevmk1f9s738u5a9g` Live；健康检查FFmpeg/ffprobe均可用。staging URL/TOKEN已配置，令牌未写仓库或公开日志。
 - 原画布工作台经API读取现有15秒视频元数据成功，余额仍¥8.22；用户自行验收输出。无轨视频提音频明确VIDEO_HAS_NO_AUDIO，mute是另一个无声视频操作，不是音频结果。
 - 免费实例$0/月，不买GPU，前端24MB/Worker25MB单任务，冷启动可能较慢。
