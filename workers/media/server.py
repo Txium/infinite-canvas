@@ -13,13 +13,19 @@ from email.policy import default
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-MAX_BYTES = 100 << 20
+MAX_BYTES = min(100, max(1, int(os.environ.get("MEDIA_MAX_MB", "25")))) << 20
 SLOT = threading.BoundedSemaphore(1)
 FORMATS = "mov,matroska,webm,avi"
 TEMP_ROOT = Path(tempfile.gettempdir()) / "canvas-media-worker"
 TEMP_TTL = 3600
 ACTIVE_DIRS = set()
 TEMP_LOCK = threading.Lock()
+
+
+class MediaError(ValueError):
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
 
 
 def cleanup_temporary(now=None):
@@ -80,7 +86,7 @@ def probe(path):
 def build_command(source, output, action, meta, start, end, precise=False):
     if not math.isfinite(start) or not math.isfinite(end):
         raise ValueError("时间参数无效")
-    args = ["ffmpeg", "-nostdin", "-v", "error", "-threads", "2", "-protocol_whitelist", "file,pipe", "-format_whitelist", FORMATS, "-i", str(source)]
+    args = ["ffmpeg", "-nostdin", "-v", "error", "-threads", "1", "-filter_threads", "1", "-protocol_whitelist", "file,pipe", "-format_whitelist", FORMATS, "-i", str(source)]
     if action in ("first", "last", "frame"):
         position = 0 if action == "first" else max(0, meta["duration"] - .08) if action == "last" else start
         if not 0 <= position < meta["duration"]:
@@ -97,7 +103,7 @@ def build_command(source, output, action, meta, start, end, precise=False):
         args += ["-avoid_negative_ts", "make_zero", "-movflags", "+faststart"]
     elif action == "audio":
         if not meta["audioCodec"]:
-            raise ValueError("原视频没有音频轨")
+            raise MediaError("VIDEO_HAS_NO_AUDIO", "原视频没有音频轨，无法提取音频；没有创建音频结果")
         args += ["-map", "0:a:0", "-vn", "-c:a", "copy" if meta["audioCodec"] in ("aac", "mp3") else "aac"]
     elif action == "mute":
         args += ["-map", "0:v:0", "-c:v", "copy", "-an", "-sn", "-movflags", "+faststart"]
@@ -111,6 +117,12 @@ def build_command(source, output, action, meta, start, end, precise=False):
 
 
 class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path != "/health":
+            return self.reply(404, {"msg": "接口不存在"})
+        ready = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
+        return self.reply(200 if ready else 503, {"ready": ready, "ffmpeg_available": bool(shutil.which("ffmpeg")), "ffprobe_available": bool(shutil.which("ffprobe"))})
+
     def log_message(self, *_):
         pass  # Never log authorization or media payloads.
 
@@ -135,7 +147,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             size = int(self.headers.get("Content-Length", "0"))
             if not 0 < size <= MAX_BYTES:
-                raise ValueError("文件过大或为空")
+                raise MediaError("MEDIA_FILE_TOO_LARGE", f"本Worker支持{MAX_BYTES >> 20}MB以内的上传，请选择更短的片段")
             self.connection.settimeout(30)
             content_type = self.headers.get("Content-Type", "")
             if not content_type.startswith("multipart/form-data;") or "\r" in content_type or "\n" in content_type:
@@ -166,7 +178,11 @@ class Handler(BaseHTTPRequestHandler):
                 if not output.exists() or not 0 < output.stat().st_size <= MAX_BYTES:
                     raise ValueError("未得到有效输出；请调整时间范围或缩短片段")
                 return self.reply(200, output.read_bytes(), {"png": "image/png", "m4a": "audio/mp4", "mp3": "audio/mpeg", "mp4": "video/mp4"}[extension])
-        except (ValueError, KeyError, TypeError, AttributeError, OSError, subprocess.TimeoutExpired):
+        except MediaError as error:
+            self.reply(422, {"error_code": error.code, "msg": str(error)})
+        except subprocess.TimeoutExpired:
+            self.reply(504, {"error_code": "MEDIA_PROCESSING_TIMEOUT", "msg": "媒体处理超时，原文件保留，可缩短片段后重试"})
+        except (ValueError, KeyError, TypeError, AttributeError, OSError):
             self.reply(400, {"msg": "处理失败：请检查视频格式、音轨和时间范围；最长10分钟/100MB，原文件保留"})
         finally:
             if "directory" in locals():

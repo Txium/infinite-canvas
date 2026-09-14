@@ -9,6 +9,11 @@ from server import build_command
 class MediaCommands(unittest.TestCase):
     meta = {"duration": 15, "audioCodec": "aac", "subtitleTracks": 1}
 
+    def test_no_audio_never_builds_an_output_command(self):
+        with self.assertRaises(server.MediaError) as failure:
+            build_command("input", "out.m4a", "audio", {**self.meta,"audioCodec":None}, 0, 0)
+        self.assertEqual(failure.exception.code,"VIDEO_HAS_NO_AUDIO")
+
     def test_full_resolution_frame(self):
         args = build_command("input", "output.png", "frame", self.meta, 4.2, 0)
         self.assertIn("4.2", args)
