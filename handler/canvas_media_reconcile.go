@@ -86,6 +86,9 @@ func reconcileCanvasMedia() {
 	}
 	for _, task := range images {
 		outputs, status, detail := pollAcceptedCanvasMedia(task.UserID, task.Model, task.ChannelID, task.UpstreamTaskID)
+		if providerStatus := strings.TrimSpace(detail); providerStatus != "" {
+			task.ProviderTaskStatus = providerStatus
+		}
 		if status == "failed" {
 			task.ErrorCode = model.GenerationErrorUpstreamTaskFailed
 			saveFailedCanvasImageTask(task, "图片生成失败", detail)
@@ -93,6 +96,9 @@ func reconcileCanvasMedia() {
 		}
 		if status != "completed" || len(outputs) == 0 {
 			task.Status, task.UpdatedAt = "reconciling", taskTime()
+			if strings.TrimSpace(detail) != "" {
+				task.ErrorDetail = detail
+			}
 			if _, err := saveCanvasImageTaskWithRetry(task); err != nil {
 				log.Printf("save pending image: %v", err)
 			}
@@ -114,6 +120,7 @@ func reconcileCanvasMedia() {
 			continue
 		}
 		task.Status, task.Progress, task.CompletedAt, task.Error, task.ErrorDetail = "completed", 100, taskTime(), "", ""
+		task.ProviderTaskStatus = "SUCCESS"
 		task.ErrorCode = ""
 		if _, err := saveCanvasImageTaskWithRetry(task); err != nil {
 			log.Printf("save recovered image: %v", err)
