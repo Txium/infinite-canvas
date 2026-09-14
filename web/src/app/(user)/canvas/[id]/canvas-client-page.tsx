@@ -3599,9 +3599,14 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
 
             setRunningNodeId(node.id);
             const retryStartedAt = Date.now();
-            const retryVideoTaskId = node.type === CanvasNodeType.Video ? node.metadata?.videoTaskId || `client_video_task_${node.id}` : "";
-            const retryImageTaskId = isCanvasImageNodeType(node.type) ? `client_image_task_${node.id}` : "";
-            const retryAudioTaskId = node.type === CanvasNodeType.Audio ? `client_audio_task_${node.id}` : "";
+            // A canvas node is permanent, but each generation attempt must have
+            // its own task id. Reusing the node-derived id made PostgreSQL return
+            // the previous task on retry, so a selector that displayed Image2
+            // could silently keep submitting the node's old MJ task instead.
+            const previousVideoTaskId = node.type === CanvasNodeType.Video ? node.metadata?.videoTaskId || "" : "";
+            const retryVideoTaskId = node.type === CanvasNodeType.Video ? `client_video_retry_${nanoid()}` : "";
+            const retryImageTaskId = isCanvasImageNodeType(node.type) ? `client_image_task_${node.id}_${nanoid()}` : "";
+            const retryAudioTaskId = node.type === CanvasNodeType.Audio ? `client_audio_task_${node.id}_${nanoid()}` : "";
             setNodes((prev) => prev.map((item) => (item.id === node.id ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_LOADING, errorDetails: undefined, content: undefined, storageKey: "", progress: 0, startedAt: retryStartedAt, ...(item.type === CanvasNodeType.Video ? { videoTaskId: retryVideoTaskId, videoTaskVideoId: undefined } : {}), ...(isCanvasImageNodeType(item.type) ? { imageTaskId: retryImageTaskId, imageTaskResultId: undefined } : {}), ...(item.type === CanvasNodeType.Audio ? { audioTaskId: retryAudioTaskId, audioTaskResultId: undefined } : {}) } } : item)));
 
             try {
@@ -3621,7 +3626,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     const firstFrame = frameReferencesEnabled ? context?.firstFrame || null : null;
                     const lastFrame = frameReferencesEnabled ? context?.lastFrame || null : null;
                     const references = frameReferencesEnabled ? retryImages : [...retryImages, ...[context?.firstFrame, context?.lastFrame].filter((image): image is ReferenceImage => Boolean(image))];
-                    const created = await createVideoGenerationTask(videoGenerationConfig, requestPrompt, { references, firstFrame, lastFrame, videoReferences: context?.referenceVideos || [], audioReferences: context?.referenceAudios || [] }, undefined, { clientTaskId: retryVideoTaskId, retryOfTaskId: retryVideoTaskId, source: "canvas", sourceId: node.id });
+                    const created = await createVideoGenerationTask(videoGenerationConfig, requestPrompt, { references, firstFrame, lastFrame, videoReferences: context?.referenceVideos || [], audioReferences: context?.referenceAudios || [] }, undefined, { clientTaskId: retryVideoTaskId, retryOfTaskId: previousVideoTaskId || undefined, source: "canvas", sourceId: node.id });
                     setNodes((prev) => applyCanvasVideoTaskUpdate(prev, node.id, created.task, videoGenerationConfig, retryStartedAt, { width: node.width, height: node.height }));
                     return;
                 }
