@@ -18,6 +18,7 @@ import { IMAGE_QUICK_TOOLS_STORAGE_KEY, PANORAMA_QUICK_TOOLS_STORAGE_KEY, buildI
 type CanvasNodeHoverToolbarProps = {
     node: CanvasNodeData | null;
     viewport: ViewportTransform;
+    canvasWidth: number;
     onKeep: (nodeId: string) => void;
     onLeave: () => void;
     onInfo: (node: CanvasNodeData) => void;
@@ -60,6 +61,7 @@ type ToolbarTool = {
 export function CanvasNodeHoverToolbar({
     node,
     viewport,
+    canvasWidth,
     onKeep,
     onLeave,
     onInfo,
@@ -132,7 +134,8 @@ export function CanvasNodeHoverToolbar({
 
     if (!node) return null;
 
-    const left = viewport.x + (node.position.x + node.width / 2) * viewport.k;
+    const toolbarWidth = Math.max(240, Math.min(960, canvasWidth - 32));
+    const left = canvasWidth / 2;
     const top = Math.max(64, viewport.y + node.position.y * viewport.k - 10);
     const isImage = isCanvasImageNodeType(node.type);
     const isVideo = node.type === CanvasNodeType.Video;
@@ -223,7 +226,7 @@ export function CanvasNodeHoverToolbar({
             <div
                 aria-label={`${isVideo ? "视频" : isImage ? "图片" : "节点"}编辑工具条`}
                 className="thin-scrollbar absolute z-[70] flex -translate-x-1/2 -translate-y-full flex-nowrap items-center gap-x-1 overflow-x-auto overflow-y-hidden whitespace-nowrap rounded-xl border border-white/10 bg-[#242424] px-2 py-1 text-[13px] text-[#f3f3f3] shadow-[0_8px_28px_rgba(0,0,0,.28)]"
-                style={{ left, top, width: "max-content", maxWidth: "min(960px, calc(100vw - 32px))" }}
+                style={{ left, top, width: toolbarWidth, maxWidth: "calc(100% - 32px)" }}
                 onMouseEnter={() => onKeep(node.id)}
                 onMouseLeave={() => {
                     if (!imageToolSettingsOpen && !creationOpen && !audioAIOpen) onLeave();

@@ -27,7 +27,9 @@ export async function loadProcessingSource(storageKey?: string, content = "") {
     if (!response.ok) throw new Error(await readErrorResponse(response, "无法检查媒体 Worker 状态"));
     const state = await response.json() as { data?: MediaWorkerState };
     if (!state.data?.configured) throw new Error("媒体 Worker 尚未配置；此功能不调用付费模型。");
-    if (!state.data.ready) throw new Error(state.data.msg || "媒体 Worker 正在唤醒或暂时不可用，请稍后重试");
+    // The readiness probe also wakes a sleeping free Render worker. It is
+    // advisory: a transient health response must not block the real request,
+    // whose status and Worker error body are authoritative.
     const maxBytes = Number(state.data.maxBytes);
     if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) throw new Error("媒体Worker上传限制配置无效");
     const url = await resolveMediaUrl(storageKey, content);

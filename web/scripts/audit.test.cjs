@@ -64,6 +64,8 @@ test('selected media toolbar stays above the node and out of the prompt panel', 
     assert.doesNotMatch(canvas, /node=\{isNodeDragging \|\| nodeImageSettingsOpen/);
     assert.match(toolbar, /-translate-y-full/);
     assert.match(toolbar, /flex-nowrap/);
+    assert.match(toolbar, /canvasWidth: number/);
+    assert.match(toolbar, /width: toolbarWidth/);
     assert.doesNotMatch(toolbar, /toolbarBelow/);
 });
 

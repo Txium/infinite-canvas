@@ -4082,6 +4082,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     onImagePreset={addImagePreset}
                     node={nodeImageSettingsOpen ? null : toolbarNode}
                     viewport={viewport}
+                    canvasWidth={size.width}
                     onKeep={keepNodeToolbar}
                     onLeave={hideNodeToolbar}
                     onInfo={(node) => setInfoNodeId(node.id)}
