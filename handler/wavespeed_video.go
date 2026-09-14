@@ -64,7 +64,7 @@ func applyH3ContentReferences(source map[string]any) {
 	if !ok {
 		return
 	}
-	images, videos, audios := []string{}, []string{}, []string{}
+	textParts, images, videos, audios := []string{}, []string{}, []string{}, []string{}
 	for _, item := range items {
 		entry, ok := item.(map[string]any)
 		if !ok {
@@ -73,6 +73,10 @@ func applyH3ContentReferences(source map[string]any) {
 		typ, _ := entry["type"].(string)
 		var value string
 		switch typ {
+		case "text":
+			if text := strings.TrimSpace(fmt.Sprint(entry["text"])); text != "" && text != "<nil>" {
+				textParts = append(textParts, text)
+			}
 		case "image_url":
 			if nested, ok := entry["image_url"].(map[string]any); ok {
 				value = strings.TrimSpace(fmt.Sprint(nested["url"]))
@@ -95,6 +99,9 @@ func applyH3ContentReferences(source map[string]any) {
 				audios = append(audios, value)
 			}
 		}
+	}
+	if firstString(source, "prompt", "text") == "" && len(textParts) > 0 {
+		source["prompt"] = strings.Join(textParts, "\n")
 	}
 	if len(images) > 0 {
 		source["image_urls"] = images
