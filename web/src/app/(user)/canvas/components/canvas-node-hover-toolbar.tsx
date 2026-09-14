@@ -130,6 +130,7 @@ export function CanvasNodeHoverToolbar({
 
     const left = viewport.x + (node.position.x + node.width / 2) * viewport.k;
     const top = viewport.y + node.position.y * viewport.k - 14;
+    const toolbarBelow = top < 180;
     const isImage = isCanvasImageNodeType(node.type);
     const isVideo = node.type === CanvasNodeType.Video;
     const isAudio = node.type === CanvasNodeType.Audio;
@@ -217,7 +218,7 @@ export function CanvasNodeHoverToolbar({
         <>
             <div
                 className="absolute z-[70] flex flex-wrap -translate-x-1/2 -translate-y-full items-center justify-center gap-x-2 overflow-visible rounded-xl border border-white/10 bg-[#242424] px-2 text-[13px] text-[#f3f3f3] shadow-[0_8px_28px_rgba(0,0,0,.28)]"
-                style={{ left, top, maxWidth: "min(800px, calc(100vw - 32px))" }}
+                style={{ left, top: toolbarBelow ? viewport.y + (node.position.y + node.height) * viewport.k + 14 : top, translate: toolbarBelow ? "-50% 0" : undefined, maxWidth: "min(800px, calc(100vw - 32px))" }}
                 onMouseEnter={() => onKeep(node.id)}
                 onMouseLeave={() => {
                     if (!imageToolSettingsOpen && !creationOpen) onLeave();
