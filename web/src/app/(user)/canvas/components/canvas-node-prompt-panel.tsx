@@ -95,7 +95,7 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                     <CanvasPromptLibrary onSelect={updatePrompt} />
                     {mode === "image" ? (
                         <>
-                            <ModelPicker className="!w-[180px] !min-w-0 !shrink-0" config={config} value={config.imageModel} channelId={config.imageChannelId} capability="image" onChange={(model, channelId, capability) => onConfigChange(node.id, { model, channelId, ...(capability ? { generationMode: capability } : {}) })} onMissingConfig={() => openConfigDialog(true)} />
+                            <ModelPicker className="!w-[180px] !min-w-0 !shrink-0" config={config} value={config.model} channelId={config.activeChannelId} capability="image" onChange={(model, channelId, capability) => onConfigChange(node.id, { model, channelId, ...(capability ? { generationMode: capability } : {}) })} onMissingConfig={() => openConfigDialog(true)} />
                             <CanvasImageSettingsPopover
                                 config={config}
                                 placement="topLeft"
@@ -108,7 +108,7 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                         </>
                     ) : mode === "video" ? (
                         <>
-                            <ModelPicker className="!w-[180px] !min-w-0 !shrink-0" config={config} value={config.videoModel} channelId={config.videoChannelId} capability="video" onChange={(model, channelId, capability) => {
+                            <ModelPicker className="!w-[180px] !min-w-0 !shrink-0" config={config} value={config.model} channelId={config.activeChannelId} capability="video" onChange={(model, channelId, capability) => {
                                 const fixedResolution = fixedMarketVideoResolution(model);
                                 onConfigChange(node.id, { model, channelId, ...(fixedResolution ? { vquality: resolutionConfigValue(fixedResolution) } : {}), ...(capability ? { generationMode: capability } : {}) });
                             }} onMissingConfig={() => openConfigDialog(true)} />
@@ -116,11 +116,11 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                         </>
                     ) : mode === "audio" ? (
                         <>
-                            <ModelPicker className="!w-[180px] !min-w-0 !shrink-0" config={config} value={config.audioModel} channelId={config.audioChannelId || config.activeChannelId} capability="audio" onChange={(model, channelId, capability) => onConfigChange(node.id, { model, channelId, ...(capability ? { generationMode: capability } : {}) })} onMissingConfig={() => openConfigDialog(true)} />
+                            <ModelPicker className="!w-[180px] !min-w-0 !shrink-0" config={config} value={config.model} channelId={config.activeChannelId} capability="audio" onChange={(model, channelId, capability) => onConfigChange(node.id, { model, channelId, ...(capability ? { generationMode: capability } : {}) })} onMissingConfig={() => openConfigDialog(true)} />
                             <CanvasAudioSettingsPopover config={config} resourceOptions={videoResourceOptions} metadata={node.metadata} onMetadataChange={(patch) => onConfigChange(node.id, patch)} buttonClassName="!h-10 !w-[148px] !shrink-0 !justify-start !rounded-full !px-3" onConfigChange={(key, value) => onConfigChange(node.id, audioConfigPatch(key, value))} />
                         </>
                     ) : (
-                        <ModelPicker config={config} value={config.textModel} channelId={config.textChannelId} capability="text" onChange={(model, channelId, capability) => onConfigChange(node.id, { model, channelId, ...(capability ? { generationMode: capability } : {}) })} onMissingConfig={() => openConfigDialog(true)} />
+                        <ModelPicker config={config} value={config.model} channelId={config.activeChannelId} capability="text" onChange={(model, channelId, capability) => onConfigChange(node.id, { model, channelId, ...(capability ? { generationMode: capability } : {}) })} onMissingConfig={() => openConfigDialog(true)} />
                     )}
                     {mode === "video" || (mode === "image" && !isPanorama) ? (
                         <CanvasCameraControl value={node.metadata?.cameraControl} onChange={(cameraControl) => onConfigChange(node.id, { cameraControl })} buttonClassName="!h-10 !min-w-[92px] !justify-start !rounded-full !px-3" />

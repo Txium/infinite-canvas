@@ -52,6 +52,8 @@ test('canvas media nodes retain cloud market model selections', () => {
     const source = fs.readFileSync(path.resolve(__dirname, '../src/app/(user)/canvas/components/canvas-node-prompt-panel.tsx'), 'utf8');
     assert.match(source, /globalConfig\.marketModels\.find\(\(item\) => item\.id === savedModel && item\.capability === mode\)/);
     assert.match(source, /savedMarketModel \|\| availableModels\.includes\(savedModel\)/);
+    assert.match(source, /<ModelPicker[^>]*value=\{config\.model\}[^>]*channelId=\{config\.activeChannelId\}[^>]*capability="video"/);
+    assert.doesNotMatch(source, /<ModelPicker[^>]*value=\{config\.videoModel\}/);
 });
 
 test('model picker applies pointer selections as well as radix value changes', () => {
