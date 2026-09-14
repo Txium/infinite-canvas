@@ -9,9 +9,11 @@ export async function loadProcessingSource(storageKey?: string, content = "") {
     if (!token) throw new Error("请先登录后使用视频处理");
     const state = await fetch("/api/v1/media-worker", {headers:{Authorization:`Bearer ${token}`}}).then(r=>r.json());
     if (!state.data?.configured) throw new Error("媒体Worker尚未部署。请管理员配置 MEDIA_WORKER_URL 和 MEDIA_WORKER_TOKEN；此功能不调用付费模型。");
+    const maxBytes = Number(state.data.maxBytes);
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) throw new Error("媒体Worker上传限制配置无效");
     const url = await resolveMediaUrl(storageKey, content);
     const blob = url.startsWith("blob:") || url.startsWith("data:") ? await fetch(url).then(r=>r.blob()) : await downloadRemoteMedia(url);
-    if (blob.size > 24 * 1024 * 1024) throw new Error("免费测试Worker支持24MB以内的原视频，请先选择短片段");
+    if (blob.size > maxBytes) throw new Error(`当前媒体处理支持${Math.floor(maxBytes/1024/1024)}MB以内的原视频，请先选择短片段`);
     return blob;
 }
 

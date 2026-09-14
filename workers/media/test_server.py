@@ -56,6 +56,12 @@ class MediaCommands(unittest.TestCase):
             for name in ("job-active", "original", "final"):
                 self.assertTrue((root/name).exists())
 
+    def test_upload_limit_is_environment_configurable(self):
+        with patch.dict(server.os.environ,{"MEDIA_WORKER_MAX_MB":"500"}):
+            self.assertEqual(server.max_bytes(),500 << 20)
+        with patch.dict(server.os.environ,{"MEDIA_WORKER_MAX_MB":"invalid"}):
+            self.assertEqual(server.max_bytes(),25 << 20)
+
 
 if __name__ == "__main__":
     unittest.main()

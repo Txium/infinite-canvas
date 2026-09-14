@@ -6,24 +6,37 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
 
+const mediaWorkerDefaultMaxMB int64 = 25
+
+func mediaWorkerMaxBytes() int64 {
+	value, err := strconv.ParseInt(strings.TrimSpace(os.Getenv("MEDIA_WORKER_MAX_MB")), 10, 64)
+	if err != nil || value < 1 || value > (1<<63-1)/(1<<20) {
+		value = mediaWorkerDefaultMaxMB
+	}
+	return value << 20
+}
+
 // Media processing is isolated from provider routing and all wallet operations.
 func MediaWorkerStatus(w http.ResponseWriter, r *http.Request) {
-	OK(w, map[string]any{"configured": os.Getenv("MEDIA_WORKER_URL") != "" && os.Getenv("MEDIA_WORKER_TOKEN") != "", "maxBytes": 100 << 20})
+	OK(w, map[string]any{"configured": os.Getenv("MEDIA_WORKER_URL") != "" && os.Getenv("MEDIA_WORKER_TOKEN") != "", "maxBytes": mediaWorkerMaxBytes()})
 }
 
 func ProcessMedia(w http.ResponseWriter, r *http.Request) {
 	base, err := url.Parse(strings.TrimRight(os.Getenv("MEDIA_WORKER_URL"), "/"))
 	token := os.Getenv("MEDIA_WORKER_TOKEN")
+	maxBytes := mediaWorkerMaxBytes()
+	requestMaxBytes := maxBytes + (1 << 20) // multipart headers and boundaries
 	if err != nil || base.Host == "" || (base.Scheme != "http" && base.Scheme != "https") || token == "" {
 		FailWithStatus(w, http.StatusServiceUnavailable, "媒体处理 Worker 尚未配置，请管理员部署独立 Worker；不会调用付费模型")
 		return
 	}
-	if r.ContentLength > 100<<20 {
-		FailWithStatus(w, http.StatusRequestEntityTooLarge, "请选择小于100MB的视频")
+	if r.ContentLength > requestMaxBytes {
+		FailWithStatus(w, http.StatusRequestEntityTooLarge, "视频超过当前媒体处理上传限制")
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 150*time.Second)
@@ -37,7 +50,7 @@ func ProcessMedia(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.Remove(upload.Name())
 	defer upload.Close()
-	size, err := io.Copy(upload, http.MaxBytesReader(w, r.Body, 100<<20))
+	size, err := io.Copy(upload, http.MaxBytesReader(w, r.Body, requestMaxBytes))
 	if err != nil || size == 0 {
 		FailWithStatus(w, http.StatusRequestEntityTooLarge, "上传失败或文件超过100MB")
 		return
@@ -67,5 +80,5 @@ func ProcessMedia(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(response.StatusCode)
-	_, _ = io.Copy(w, io.LimitReader(response.Body, 110<<20))
+	_, _ = io.Copy(w, io.LimitReader(response.Body, maxBytes+1))
 }

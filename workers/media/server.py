@@ -13,13 +13,21 @@ from email.policy import default
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-MAX_BYTES = min(100, max(1, int(os.environ.get("MEDIA_MAX_MB", "25")))) << 20
+FORM_OVERHEAD = 1 << 20
 SLOT = threading.BoundedSemaphore(1)
 FORMATS = "mov,matroska,webm,avi"
 TEMP_ROOT = Path(tempfile.gettempdir()) / "canvas-media-worker"
 TEMP_TTL = 3600
 ACTIVE_DIRS = set()
 TEMP_LOCK = threading.Lock()
+
+
+def max_bytes():
+    try:
+        megabytes = int(os.environ.get("MEDIA_WORKER_MAX_MB", "25"))
+    except ValueError:
+        megabytes = 25
+    return max(1, megabytes) << 20
 
 
 class MediaError(ValueError):
@@ -121,7 +129,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path != "/health":
             return self.reply(404, {"msg": "接口不存在"})
         ready = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
-        return self.reply(200 if ready else 503, {"ready": ready, "ffmpeg_available": bool(shutil.which("ffmpeg")), "ffprobe_available": bool(shutil.which("ffprobe"))})
+        return self.reply(200 if ready else 503, {"ready": ready, "ffmpeg_available": bool(shutil.which("ffmpeg")), "ffprobe_available": bool(shutil.which("ffprobe")), "max_bytes": max_bytes()})
 
     def log_message(self, *_):
         pass  # Never log authorization or media payloads.
@@ -146,8 +154,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(429, {"msg": "媒体Worker正在处理其他任务，请稍后重试"})
         try:
             size = int(self.headers.get("Content-Length", "0"))
-            if not 0 < size <= MAX_BYTES:
-                raise MediaError("MEDIA_FILE_TOO_LARGE", f"本Worker支持{MAX_BYTES >> 20}MB以内的上传，请选择更短的片段")
+            limit = max_bytes()
+            if not 0 < size <= limit + FORM_OVERHEAD:
+                raise MediaError("MEDIA_FILE_TOO_LARGE", f"本Worker支持{limit >> 20}MB以内的原视频，请选择更短的片段")
             self.connection.settimeout(30)
             content_type = self.headers.get("Content-Type", "")
             if not content_type.startswith("multipart/form-data;") or "\r" in content_type or "\n" in content_type:
@@ -166,6 +175,8 @@ class Handler(BaseHTTPRequestHandler):
                     ACTIVE_DIRS.add(Path(directory).name)
                 source = Path(directory) / "input"
                 source.write_bytes(values.get("file", b""))
+                if not 0 < source.stat().st_size <= limit:
+                    raise MediaError("MEDIA_FILE_TOO_LARGE", f"本Worker支持{limit >> 20}MB以内的原视频，请选择更短的片段")
                 meta = probe(source)
                 action = values.get("action", b"probe").decode()
                 if action == "probe":
@@ -175,7 +186,7 @@ class Handler(BaseHTTPRequestHandler):
                     extension = "mp3"
                 output = Path(directory) / ("output." + extension)
                 run(build_command(source, output, action, meta, float(values.get("start", b"0")), float(values.get("end", b"0")), values.get("precise") == b"true"))
-                if not output.exists() or not 0 < output.stat().st_size <= MAX_BYTES:
+                if not output.exists() or not 0 < output.stat().st_size <= limit:
                     raise ValueError("未得到有效输出；请调整时间范围或缩短片段")
                 return self.reply(200, output.read_bytes(), {"png": "image/png", "m4a": "audio/mp4", "mp3": "audio/mpeg", "mp4": "video/mp4"}[extension])
         except MediaError as error:

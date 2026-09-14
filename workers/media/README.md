@@ -5,7 +5,7 @@
 ## 启动
 
 1. 安装 Docker；从当前目录构建：`docker build -t canvas-media-worker .`
-2. 为 Worker 与 Canvas Go API 配置相同的随机 `MEDIA_WORKER_TOKEN`（至少32字符），不要提交到仓库或填进浏览器。
+2. 为 Worker 与 Canvas Go API 配置相同的随机 `MEDIA_WORKER_TOKEN`（至少32字符），不要提交到仓库或填进浏览器。两端同时设置 `MEDIA_WORKER_MAX_MB`；测试环境当前为25，升级资源后可直接改为100、500或更高，无需改代码。
 3. 启动独立容器并注入该环境变量；容器监听8090。建议使用私有网络、1GB以上内存、独立临时盘并限制CPU/内存。
 4. 仅在 staging Go API 设置 `MEDIA_WORKER_URL=http://你的私网Worker:8090` 与 `MEDIA_WORKER_TOKEN`。Production 不配置。
 5. 页面打开视频节点 → 视频处理。未配置时明确提示，不会转向任何付费Provider。

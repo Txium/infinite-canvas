@@ -19,7 +19,7 @@ Web `56cb767` / `dep-dajpm8lg1s2s73bn218g` 已Live。独立免费Media Worker已
 - 独立Media Worker接收API转发的原文件，不调用Provider，不进入钱包。单任务并发、100MB/10分钟上限、子进程120秒超时；Web/API不执行FFmpeg。
 - Worker工作目录区分于对象存储的原始/最终文件。正常任务立即清理；异常退出残留job目录1小时TTL，每分钟清理一次并跳过当前活跃任务。浏览器缩略图URL关闭面板时释放；没有永久缩略图云缓存。
 
-**Media Worker已部署并连接staging。** 独立免费服务`infinite-canvas-media-staging`，每月实例固定费用$0，0.1CPU/512MB，支持单任务、前端24MB原文件（Worker含multipart上限25MB）。无付费升级或GPU。免费配额/流量限制仍适用，可能休眠和冷启动。
+**Media Worker已部署并连接staging。** 独立免费服务`infinite-canvas-media-staging`，每月实例固定费用$0，0.1CPU/512MB，支持单任务。`MEDIA_WORKER_MAX_MB` 同时控制API、前端提示与Worker原文件上限，当前为25；升级资源后可直接改成100、500或更高，无需修改代码。multipart额外预留1MB协议开销。无付费升级或GPU。免费配额/流量限制仍适用，可能休眠和冷启动。
 
 Worker健康检查确认FFmpeg/ffprobe可用；staging工作台已读取原视频24fps、1280×720、HEVC、15.105秒。未执行模型生成。真实截帧/裁剪效果由用户验收。尚未建立持久Media作业队列、租约及进程重启后继续处理；短任务仍是独立Worker内同步响应，异常/超时不影响Web进程，清理专属临时目录。
 

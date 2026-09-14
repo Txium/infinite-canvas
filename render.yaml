@@ -44,3 +44,5 @@ services:
         value: true
       - key: GENERATION_REQUESTS_PER_MINUTE
         value: 30
+      - key: MEDIA_WORKER_MAX_MB
+        value: 25
