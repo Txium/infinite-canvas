@@ -42,13 +42,21 @@ func TestMediaWorkerAcceptsChunkedUploadWithoutForwardingUserToken(t *testing.T)
 }
 
 func TestMediaWorkerLimitComesFromEnvironment(t *testing.T) {
-	t.Setenv("MEDIA_WORKER_URL", "https://worker.example")
+	worker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ready":true}`))
+	}))
+	defer worker.Close()
+	t.Setenv("MEDIA_WORKER_URL", worker.URL)
 	t.Setenv("MEDIA_WORKER_TOKEN", "worker-test")
 	t.Setenv("MEDIA_WORKER_MAX_MB", "500")
 	status := httptest.NewRecorder()
 	MediaWorkerStatus(status, httptest.NewRequest("GET", "/", nil))
 	if !strings.Contains(status.Body.String(), `"maxBytes":524288000`) {
 		t.Fatalf("unexpected status %s", status.Body.String())
+	}
+	if !strings.Contains(status.Body.String(), `"ready":true`) {
+		t.Fatalf("worker was not reported ready: %s", status.Body.String())
 	}
 
 	t.Setenv("MEDIA_WORKER_MAX_MB", "invalid")

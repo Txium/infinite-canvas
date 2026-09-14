@@ -2,6 +2,8 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -13,6 +15,10 @@ import (
 
 const mediaWorkerDefaultMaxMB int64 = 25
 
+type mediaWorkerHealth struct {
+	Ready bool `json:"ready"`
+}
+
 func mediaWorkerMaxBytes() int64 {
 	value, err := strconv.ParseInt(strings.TrimSpace(os.Getenv("MEDIA_WORKER_MAX_MB")), 10, 64)
 	if err != nil || value < 1 || value > (1<<63-1)/(1<<20) {
@@ -23,12 +29,47 @@ func mediaWorkerMaxBytes() int64 {
 
 // Media processing is isolated from provider routing and all wallet operations.
 func MediaWorkerStatus(w http.ResponseWriter, r *http.Request) {
-	OK(w, map[string]any{"configured": os.Getenv("MEDIA_WORKER_URL") != "" && os.Getenv("MEDIA_WORKER_TOKEN") != "", "maxBytes": mediaWorkerMaxBytes()})
+	base, token, err := mediaWorkerConfig()
+	status := map[string]any{"configured": err == nil && token != "", "ready": false, "maxBytes": mediaWorkerMaxBytes()}
+	if err != nil || token == "" {
+		status["msg"] = "媒体 Worker 尚未配置"
+		OK(w, status)
+		return
+	}
+	healthURL := *base
+	healthURL.Path = strings.TrimRight(healthURL.Path, "/") + "/health"
+	healthURL.RawQuery, healthURL.Fragment = "", ""
+	ctx, cancel := context.WithTimeout(r.Context(), 70*time.Second)
+	defer cancel()
+	request, _ := http.NewRequestWithContext(ctx, http.MethodGet, healthURL.String(), nil)
+	response, requestErr := (&http.Client{Timeout: 70 * time.Second}).Do(request)
+	if requestErr != nil {
+		status["msg"] = "媒体 Worker 唤醒失败或连接超时，请稍后重试"
+		OK(w, status)
+		return
+	}
+	defer response.Body.Close()
+	var health mediaWorkerHealth
+	decodeErr := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&health)
+	if response.StatusCode != http.StatusOK || decodeErr != nil || !health.Ready {
+		status["msg"] = "媒体 Worker 尚未就绪，请稍后重试"
+		OK(w, status)
+		return
+	}
+	status["ready"] = true
+	OK(w, status)
+}
+
+func mediaWorkerConfig() (*url.URL, string, error) {
+	base, err := url.Parse(strings.TrimRight(os.Getenv("MEDIA_WORKER_URL"), "/"))
+	if err != nil || base.Host == "" || (base.Scheme != "http" && base.Scheme != "https") {
+		return nil, "", errors.New("invalid MEDIA_WORKER_URL")
+	}
+	return base, os.Getenv("MEDIA_WORKER_TOKEN"), nil
 }
 
 func ProcessMedia(w http.ResponseWriter, r *http.Request) {
-	base, err := url.Parse(strings.TrimRight(os.Getenv("MEDIA_WORKER_URL"), "/"))
-	token := os.Getenv("MEDIA_WORKER_TOKEN")
+	base, token, err := mediaWorkerConfig()
 	maxBytes := mediaWorkerMaxBytes()
 	requestMaxBytes := maxBytes + (1 << 20) // multipart headers and boundaries
 	if err != nil || base.Host == "" || (base.Scheme != "http" && base.Scheme != "https") || token == "" {
@@ -39,7 +80,7 @@ func ProcessMedia(w http.ResponseWriter, r *http.Request) {
 		FailWithStatus(w, http.StatusRequestEntityTooLarge, "视频超过当前媒体处理上传限制")
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 150*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 240*time.Second)
 	defer cancel()
 	// Next.js forwards request bodies with chunked encoding. Spool a bounded
 	// upload so the private worker receives a verified Content-Length.
@@ -52,7 +93,7 @@ func ProcessMedia(w http.ResponseWriter, r *http.Request) {
 	defer upload.Close()
 	size, err := io.Copy(upload, http.MaxBytesReader(w, r.Body, requestMaxBytes))
 	if err != nil || size == 0 {
-		FailWithStatus(w, http.StatusRequestEntityTooLarge, "上传失败或文件超过100MB")
+		FailWithStatus(w, http.StatusRequestEntityTooLarge, "上传失败或文件超过当前媒体处理限制")
 		return
 	}
 	if _, err = upload.Seek(0, io.SeekStart); err != nil {
@@ -69,7 +110,7 @@ func ProcessMedia(w http.ResponseWriter, r *http.Request) {
 	request.ContentLength = size
 	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("Content-Type", r.Header.Get("Content-Type"))
-	client := &http.Client{Timeout: 150 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}
+	client := &http.Client{Timeout: 240 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}
 	response, err := client.Do(request)
 	if err != nil {
 		FailWithStatus(w, http.StatusBadGateway, "媒体Worker连接失败或处理超时，原视频未修改")

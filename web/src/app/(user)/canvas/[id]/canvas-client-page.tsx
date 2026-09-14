@@ -847,7 +847,6 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     }, [collapsingBatchIds, nodes, size.height, size.width, viewport.k, viewport.x, viewport.y]);
 
     const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
-    const toolbarNode = toolbarNodeId ? nodeById.get(toolbarNodeId) || null : null;
     const infoNode = infoNodeId ? nodeById.get(infoNodeId) || null : null;
     const cropNode = cropNodeId ? nodeById.get(cropNodeId) || null : null;
     const maskEditNode = maskEditNodeId ? nodeById.get(maskEditNodeId) || null : null;
@@ -861,6 +860,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const openDirectorNode = openDirectorNodeId ? nodeById.get(openDirectorNodeId) || null : null;
     const hasMultipleSelectedNodes = selectedNodeIds.size > 1;
     const activeNodeId = hasMultipleSelectedNodes ? null : hoveredNodeId || (selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null);
+    const toolbarNode = (toolbarNodeId ? nodeById.get(toolbarNodeId) : null) || (activeNodeId ? nodeById.get(activeNodeId) : null) || null;
     const batchChildCountById = useMemo(() => {
         const map = new Map<string, number>();
         nodes.forEach((node) => {
