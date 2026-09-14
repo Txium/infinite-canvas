@@ -56,17 +56,21 @@ func RecordCanvasImageUpstreamResponse(userID, taskID string, status int, provid
 	return database.Model(&model.CanvasImageTask{}).Where("id = ? AND user_id = ?", taskID, userID).Updates(updates).Error
 }
 
-func ListCanvasMediaToReconcile(before, retryBefore string) ([]model.CanvasImageTask, []model.CanvasAudioTask, error) {
+func ListCanvasMediaToReconcile(before, _ string) ([]model.CanvasImageTask, []model.CanvasAudioTask, error) {
 	database, err := DB()
 	if err != nil {
 		return nil, nil, err
 	}
 	var images []model.CanvasImageTask
 	var audios []model.CanvasAudioTask
-	query := "upstream_task_id <> '' AND ((status = 'processing' AND updated_at < ?) OR (status IN ('reconciling', 'timed_out_unknown') AND updated_at < ?))"
-	if err := database.Where(query, before, retryBefore).Order("updated_at ASC").Limit(50).Find(&images).Error; err != nil {
+	// Reconciliation is already invoked by a one-minute scheduler. Once a task
+	// enters a durable reconciliation state, updated_at must not gate polling:
+	// stale workers and status observers can legitimately refresh that field and
+	// would otherwise starve an accepted upstream task forever.
+	query := "upstream_task_id <> '' AND ((status = 'processing' AND updated_at < ?) OR status IN ('reconciling', 'timed_out_unknown'))"
+	if err := database.Where(query, before).Order("updated_at ASC").Limit(50).Find(&images).Error; err != nil {
 		return nil, nil, err
 	}
-	err = database.Where(query, before, retryBefore).Order("updated_at ASC").Limit(50).Find(&audios).Error
+	err = database.Where(query, before).Order("updated_at ASC").Limit(50).Find(&audios).Error
 	return images, audios, err
 }

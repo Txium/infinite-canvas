@@ -111,6 +111,13 @@ func TestMediaAcceptanceSurvivesStaleWorkerSave(t *testing.T) {
 	if err != nil || !found || saved.UpstreamTaskID != "prediction-id" || saved.ChannelID != "actual-provider" {
 		t.Fatalf("accepted mapping lost: %+v err=%v", saved, err)
 	}
+	// A stale worker may refresh updated_at after the task entered durable
+	// reconciliation. That must not prevent the scheduler from polling the
+	// already-paid upstream task.
+	saved.UpdatedAt = "2099-01-01T00:00:00Z"
+	if _, err := UpdateCanvasImageTask(saved); err != nil {
+		t.Fatal(err)
+	}
 	images, _, err := ListCanvasMediaToReconcile("2026-09-10T00:00:00Z", "2026-09-10T00:00:00Z")
 	if err != nil || len(images) != 1 {
 		t.Fatalf("restart recovery missing: %d %v", len(images), err)
