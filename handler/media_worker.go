@@ -125,6 +125,20 @@ func ProcessMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer response.Body.Close()
+	if response.StatusCode >= http.StatusBadRequest {
+		body, readErr := io.ReadAll(io.LimitReader(response.Body, 4096))
+		if readErr != nil {
+			log.Printf("media worker error response host=%s status=%d content_type=%q read_error=%T", base.Host, response.StatusCode, response.Header.Get("Content-Type"), readErr)
+		} else {
+			log.Printf("media worker error response host=%s status=%d content_type=%q body=%q", base.Host, response.StatusCode, response.Header.Get("Content-Type"), strings.TrimSpace(string(body)))
+		}
+		w.Header().Set("Content-Type", response.Header.Get("Content-Type"))
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.WriteHeader(response.StatusCode)
+		_, _ = w.Write(body)
+		return
+	}
 	w.Header().Set("Content-Type", response.Header.Get("Content-Type"))
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")

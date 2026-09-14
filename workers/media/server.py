@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import threading
 import shutil
+import sys
 import time
 from email.parser import BytesParser
 from email.policy import default
@@ -125,6 +126,8 @@ def build_command(source, output, action, meta, start, end, precise=False):
 
 
 class Handler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
     def do_GET(self):
         if self.path != "/health":
             return self.reply(404, {"msg": "接口不存在"})
@@ -155,6 +158,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             size = int(self.headers.get("Content-Length", "0"))
             limit = max_bytes()
+            print(f"media_request_received bytes={size}", file=sys.stderr, flush=True)
             if not 0 < size <= limit + FORM_OVERHEAD:
                 raise MediaError("MEDIA_FILE_TOO_LARGE", f"本Worker支持{limit >> 20}MB以内的原视频，请选择更短的片段")
             self.connection.settimeout(30)
@@ -179,7 +183,9 @@ class Handler(BaseHTTPRequestHandler):
                     raise MediaError("MEDIA_FILE_TOO_LARGE", f"本Worker支持{limit >> 20}MB以内的原视频，请选择更短的片段")
                 meta = probe(source)
                 action = values.get("action", b"probe").decode()
+                print(f"media_payload_parsed action={action} source_bytes={source.stat().st_size}", file=sys.stderr, flush=True)
                 if action == "probe":
+                    print(f"media_request_completed action={action}", file=sys.stderr, flush=True)
                     return self.reply(200, meta)
                 extension = "png" if action in ("first", "last", "frame", "thumbnails") else "m4a" if action == "audio" else "mp4"
                 if action == "audio" and meta["audioCodec"] == "mp3":
@@ -188,13 +194,20 @@ class Handler(BaseHTTPRequestHandler):
                 run(build_command(source, output, action, meta, float(values.get("start", b"0")), float(values.get("end", b"0")), values.get("precise") == b"true"))
                 if not output.exists() or not 0 < output.stat().st_size <= limit:
                     raise ValueError("未得到有效输出；请调整时间范围或缩短片段")
+                print(f"media_request_completed action={action} output_bytes={output.stat().st_size}", file=sys.stderr, flush=True)
                 return self.reply(200, output.read_bytes(), {"png": "image/png", "m4a": "audio/mp4", "mp3": "audio/mpeg", "mp4": "video/mp4"}[extension])
         except MediaError as error:
+            print(f"media_request_rejected code={error.code}", file=sys.stderr, flush=True)
             self.reply(422, {"error_code": error.code, "msg": str(error)})
         except subprocess.TimeoutExpired:
+            print("media_request_failed code=MEDIA_PROCESSING_TIMEOUT", file=sys.stderr, flush=True)
             self.reply(504, {"error_code": "MEDIA_PROCESSING_TIMEOUT", "msg": "媒体处理超时，原文件保留，可缩短片段后重试"})
-        except (ValueError, KeyError, TypeError, AttributeError, OSError):
+        except (ValueError, KeyError, TypeError, AttributeError, OSError) as error:
+            print(f"media_request_failed type={type(error).__name__}", file=sys.stderr, flush=True)
             self.reply(400, {"msg": "处理失败：请检查视频格式、音轨和时间范围；最长10分钟/100MB，原文件保留"})
+        except Exception as error:
+            print(f"media_request_failed type={type(error).__name__} unexpected=true", file=sys.stderr, flush=True)
+            self.reply(500, {"error_code": "MEDIA_WORKER_INTERNAL_ERROR", "msg": "媒体Worker内部错误，原文件未修改"})
         finally:
             if "directory" in locals():
                 with TEMP_LOCK:
