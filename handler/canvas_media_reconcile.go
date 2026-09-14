@@ -85,48 +85,7 @@ func reconcileCanvasMedia() {
 		return
 	}
 	for _, task := range images {
-		log.Printf("canvas image reconciliation start id=%s provider=%s upstream_model=%s upstream_task_present=%t", task.ID, task.Provider, task.UpstreamModelID, strings.TrimSpace(task.UpstreamTaskID) != "")
-		outputs, status, detail := pollAcceptedCanvasMedia(task.UserID, task.Model, task.UpstreamModelID, task.ChannelID, task.UpstreamTaskID)
-		log.Printf("canvas image reconciliation result id=%s status=%s provider_status=%s outputs=%d", task.ID, status, strings.TrimSpace(detail), len(outputs))
-		if providerStatus := strings.TrimSpace(detail); providerStatus != "" {
-			task.ProviderTaskStatus = providerStatus
-		}
-		if status == "failed" {
-			task.ErrorCode = model.GenerationErrorUpstreamTaskFailed
-			saveFailedCanvasImageTask(task, "图片生成失败", detail)
-			continue
-		}
-		if status != "completed" || len(outputs) == 0 {
-			task.Status, task.UpdatedAt = "reconciling", taskTime()
-			if strings.TrimSpace(detail) != "" {
-				task.ErrorDetail = detail
-			}
-			if _, err := saveCanvasImageTaskWithRetry(task); err != nil {
-				log.Printf("save pending image: %v", err)
-			}
-			continue
-		}
-		task.ImageURL, task.ImageURLs = outputs[0], outputs
-		task.ProviderOriginalResultURL = outputs[0]
-		if stored, ok := persistGeneratedMedia(task.UserID, task.ImageURL, "generated-image-"+task.ID, 40<<20); ok {
-			task.ImageURL, task.StorageKey, task.MimeType, task.Bytes = stored.URL, stored.StorageKey, stored.MimeType, stored.Bytes
-			task.Width, task.Height = stored.Width, stored.Height
-			task.ProviderFinalWidth, task.ProviderFinalHeight = stored.Width, stored.Height
-			if stored.Width > 0 && stored.Height > 0 {
-				task.ProviderFinalResolution = fmt.Sprintf("%dx%d", stored.Width, stored.Height)
-			}
-		}
-		task.CanvasResultURL = task.ImageURL
-		if err := settleAcceptedCanvasMedia(task.UserID, task.Model, task.Endpoint, task.ID); err != nil {
-			log.Printf("settle recovered image: %v", err)
-			continue
-		}
-		task.Status, task.Progress, task.CompletedAt, task.Error, task.ErrorDetail = "completed", 100, taskTime(), "", ""
-		task.ProviderTaskStatus = "SUCCESS"
-		task.ErrorCode = ""
-		if _, err := saveCanvasImageTaskWithRetry(task); err != nil {
-			log.Printf("save recovered image: %v", err)
-		}
+		reconcileCanvasImageTask(task)
 	}
 	for _, task := range audios {
 		outputs, status, detail := pollAcceptedCanvasMedia(task.UserID, task.Model, "", task.ChannelID, task.UpstreamTaskID)
@@ -153,6 +112,51 @@ func reconcileCanvasMedia() {
 		if _, err := saveCanvasAudioTaskWithRetry(task); err != nil {
 			log.Printf("save recovered audio: %v", err)
 		}
+	}
+}
+
+func reconcileCanvasImageTask(task model.CanvasImageTask) {
+	log.Printf("canvas image reconciliation start id=%s provider=%s upstream_model=%s upstream_task_present=%t", task.ID, task.Provider, task.UpstreamModelID, strings.TrimSpace(task.UpstreamTaskID) != "")
+	outputs, status, detail := pollAcceptedCanvasMedia(task.UserID, task.Model, task.UpstreamModelID, task.ChannelID, task.UpstreamTaskID)
+	log.Printf("canvas image reconciliation result id=%s status=%s provider_status=%s outputs=%d", task.ID, status, strings.TrimSpace(detail), len(outputs))
+	if providerStatus := strings.TrimSpace(detail); providerStatus != "" {
+		task.ProviderTaskStatus = providerStatus
+	}
+	if status == "failed" {
+		task.ErrorCode = model.GenerationErrorUpstreamTaskFailed
+		saveFailedCanvasImageTask(task, "图片生成失败", detail)
+		return
+	}
+	if status != "completed" || len(outputs) == 0 {
+		task.Status, task.UpdatedAt = "reconciling", taskTime()
+		if strings.TrimSpace(detail) != "" {
+			task.ErrorDetail = detail
+		}
+		if _, err := saveCanvasImageTaskWithRetry(task); err != nil {
+			log.Printf("save pending image: %v", err)
+		}
+		return
+	}
+	task.ImageURL, task.ImageURLs = outputs[0], outputs
+	task.ProviderOriginalResultURL = outputs[0]
+	if stored, ok := persistGeneratedMedia(task.UserID, task.ImageURL, "generated-image-"+task.ID, 40<<20); ok {
+		task.ImageURL, task.StorageKey, task.MimeType, task.Bytes = stored.URL, stored.StorageKey, stored.MimeType, stored.Bytes
+		task.Width, task.Height = stored.Width, stored.Height
+		task.ProviderFinalWidth, task.ProviderFinalHeight = stored.Width, stored.Height
+		if stored.Width > 0 && stored.Height > 0 {
+			task.ProviderFinalResolution = fmt.Sprintf("%dx%d", stored.Width, stored.Height)
+		}
+	}
+	task.CanvasResultURL = task.ImageURL
+	if err := settleAcceptedCanvasMedia(task.UserID, task.Model, task.Endpoint, task.ID); err != nil {
+		log.Printf("settle recovered image: %v", err)
+		return
+	}
+	task.Status, task.Progress, task.CompletedAt, task.Error, task.ErrorDetail = "completed", 100, taskTime(), "", ""
+	task.ProviderTaskStatus = "SUCCESS"
+	task.ErrorCode = ""
+	if _, err := saveCanvasImageTaskWithRetry(task); err != nil {
+		log.Printf("save recovered image: %v", err)
 	}
 }
 

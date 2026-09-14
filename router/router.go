@@ -161,6 +161,9 @@ func New() *gin.Engine {
 	admin.GET("/ai-logs", gin.WrapF(handler.AdminAICallLogs))
 	admin.GET("/generation-tasks", gin.WrapF(handler.AdminGenerationTasks))
 	admin.POST("/generation-tasks/import", gin.WrapF(handler.AdminImportGenerationTask))
+	admin.POST("/generation-tasks/:id/reconcile", func(c *gin.Context) {
+		handler.AdminReconcileGenerationTask(c.Writer, c.Request, c.Param("id"))
+	})
 	admin.DELETE("/ai-logs", gin.WrapF(handler.AdminDeleteAICallLogs))
 	admin.GET("/settings", gin.WrapF(handler.AdminSettings))
 	admin.GET("/runtime-readiness", gin.WrapF(handler.AdminRuntimeReadiness))

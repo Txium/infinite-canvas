@@ -94,6 +94,19 @@ func GetUserCanvasImageTask(userID string, id string) (model.CanvasImageTask, bo
 	return task, err == nil, err
 }
 
+func GetCanvasImageTaskByID(id string) (model.CanvasImageTask, bool, error) {
+	db, err := DB()
+	if err != nil {
+		return model.CanvasImageTask{}, false, err
+	}
+	var task model.CanvasImageTask
+	err = db.First(&task, "id = ?", strings.TrimSpace(id)).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return model.CanvasImageTask{}, false, nil
+	}
+	return task, err == nil, err
+}
+
 func ListUserCanvasImageTasks(userID string, sources []string, limit int) ([]model.CanvasImageTask, error) {
 	db, err := DB()
 	if err != nil {

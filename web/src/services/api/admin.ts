@@ -361,6 +361,7 @@ export type AdminGenerationTask = { id: string; userId: string; userDisplayName:
 export type AdminGenerationTaskQuery = { keyword?: string; kind?: string; status?: string; billingStatus?: string; startedAt?: string; endedAt?: string; limit?: number };
 export async function fetchAdminGenerationTasks(token: string, query: AdminGenerationTaskQuery = {}) { return apiGet<AdminGenerationTask[]>("/api/admin/generation-tasks", compactApiParams(query), token); }
 export async function importAdminGenerationTask(token: string, input: { userId: string; userDisplayName?: string; model: string; channelName: string; upstreamTaskId: string; status: string; resultUrl?: string; error?: string; createdAt?: string }) { return apiPost<AdminGenerationTask>("/api/admin/generation-tasks/import", input, token); }
+export async function reconcileAdminGenerationTask(token: string, id: string) { return apiPost<Record<string, unknown>>(`/api/admin/generation-tasks/${encodeURIComponent(id)}/reconcile`, {}, token); }
 
 export type AdminSettings = {
     public: AdminPublicSettings;

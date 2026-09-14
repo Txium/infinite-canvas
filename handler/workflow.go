@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
+	"github.com/tigerowo/infinite-canvas/repository"
 	"github.com/tigerowo/infinite-canvas/service"
 )
 
@@ -79,6 +81,33 @@ func AdminImportGenerationTask(w http.ResponseWriter, r *http.Request) {
 	item, err := service.ImportAdminGenerationTask(request)
 	if err != nil { FailError(w, err); return }
 	OK(w, item)
+}
+
+func AdminReconcileGenerationTask(w http.ResponseWriter, r *http.Request, id string) {
+	task, found, err := repository.GetCanvasImageTaskByID(strings.TrimSpace(id))
+	if err != nil {
+		FailError(w, err)
+		return
+	}
+	if !found {
+		Fail(w, "图片生成任务不存在")
+		return
+	}
+	if strings.TrimSpace(task.UpstreamTaskID) == "" {
+		Fail(w, "任务没有上游任务 ID，不能对账")
+		return
+	}
+	if task.Status != "reconciling" && task.Status != "timed_out_unknown" && task.Status != "processing" {
+		Fail(w, "当前任务状态不需要对账")
+		return
+	}
+	reconcileCanvasImageTask(task)
+	latest, _, readErr := repository.GetCanvasImageTaskByID(task.ID)
+	if readErr != nil {
+		FailError(w, readErr)
+		return
+	}
+	OK(w, service.CanvasImageTaskResponse(latest))
 }
 
 // ClientAICallLog 接收前端本地直连渠道的 AI 调用日志上报。
