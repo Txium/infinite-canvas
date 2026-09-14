@@ -50,6 +50,10 @@ import { CanvasNodeSplitDialog, type CanvasImageSplitParams } from "../component
 import { CanvasNodeUpscaleDialog, type CanvasImageUpscaleParams } from "../components/canvas-node-upscale-dialog";
 import { buildNodeChatMessages, buildNodeGenerationContext, buildNodeGenerationInputs, hydrateNodeGenerationContext, type NodeGenerationContext, type NodeGenerationInput } from "../components/canvas-node-generation";
 import { CanvasNodeHoverToolbar, CanvasNodeInfoModal } from "../components/canvas-node-hover-toolbar";
+import { CanvasMediaWorkbench } from "../components/canvas-media-workbench";
+import { IMAGE_CREATION_PRESETS } from "../utils/image-creation-presets";
+import { uploadAssetMediaFile } from "@/services/file-storage";
+import type { MediaAction, MediaProbe } from "@/services/api/media-worker";
 import { InfiniteCanvas } from "../components/infinite-canvas";
 import { Minimap } from "../components/canvas-mini-map";
 import { CanvasNode } from "../components/canvas-node";
@@ -392,6 +396,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
     const [editRequestNonce, setEditRequestNonce] = useState(0);
     const [infoNodeId, setInfoNodeId] = useState<string | null>(null);
+    const [mediaWorkbenchNode, setMediaWorkbenchNode] = useState<CanvasNodeData | null>(null);
     const [cropNodeId, setCropNodeId] = useState<string | null>(null);
     const [maskEditNodeId, setMaskEditNodeId] = useState<string | null>(null);
     const [maskEditModel, setMaskEditModel] = useState("");
@@ -2009,6 +2014,45 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         },
         [message],
     );
+
+    async function addProcessedMedia(blob: Blob, action: MediaAction, time: number, continueVideo: boolean, mediaMeta: MediaProbe) {
+        const source = mediaWorkbenchNode;
+        if (!source) return;
+        const isImage = blob.type.startsWith("image/");
+        const uploaded = isImage ? await uploadImage(blob) : await uploadAssetMediaFile(new File([blob], action === "audio" ? "audio.m4a" : "clip.mp4", {type:blob.type}));
+        const id = nanoid();
+        const size = fitNodeSize(uploaded.width || 320, uploaded.height || 180);
+        const lastChild = nodesRef.current.filter(n=>n.metadata?.sourceVideoId===source.id).reduce((bottom,n)=>Math.max(bottom,n.position.y+n.height+36),source.position.y);
+        const result: CanvasNodeData = {id, type:isImage?CanvasNodeType.Image:action==="audio"?CanvasNodeType.Audio:CanvasNodeType.Video,
+            title:({first:"首帧",last:"尾帧",frame:"当前帧",clip:"视频片段",audio:"提取音频",subtitles:"移除字幕轨",probe:"媒体"})[action],
+            position:{x:source.position.x+source.width+96,y:lastChild}, width:size.width,height:action==="audio"?120:size.height,
+            metadata:{...uploaded,content:uploaded.url,naturalWidth:uploaded.width,naturalHeight:uploaded.height,status:"success",sourceVideoId:source.id,sourceTime:action==="frame"?time:action==="first"?0:action==="last"?Math.max(0,mediaMeta.duration-.08):undefined,mediaOperation:action,...(action==="audio"?{durationMs:Math.round(mediaMeta.duration*1000),mediaCodec:"aac"}:{})}};
+        const extra:CanvasNodeData[] = [result];
+        const edges=[{id:nanoid(),fromNodeId:source.id,toNodeId:id}];
+        if(continueVideo && isImage) {
+            const nextId=nanoid();
+            extra.push({id:nextId,type:CanvasNodeType.Video,title:"下一镜",position:{x:result.position.x+result.width+96,y:result.position.y},width:320,height:180,
+                metadata:{status:"idle",generationMode:"video",firstFrameNodeId:id,model:source.metadata?.model,channelId:source.metadata?.channelId,prompt:"承接首帧中的人物、服装与场景，描述下一镜的动作和运镜。"}});
+            edges.push({id:nanoid(),fromNodeId:id,toNodeId:nextId});
+            setDialogNodeId(nextId);
+        }
+        setNodes(prev=>[...prev,...extra]);setConnections(prev=>[...prev,...edges]);setSelectedNodeIds(new Set(extra.map(n=>n.id)));
+        message.success("处理结果已新增到画布，原视频保留");
+    }
+
+    function addImagePreset(source:CanvasNodeData, presetId:string) {
+        const preset=IMAGE_CREATION_PRESETS.find(p=>p.id===presetId);
+        const panorama=presetId==="panorama";
+        if(!preset && !panorama) return;
+        const id=nanoid();
+        const config=buildGenerationConfig(effectiveConfig,source,"image");
+        const output:CanvasNodeData={id,type:panorama?CanvasNodeType.Panorama:CanvasNodeType.Image,title:preset?.name||"球形全景",
+            position:{x:source.position.x+source.width+96,y:source.position.y},width:340,height:220,
+            metadata:{status:"idle",generationMode:"image",model:config.model,channelId:config.activeChannelId,size:preset?.size||"2:1",prompt:preset?.prompt||"保持参考图场景风格，补全四周、天空与地面的完整球形环境。",...(panorama?{panoramaSourcePrompt:"保持参考图场景风格，补全四周、天空与地面的完整球形环境。"}:{})}};
+        setNodes(prev=>[...prev,output]);
+        setConnections(prev=>[...prev,{id:nanoid(),fromNodeId:source.id,toNodeId:id}]);
+        setSelectedNodeIds(new Set([id]));setDialogNodeId(id);
+    }
 
     const downloadNodeImage = useCallback((node: CanvasNodeData) => {
         if ((!isCanvasImageNodeType(node.type) && node.type !== CanvasNodeType.Video && node.type !== CanvasNodeType.Audio) || !node.metadata?.content) return;
@@ -4014,7 +4058,10 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     />
                 ) : null}
 
+                {mediaWorkbenchNode && <CanvasMediaWorkbench key={mediaWorkbenchNode.id} node={mediaWorkbenchNode} onClose={()=>setMediaWorkbenchNode(null)} onOutput={addProcessedMedia}/>}
                 <CanvasNodeHoverToolbar
+                    onMediaProcess={setMediaWorkbenchNode}
+                    onImagePreset={addImagePreset}
                     node={isNodeDragging || nodeImageSettingsOpen ? null : toolbarNode}
                     viewport={viewport}
                     onKeep={keepNodeToolbar}

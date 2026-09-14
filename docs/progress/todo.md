@@ -5,6 +5,16 @@ description: 当前项目后续值得处理的事项
 
 # TODO
 
+## 全链路排查与新增能力
+
+- [x] 首批视频处理面板、独立Media Worker、图片创作预设的代码已接入；实际部署/媒体验收未完成。
+- [ ] 部署独立Media Worker并在staging配置连接；使用原片验证截帧尺寸、裁剪、音频和字幕stream。
+- [ ] 音频/GPU Worker、ASR/说话人时间段/音轨分离、角色Voice Profile和设计试听继续实施，不以未配置按钮代替能力。
+
+- [ ] 按 [完整审计与验收清单](canvas-full-audit.md) 执行；本轮仅完成首轮代码与staging Provider只读基线，不代表全部排查或修复完成。
+- [ ] 优先解决MJ接单后的持久化/超时退款风险、视频timeout与缺失结果、永久审计；不得绕开原钱包幂等事务。
+- [ ] Media/Audio/GPU Worker、Voice Profile和图片创作工作流按验收清单分阶段接入，未经真实验证保持UNVERIFIED。
+
 本文档用来记录当前项目后续比较值得处理的事项。
 
 ## 本轮排查后的上线阻塞项

@@ -43,6 +43,8 @@ func New() *gin.Engine {
 		handler.DeleteFile(c.Writer, c.Request, c.Param("id"))
 	})
 	v1 := api.Group("/v1", middleware.UserAuth)
+	v1.GET("/media-worker", gin.WrapF(handler.MediaWorkerStatus))
+	v1.POST("/media-worker/process", middleware.GenerationRateLimit, gin.WrapF(handler.ProcessMedia))
 	v1.POST("/images/generations", middleware.GenerationRateLimit, gin.WrapF(handler.AIImagesGenerations))
 	v1.POST("/images/edits", middleware.GenerationRateLimit, gin.WrapF(handler.AIImagesEdits))
 	v1.POST("/responses", middleware.GenerationRateLimit, gin.WrapF(handler.AIResponses))

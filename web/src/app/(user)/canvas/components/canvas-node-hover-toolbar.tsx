@@ -11,6 +11,7 @@ import { useThemeStore } from "@/stores/use-theme-store";
 import { CanvasNodeType, type CanvasNodeData, type ViewportTransform } from "../types";
 import { isCanvasImageNodeType, isPanoramaNodeType } from "../utils/canvas-panorama";
 import { ImageToolSettingsModal, type ImageToolbarSettingsTool } from "./canvas-image-toolbar-settings-modal";
+import { IMAGE_CREATION_PRESETS } from "../utils/image-creation-presets";
 import { IMAGE_QUICK_TOOLS_STORAGE_KEY, PANORAMA_QUICK_TOOLS_STORAGE_KEY, buildImageToolbarTools, defaultImageQuickToolIds, defaultPanoramaQuickToolIds, readImageQuickToolsConfig, type ImageQuickToolId } from "./canvas-image-toolbar-tools";
 
 type CanvasNodeHoverToolbarProps = {
@@ -26,6 +27,8 @@ type CanvasNodeHoverToolbarProps = {
     onGenerateImage: (node: CanvasNodeData) => void;
     onUpload: (node: CanvasNodeData) => void;
     onDownload: (node: CanvasNodeData) => void;
+    onMediaProcess: (node: CanvasNodeData) => void;
+    onImagePreset: (node: CanvasNodeData, preset: string) => void;
     onSaveAsset: (node: CanvasNodeData) => void;
     onUploadMediaToCloud: (node: CanvasNodeData) => void;
     onUploadImageToCloud: (node: CanvasNodeData) => void;
@@ -65,6 +68,8 @@ export function CanvasNodeHoverToolbar({
     onGenerateImage,
     onUpload,
     onDownload,
+    onMediaProcess,
+    onImagePreset,
     onSaveAsset,
     onUploadMediaToCloud,
     onUploadImageToCloud,
@@ -87,6 +92,7 @@ export function CanvasNodeHoverToolbar({
     const [draftImageToolIds, setDraftImageToolIds] = useState<ImageQuickToolId[]>(defaultImageQuickToolIds);
     const [draftShowImageToolLabels, setDraftShowImageToolLabels] = useState(true);
     const [imageToolSettingsOpen, setImageToolSettingsOpen] = useState(false);
+    const [creationOpen, setCreationOpen] = useState(false);
     const { message } = App.useApp();
     const copyText = useCopyText();
     const isPanorama = isPanoramaNodeType(node?.type);
@@ -157,6 +163,8 @@ export function CanvasNodeHoverToolbar({
         { id: "delete", title: "移除节点", label: "删除", icon: <Trash2 className="size-4" />, onClick: () => onDelete(node), danger: true },
     ];
     const nodeToolbarTools: ToolbarTool[] = [
+        ...(isImage ? [{ id: "creation", title: "分镜、特写、三视图与全景", label: "图片创作", icon: <ImageIcon className="size-4" />, onClick: () => setCreationOpen(true) }] : []),
+        ...(hasVideo ? [{ id: "mediaProcess", title: "截帧、裁剪与音频提取", label: "视频处理", icon: <Video className="size-4" />, onClick: () => onMediaProcess(node) }] : []),
         ...(canRetry ? [{ id: "retry", title: "重新生成", label: "重试", icon: <RefreshCw className="size-4" />, onClick: () => onRetry(node) }] : []),
         ...(hasImage || hasVideo || isText ? [{ id: "saveAsset", title: "加入我的素材", label: "存素材", icon: <FolderPlus className="size-4" />, onClick: () => onSaveAsset(node) }] : []),
         ...((hasVideo || hasAudio) && !node.metadata?.storageKey?.startsWith("server:") ? [{ id: "uploadMediaToCloud", title: "上传至云存储", label: "上传至云存储", icon: <Upload className="size-4" />, onClick: () => onUploadMediaToCloud(node) }] : []),
@@ -173,8 +181,8 @@ export function CanvasNodeHoverToolbar({
         ...(isAudio ? [{ id: "uploadAudio", title: hasAudio ? "替换音频" : "上传音频", label: hasAudio ? "替换音频" : "上传音频", icon: <Music2 className="size-4" />, onClick: () => onUpload(node) }] : []),
         ...(hasImage ? imageTools.map((tool) => ({ id: tool.id, title: tool.title, label: tool.label, icon: tool.icon, active: tool.active, onClick: tool.onClick })) : []),
     ];
-    const toolbarTools = hasImage ? [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => tool.id === "uploadImageToCloud" || quickImageToolIdSet.has(tool.id as ImageQuickToolId)) : [...baseToolbarTools, ...nodeToolbarTools];
-    const selectableImageToolbarTools = [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => tool.id !== "retry" && tool.id !== "uploadImageToCloud") as ImageToolbarSettingsTool[];
+    const toolbarTools = hasImage ? [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => tool.id === "creation" || tool.id === "uploadImageToCloud" || quickImageToolIdSet.has(tool.id as ImageQuickToolId)) : [...baseToolbarTools, ...nodeToolbarTools];
+    const selectableImageToolbarTools = [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => tool.id !== "creation" && tool.id !== "retry" && tool.id !== "uploadImageToCloud") as ImageToolbarSettingsTool[];
 
     const closeImageToolSettings = () => {
         setImageToolSettingsOpen(false);
@@ -212,7 +220,7 @@ export function CanvasNodeHoverToolbar({
                 style={{ left, top, maxWidth: "min(800px, calc(100vw - 32px))" }}
                 onMouseEnter={() => onKeep(node.id)}
                 onMouseLeave={() => {
-                    if (!imageToolSettingsOpen) onLeave();
+                    if (!imageToolSettingsOpen && !creationOpen) onLeave();
                 }}
                 onMouseDown={(event) => event.stopPropagation()}
                 onPointerDown={(event) => event.stopPropagation()}
@@ -222,6 +230,12 @@ export function CanvasNodeHoverToolbar({
                 ))}
                 {hasImage ? <ToolbarAction id="more" title="配置快捷工具" label="更多" icon={<Ellipsis className="size-4" />} active={imageToolSettingsOpen} onClick={openImageToolSettings} showLabel={showImageToolLabels} /> : null}
             </div>
+            <Modal open={creationOpen} title="图片创作" footer={null} onCancel={()=>setCreationOpen(false)}>
+                <p className="mb-3">创建连接参考图的新节点，不会立即扣费。你可以修改提示词、选择模型后再生成。</p>
+                <div className="flex flex-wrap gap-3">
+                    {[...IMAGE_CREATION_PRESETS,{id:"panorama",name:"360×180 球形全景（720全景）"}].map(preset=><button key={preset.id} className="rounded border border-current px-3 py-2" onClick={()=>{onImagePreset(node,preset.id);setCreationOpen(false);}}>{preset.name}</button>)}
+                </div>
+            </Modal>
             {hasImage ? (
                 <ImageToolSettingsModal
                     open={imageToolSettingsOpen}
