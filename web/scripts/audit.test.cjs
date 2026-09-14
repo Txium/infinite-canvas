@@ -50,8 +50,10 @@ test('canvas retries create a fresh task and send the previous video task as ret
 
 test('toolbar node creation reads the live selection when wiring references', () => {
     const canvas = fs.readFileSync(path.resolve(__dirname, '../src/app/(user)/canvas/[id]/canvas-client-page.tsx'), 'utf8');
+    const toolbar = fs.readFileSync(path.resolve(__dirname, '../src/app/(user)/canvas/components/canvas-toolbar.tsx'), 'utf8');
     assert.match(canvas, /\.filter\(\(node\) => selectedNodeIdsRef\.current\.has\(node\.id\)\)/);
     assert.doesNotMatch(canvas, /\.filter\(\(node\) => selectedNodeIds\.has\(node\.id\)\)/);
+    assert.match(toolbar, /onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/);
 });
 
 test('canvas media nodes retain cloud market model selections', () => {
