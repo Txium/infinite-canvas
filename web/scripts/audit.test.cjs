@@ -39,7 +39,7 @@ test('image-to-video retry keeps its direct image instead of ancestral image con
 test('canvas retries create a fresh task and send the previous video task as retry origin', () => {
     const canvas = fs.readFileSync(path.resolve(__dirname, '../src/app/(user)/canvas/[id]/canvas-client-page.tsx'), 'utf8');
     const api = fs.readFileSync(path.resolve(__dirname, '../src/services/api/video.ts'), 'utf8');
-    assert.ok(canvas.includes('const previousVideoTaskId = node.type === CanvasNodeType.Video ? node.metadata?.videoTaskId || "" : ""'));
+    assert.ok(canvas.includes('const previousVideoTaskId = node.type === CanvasNodeType.Video && node.metadata?.videoTaskVideoId ? node.metadata?.videoTaskId || "" : ""'));
     assert.ok(canvas.includes('`client_video_retry_${nanoid()}`'));
     assert.ok(canvas.includes('`client_image_task_${node.id}_${nanoid()}`'));
     assert.ok(canvas.includes('retryOfTaskId: previousVideoTaskId || undefined'));

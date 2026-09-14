@@ -3606,7 +3606,10 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             // its own task id. Reusing the node-derived id made PostgreSQL return
             // the previous task on retry, so a selector that displayed Image2
             // could silently keep submitting the node's old MJ task instead.
-            const previousVideoTaskId = node.type === CanvasNodeType.Video ? node.metadata?.videoTaskId || "" : "";
+            // A client task id is assigned before submission. It is only a
+            // retry origin after the server has accepted the task and returned
+            // an upstream video id; preflight failures have no server row.
+            const previousVideoTaskId = node.type === CanvasNodeType.Video && node.metadata?.videoTaskVideoId ? node.metadata?.videoTaskId || "" : "";
             const retryVideoTaskId = node.type === CanvasNodeType.Video ? `client_video_retry_${nanoid()}` : "";
             const retryImageTaskId = isCanvasImageNodeType(node.type) ? `client_image_task_${node.id}_${nanoid()}` : "";
             const retryAudioTaskId = node.type === CanvasNodeType.Audio ? `client_audio_task_${node.id}_${nanoid()}` : "";
