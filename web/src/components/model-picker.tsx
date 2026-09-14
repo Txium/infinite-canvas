@@ -115,7 +115,15 @@ export function ModelPicker({ config, value, channelId, capability, onChange, cl
                                     <span>{channelModels.length} 个模型</span>
                                 </SelectLabel>
                                 {channelModels.map((option) => (
-                                    <SelectItem key={option.key} value={option.key} textValue={`${option.label} ${option.channelName}`}>
+                                    <SelectItem
+                                        key={option.key}
+                                        value={option.key}
+                                        textValue={`${option.label} ${option.channelName}`}
+                                        onClick={() => {
+                                            onChange(option.model, option.channelId, option.capability);
+                                            setOpen(false);
+                                        }}
+                                    >
                                         <ModelLabel model={option.model} label={option.label} priceText={option.priceText} />
                                     </SelectItem>
                                 ))}

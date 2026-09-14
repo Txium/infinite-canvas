@@ -54,6 +54,11 @@ test('canvas media nodes retain cloud market model selections', () => {
     assert.match(source, /savedMarketModel \|\| availableModels\.includes\(savedModel\)/);
 });
 
+test('model picker applies pointer selections as well as radix value changes', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, '../src/components/model-picker.tsx'), 'utf8');
+    assert.match(source, /onClick=\{\(\) => \{\s*onChange\(option\.model, option\.channelId, option\.capability\);\s*setOpen\(false\);/s);
+});
+
 // Exercise the real TypeScript modules with mocked HTTP, without paid calls.
 function loadModule(relative, mocks) {
     const filename = path.resolve(__dirname, '..', relative);
