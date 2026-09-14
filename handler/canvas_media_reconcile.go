@@ -171,7 +171,7 @@ func pollAcceptedCanvasMedia(userID, modelName, upstreamModelID, channelID, task
 		return nil, "reconciling", "原供应商暂不可用"
 	}
 	if is302MidjourneyModel(upstreamModel) {
-		result, status, raw, fetchErr := fetch302MidjourneyTask(channel, upstreamModel, taskID)
+		result, _, raw, fetchErr := fetch302MidjourneyTask(channel, upstreamModel, taskID)
 		if fetchErr != nil {
 			// A status transport/auth/parse failure says nothing about the actual
 			// asynchronous generation outcome. Only an explicit provider FAILURE
