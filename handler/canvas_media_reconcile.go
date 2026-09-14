@@ -85,7 +85,9 @@ func reconcileCanvasMedia() {
 		return
 	}
 	for _, task := range images {
+		log.Printf("canvas image reconciliation start id=%s provider=%s upstream_model=%s upstream_task_present=%t", task.ID, task.Provider, task.UpstreamModelID, strings.TrimSpace(task.UpstreamTaskID) != "")
 		outputs, status, detail := pollAcceptedCanvasMedia(task.UserID, task.Model, task.UpstreamModelID, task.ChannelID, task.UpstreamTaskID)
+		log.Printf("canvas image reconciliation result id=%s status=%s provider_status=%s outputs=%d", task.ID, status, strings.TrimSpace(detail), len(outputs))
 		if providerStatus := strings.TrimSpace(detail); providerStatus != "" {
 			task.ProviderTaskStatus = providerStatus
 		}

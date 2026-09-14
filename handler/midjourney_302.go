@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 
 var midjourney302PollInterval = 2 * time.Second
 var midjourney302MaxWait = 10 * time.Minute
+var midjourney302FetchTimeout = 25 * time.Second
 
 type midjourney302SubmitResponse struct {
 	Code        int             `json:"code"`
@@ -219,7 +221,9 @@ func fetch302MidjourneyTask(channel model.ModelChannel, submitPath string, taskI
 		prefix = "/mj-turbo"
 	}
 	taskURL := strings.TrimRight(strings.TrimSpace(channel.BaseURL), "/") + prefix + "/task/" + url.PathEscape(taskID) + "/fetch"
-	request, err := http.NewRequest(http.MethodGet, taskURL, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), midjourney302FetchTimeout)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, taskURL, nil)
 	if err != nil {
 		return midjourney302TaskResponse{}, 0, "", err
 	}
